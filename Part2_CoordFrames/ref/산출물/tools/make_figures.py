@@ -3,6 +3,7 @@
 
     python make_figures.py              # 두 장 다
     python make_figures.py polar        # 10장 (fig02_polar.png)
+    python make_figures.py cartesian    # 11장 (fig17_cartesian.png)
     python make_figures.py rotate       # 7장 (fig05_same_target.png)
 
 결과는 ../../참고 자료/figures/ 에 저장되고 같은 파일이 pptx 에 들어간다.
@@ -111,6 +112,35 @@ def poly(ax, pts, fc=HULL, ec=BLUE, lw=1.6, z=3, closed=True):
 
 def arcdeg(ax, c, r, a0, a1, color=ORANGE, lw=1.7, z=6):
     ax.add_patch(Arc(c, 2 * r, 2 * r, theta1=a0, theta2=a1, color=color, lw=lw, zorder=z))
+
+
+def arc_between(ax, o, p1, p2, r, color=ORANGE, lw=1.7, z=6, n=48):
+    """o 에서 본 두 방향 사이의 각 표시. 사선(축측) 그림에서는 화면 각이 실제 각과 다르지만
+    "여기가 그 각" 을 가리키는 표시로는 이것으로 충분하다. 라벨 자리를 돌려준다"""
+    a0 = math.degrees(math.atan2(p1[1] - o[1], p1[0] - o[0]))
+    a1 = math.degrees(math.atan2(p2[1] - o[1], p2[0] - o[0]))
+    if a1 - a0 > 180.0:
+        a1 -= 360.0
+    if a0 - a1 > 180.0:
+        a0 -= 360.0
+    pts = [at(o, r, a0 + (a1 - a0) * i / float(n)) for i in range(n + 1)]
+    ax.plot([q[0] for q in pts], [q[1] for q in pts], color=color, lw=lw, zorder=z,
+            solid_capstyle="round")
+    return at(o, r * 1.45, 0.5 * (a0 + a1))
+
+
+def right_angle(ax, corner, p1, p2, size, color=FAINT, lw=1.1, z=6):
+    """corner 에서 p1, p2 쪽으로 난 두 변이 직각임을 알리는 작은 ㄱ 자 표시"""
+    def unit(p):
+        dx, dy = p[0] - corner[0], p[1] - corner[1]
+        h = math.hypot(dx, dy) or 1.0
+        return (dx / h, dy / h)
+    u, v = unit(p1), unit(p2)
+    a = (corner[0] + u[0] * size, corner[1] + u[1] * size)
+    b = (corner[0] + (u[0] + v[0]) * size, corner[1] + (u[1] + v[1]) * size)
+    c = (corner[0] + v[0] * size, corner[1] + v[1] * size)
+    ax.plot([a[0], b[0], c[0]], [a[1], b[1], c[1]], color=color, lw=lw, zorder=z,
+            solid_capstyle="butt")
 
 
 def at(c, r, deg):
@@ -299,6 +329,16 @@ def sea_line(ax, x0, x1, y, z=1, tick=None):
         line(ax, (xa, y - tick), (xa + step * 0.5, y - tick), color=WATER, lw=1.0, z=z)
 
 
+def ground(ax, y, x0, x1, z=1, tick=None, color=FAINT):
+    """설치면. 아래쪽으로 짧은 빗금을 그어 "여기에 볼트로 고정돼 있다" 를 알려 준다"""
+    line(ax, (x0, y), (x1, y), color=color, lw=1.4, z=z)
+    tick = tick or (x1 - x0) * 0.055
+    n = max(int((x1 - x0) / (tick * 1.35)), 2)
+    for i in range(n):
+        xa = x0 + (x1 - x0) * (i + 0.5) / n
+        line(ax, (xa, y), (xa - tick * 0.72, y - tick), color=color, lw=1.0, z=z)
+
+
 def antenna_face(ax, c, deg, half=3.4, thick=1.5, z=8, color=BLUE):
     """안테나 면. deg 는 보어사이트 방향, 면은 거기 수직"""
     n = math.radians(deg)
@@ -309,6 +349,146 @@ def antenna_face(ax, c, deg, half=3.4, thick=1.5, z=8, color=BLUE):
            (c[0] - ux * half + vx * thick / 2, c[1] - uy * half + vy * thick / 2),
            (c[0] - ux * half - vx * thick / 2, c[1] - uy * half - vy * thick / 2)]
     poly(ax, pts, fc=color, ec=color, lw=1.0, z=z)
+
+
+# ------------------------------------------------------ 레이다 안테나 한 대만
+# 배가 아니라 안테나 자체를 기준으로 설명하는 그림(10장 · 13장)에서 쓴다.
+# 세 함수 모두 같은 물체를 세 방향에서 본 것이고, 비율도 같게 잡아 한눈에 같은 물건으로 보인다.
+# 크기는 s(배열면 반높이 정도)를 1 로 본 비율이고, 받침 한가운데가 기준점이다.
+#
+#              ┌───────────┐   배열면 (면 폭 1.24 s · 높이 0.70 s)
+#              └─────┬─────┘   하우징 (면 뒤)
+#                    │         기둥
+#              ══════╧══════   받침  ← 기준점 base
+ANT_BASE_HALF = 0.42        # 받침 반폭
+ANT_BASE_H = 0.10           # 받침 두께
+ANT_POST_HALF = 0.11        # 기둥 반폭
+ANT_POST_TOP = 0.62         # 기둥 높이 (= 배열면 아랫변)
+ANT_FACE_HALF = 0.62        # 배열면 반폭
+ANT_FACE_TOP = 1.32         # 배열면 윗변
+ANT_FACE_MID = 0.5 * (ANT_POST_TOP + ANT_FACE_TOP)      # 배열면 한가운데 높이
+ANT_BACK = 0.34             # 하우징이 면 뒤로 나온 깊이
+ANT_SKIN = 0.06             # 배열면 두께의 절반
+
+
+def _rot(base, s, ang):
+    """받침 한가운데를 축으로 ang 도 돌린 뒤 화면 좌표로 옮기는 함수를 만든다.
+
+    ang 은 화면에서 시계 반대방향이 +. 뒤에서 본 그림(roll)처럼 시계방향이 + 인 곳은
+    부르는 쪽에서 부호를 뒤집어 넘긴다.
+    """
+    ca, sa = math.cos(math.radians(ang)), math.sin(math.radians(ang))
+
+    def P(a, b):
+        dx, dy = a * s, b * s
+        return (base[0] + dx * ca - dy * sa, base[1] + dx * sa + dy * ca)
+    return P
+
+
+def _ant_stand(ax, P, color, z):
+    """받침과 기둥. 세 방향에서 모두 같은 모양이라 따로 뺐다"""
+    poly(ax, [P(-ANT_BASE_HALF, 0.0), P(-ANT_BASE_HALF, ANT_BASE_H),
+              P(ANT_BASE_HALF, ANT_BASE_H), P(ANT_BASE_HALF, 0.0)],
+         fc=DECK, ec=color, lw=1.1, z=z)
+    poly(ax, [P(-ANT_POST_HALF, ANT_BASE_H), P(-ANT_POST_HALF, ANT_POST_TOP),
+              P(ANT_POST_HALF, ANT_POST_TOP), P(ANT_POST_HALF, ANT_BASE_H)],
+         fc=DECK, ec=color, lw=1.1, z=z)
+
+
+def antenna_front(ax, base, s, ang=0.0, z=6, color=BLUE, grid=True):
+    """보어사이트 쪽에서 마주 본 레이다 안테나. 배열면이 직사각형으로 보인다.
+
+    base 는 받침 한가운데. ang 은 그 점을 축으로 한 기울기(도)로, 화면 오른쪽이 내려가면 +.
+    (뒤에서 본 그림에서 화면 오른쪽이 우현이므로 roll 의 + 방향과 그대로 맞는다)
+    """
+    P = _rot(base, s, -ang)
+    _ant_stand(ax, P, color, z)
+    poly(ax, [P(-ANT_FACE_HALF, ANT_POST_TOP), P(-ANT_FACE_HALF, ANT_FACE_TOP),
+              P(ANT_FACE_HALF, ANT_FACE_TOP), P(ANT_FACE_HALF, ANT_POST_TOP)],
+         fc=HULL, ec=color, lw=1.6, z=z + 1)
+    if grid:                                            # 배열 소자 격자
+        for i in range(1, 5):
+            u = -ANT_FACE_HALF + 2 * ANT_FACE_HALF * i / 5.0
+            line(ax, P(u, ANT_POST_TOP + 0.05), P(u, ANT_FACE_TOP - 0.05),
+                 color=color, lw=0.7, z=z + 2)
+        for j in range(1, 3):
+            v = ANT_POST_TOP + (ANT_FACE_TOP - ANT_POST_TOP) * j / 3.0
+            line(ax, P(-ANT_FACE_HALF + 0.04, v), P(ANT_FACE_HALF - 0.04, v),
+                 color=color, lw=0.7, z=z + 2)
+    return P
+
+
+def antenna_profile(ax, base, s, ang=0.0, z=6, color=BLUE):
+    """옆에서 본 레이다 안테나. 보어사이트는 화면 오른쪽이고 배열면은 얇게 선다.
+
+    base 는 받침 한가운데. ang 은 그 점을 축으로 한 기울기(도)로, 보어사이트 쪽이 들리면 +.
+    반환값 P 로 배열면 한가운데 P(ANT_SKIN, ANT_FACE_MID) 를 얻어 축의 원점으로 쓴다.
+    """
+    P = _rot(base, s, ang)
+    _ant_stand(ax, P, color, z)
+    poly(ax, [P(-ANT_BACK, ANT_POST_TOP + 0.06), P(-ANT_BACK, ANT_FACE_TOP - 0.06),
+              P(-ANT_SKIN, ANT_FACE_TOP), P(-ANT_SKIN, ANT_POST_TOP)],
+         fc=DECK, ec=color, lw=1.2, z=z + 1)            # 하우징 (면 뒤)
+    poly(ax, [P(-ANT_SKIN, ANT_POST_TOP - 0.04), P(-ANT_SKIN, ANT_FACE_TOP + 0.04),
+              P(ANT_SKIN, ANT_FACE_TOP + 0.04), P(ANT_SKIN, ANT_POST_TOP - 0.04)],
+         fc=color, ec=color, lw=1.0, z=z + 2)           # 배열면
+    return P
+
+
+def antenna_plan(ax, base, s, ang=0.0, z=6, color=BLUE):
+    """위에서 내려다본 레이다 안테나. 배열면이 막대로 보인다.
+
+    base 는 받침 한가운데. ang 은 보어사이트가 향하는 각(도)으로 0 이면 화면 오른쪽.
+    반환값 P 로 배열면 한가운데 P(ANT_SKIN, 0.0) 을 얻어 축의 원점으로 쓴다.
+    """
+    P = _rot(base, s, ang)
+    ax.add_patch(Circle(P(-ANT_BACK - 0.06, 0.0), 0.26 * s, facecolor=DECK,
+                        edgecolor=color, lw=1.1, zorder=z))     # 받침 (면 뒤에 가린다)
+    poly(ax, [P(-ANT_BACK, -ANT_FACE_HALF + 0.20), P(-ANT_BACK, ANT_FACE_HALF - 0.20),
+              P(-ANT_SKIN, ANT_FACE_HALF - 0.14), P(-ANT_SKIN, -ANT_FACE_HALF + 0.14)],
+         fc=DECK, ec=color, lw=1.2, z=z + 1)            # 하우징 (면 뒤)
+    poly(ax, [P(-ANT_SKIN, -ANT_FACE_HALF), P(-ANT_SKIN, ANT_FACE_HALF),
+              P(ANT_SKIN, ANT_FACE_HALF), P(ANT_SKIN, -ANT_FACE_HALF)],
+         fc=color, ec=color, lw=1.0, z=z + 2)           # 배열면
+    return P
+
+
+def person_top(ax, c, deg, look=26.0, color=BLUE, z=6, view=True):
+    """위에서 내려다본 사람. deg 는 보고 있는 방향.
+
+    시야 부채꼴 · 어깨 · 머리 순으로 겹쳐 그리면 "누가 어디를 보고 있다" 가 한눈에 읽힌다.
+    반환값은 "앞" 방향 단위벡터로, 부르는 쪽에서 축 화살표를 그릴 때 쓴다.
+    """
+    u = (math.cos(math.radians(deg)), math.sin(math.radians(deg)))
+    v = (-u[1], u[0])
+    if view:
+        ax.add_patch(Wedge(c, look, deg - 42.0, deg + 42.0, facecolor=color,
+                           edgecolor="none", alpha=0.10, zorder=z - 1))
+
+    def P(a, b):
+        return (c[0] + u[0] * a + v[0] * b, c[1] + u[1] * a + v[1] * b)
+    poly(ax, [P(-2.4, -2.6), P(-0.6, -2.0), P(-0.6, 2.0), P(-2.4, 2.6)],
+         fc=HULL, ec=color, lw=1.3, z=z)                 # 어깨
+    ax.add_patch(Circle(P(0.4, 0.0), 1.9, facecolor="white", edgecolor=color, lw=1.5,
+                        zorder=z + 1))                   # 머리
+    poly(ax, [P(2.1, -0.8), P(3.4, 0.0), P(2.1, 0.8)], fc=color, ec=color, lw=0.8,
+         z=z + 2)                                        # 코 — 보는 쪽을 알려 준다
+    return u
+
+
+def bubble(ax, x, y, s, size=11.5, color=NAVY, fc="#FFFFFF", ec=None, z=12,
+           ha="center", va="center", pad=0.5):
+    """말풍선. 일반 예시 그림에서 사람이 하는 말을 그대로 얹는다"""
+    return ax.text(x, y, s, fontproperties=BOLD, fontsize=size, color=color,
+                   ha=ha, va=va, zorder=z,
+                   bbox=dict(boxstyle="round,pad=%.2f" % pad, facecolor=fc,
+                             edgecolor=(ec or color), linewidth=1.2))
+
+
+def beam_wedge(ax, o, deg, length, half_angle=9.0, color=BLUE, z=2, alpha=0.13):
+    """보어사이트를 감싸는 흐린 부채꼴. "보어사이트 = 빔 한가운데" 를 눈으로 보여 준다"""
+    ax.add_patch(Wedge(o, length, deg - half_angle, deg + half_angle, facecolor=color,
+                       edgecolor="none", alpha=alpha, zorder=z))
 
 
 def axis_mark(ax, c, r, into=True, color=BLUE, lw=1.3, z=8):
@@ -355,7 +535,8 @@ def save(fig, name, bg="white"):
     print("생성: %s" % path)
 
 
-# ============================================== 2장 : 레이다 화면 vs 전시기 화면
+# ============================================== 레이다 화면 vs 전시기 화면
+# 도입부를 일반 예시로 바꾸면서 이 그림도 슬라이드에서 빠졌다. 생성기는 남겨 둔다.
 SHIP_LLA = (127.307, 36.408)        # 과제 조건의 함선 위치
 TGT_LLA = (127.3643, 36.2337)       # 같은 표적을 위경도로 옮긴 값 (31장 최종 출력)
 
@@ -459,13 +640,15 @@ def draw_intro():
 def draw_polar():
     """안테나 극좌표 R / Az / El.
 
-    (a) 는 갑판을 내려다본 그림이다. 안테나는 과제 조건대로 우현(선수 기준 시계방향 90°)을
-    보고 있으므로 선수는 위, 보어사이트는 오른쪽, 안테나 기준 오른쪽(y)은 선미 쪽이 된다.
+    극좌표는 "안테나가 자기 정면(보어사이트)을 기준으로 잰 값" 이므로 배는 그리지 않는다.
+    배를 같이 그리면 선수 · 선미가 눈에 먼저 들어와 Az 를 배 기준 각으로 읽게 된다.
+    여기 나오는 각은 전부 안테나 기준이고, 배 기준으로 옮기는 일은 다음 단계(안테나→동체)다.
 
-    (b) 는 배 뒤에서 선수 쪽을 본 그림이다. 보어사이트가 우현이라 El 이 놓인 수직면은 배의
-    횡단면이고, 그 면을 정면으로 보려면 시선이 선수-선미 축과 나란해야 한다. 선미 쪽에서 보면
-    화면 오른쪽이 그대로 우현 = 보어사이트가 되어 (a) 와 좌우가 맞고 El 도 제 각으로 그려진다.
-    선체 측면도로 그리면 화면 오른쪽이 선미가 되어 보어사이트가 선미를 향하는 것처럼 읽힌다.
+    (a) 는 안테나를 위에서 내려다본 그림이다. z 가 아래를 향하는 오른손 좌표계를 위에서
+    내려다보면 y(오른쪽)는 화면 아래로 간다. 그래서 Az 가 + 인 표적이 화면에서도 아래로 간다.
+
+    (b) 는 같은 안테나를 +y 쪽, 즉 (a) 의 화면 아래쪽에서 위로 올려다본 그림이다. 그래야
+    화면 오른쪽이 그대로 보어사이트가 되어 (a) 와 좌우가 맞고 El 도 제 각으로 그려진다.
     """
     W, H = 1615, 760
     fig, lay = canvas(W, H)
@@ -477,23 +660,21 @@ def draw_polar():
     axB = stage(fig, [0.518, box[1], box[2], box[3]], (0, 100), (0, TOP))
     line(lay, (0.501, 0.050), (0.501, 0.900), color="#E4E7ED", lw=1.0, z=1)
 
-    L, OX = 38.0, 28.0                  # 배 길이, 안테나(원점) x — 두 패널 공통
-    XAX, ZAX, YAX, RAY = 56.0, 21.0, 40.0, 46.0
+    S, OX = 13.5, 26.0                  # 안테나 크기, 안테나(원점) x — 두 패널 공통
+    XAX, YAX, ZAX, RAY = 56.0, 34.0, 32.0, 46.0
     AZ, EL = 30.0, 25.0
-    HALF = HALF_BEAM * L
 
     # ------------------------------------------------------ (a) 위에서 본 그림
-    yc = TOP * 0.605                                   # 안테나 y
+    yc = TOP * 0.680                                   # 안테나 배열면 한가운데
     O = (OX, yc)
-    cx = OX - 1.6 * HALF                               # 선체 중심선. 축이 뱃전 선에 먹히지 않게 띄운다
-    ship_top(axA, cx, yc - 0.32 * L, L, ang=90.0)
-    antenna_face(axA, O, 0.0, half=2.4, thick=1.3)
+    beam_wedge(axA, O, 0.0, XAX * 0.92)
+    antenna_plan(axA, (OX - ANT_SKIN * S, yc), S)
 
     arrow(axA, O, (OX + XAX, yc), color=BLUE, lw=1.9, z=6)
     arrow(axA, O, (OX, yc - YAX), color=BLUE, lw=1.9, z=6)
     text(axA, OX + XAX, yc + 3.0, "x  보어사이트", size=11.5, color=BLUE, bold=True,
          ha="right", va="bottom")
-    text(axA, OX + 3.0, yc - YAX + 1.5, "y  오른쪽 (선미 쪽)", size=11.5, color=BLUE,
+    text(axA, OX + 3.0, yc - YAX + 1.5, "y  오른쪽", size=11.5, color=BLUE,
          bold=True, ha="left", va="center")
 
     tgt = at(O, RAY, -AZ)
@@ -507,34 +688,30 @@ def draw_polar():
     text(axA, *at(O, RAY * 0.58, -AZ + 7.5), s="R", size=13, color=ORANGE, bold=True,
          ha="center", va="center")
 
-    text(axA, cx, yc + 0.70 * L, "선수", size=10, color=GREY, ha="center", va="bottom")
-    text(axA, cx - HALF - 2.0, yc - 0.26 * L, "선미", size=10, color=GREY, ha="right",
-         va="center")
-    text(axA, OX - HALF * 2 - 3.0, yc, "안테나", size=10.5, color=BLUE, bold=True,
-         ha="right", va="center")
+    text(axA, OX - 1.05 * S, yc, "레이다\n안테나", size=10.5, color=BLUE,
+         bold=True, ha="right", va="center", linespacing=1.45)
 
-    vy = yc - 0.32 * L - 12.0
-    arrow(axA, (cx, vy), (cx, vy + 9.0), color=FAINT, lw=1.3, head=9, z=2)
-    text(axA, cx - 2.6, vy + 4.5, "(b)", size=10.5, color=GREY, bold=True,
-         ha="right", va="center")
-    text(axA, 2.0, 4.0, "(b) 는 이 배를 화살표 방향으로 본 모습이다.", size=10.5,
+    arrow(axA, (52.0, 10.0), (52.0, 18.0), color=FAINT, lw=1.3, head=9, z=2)  # (b) 를 보는 방향
+    text(axA, 52.0, 19.5, "(b)", size=10.5, color=GREY, bold=True, ha="center", va="bottom")
+    text(axA, 2.0, 9.0, "원점은 안테나 배열면 한가운데.", size=10.5, color=GREY, va="center")
+    text(axA, 2.0, 3.6, "(b) 는 같은 안테나를 화살표 방향에서 본 모습이다.", size=10.5,
          color=GREY, va="center")
 
-    # ------------------------------------------------------ (b) 뒤에서 본 그림
-    B = 24.0                                           # 배 폭 (뒤에서 본 그림은 폭 기준)
-    ZB = 1.40 * B                                      # z 축은 선저 아래까지 뽑아 라벨을 띄운다
-    yw = TOP * 0.300                                   # 흘수선
-    sea_line(axB, 1.5, 98.5, yw, tick=1.7)
-    ship_stern(axB, OX - 0.27 * B, yw, B)              # 안테나는 상부 구조물 우현 면
-    ya = yw + 0.95 * B
+    # ------------------------------------------------------ (b) 옆에서 본 그림
+    ya = TOP * 0.560                                   # 배열면 한가운데
     Ob = (OX, ya)
-    antenna_face(axB, Ob, 0.0, half=2.4, thick=1.3)
+    base_b = (OX - ANT_SKIN * S, ya - ANT_FACE_MID * S)
+    ground(axB, base_b[1], 9.0, 43.0)
+    beam_wedge(axB, Ob, 0.0, XAX * 0.92)
+    antenna_profile(axB, base_b, S)
+    text(axB, 45.0, base_b[1] - 4.6, "설치면 (갑판 · 마스트)", size=9.5, color=GREY,
+         ha="left", va="center")
 
     arrow(axB, Ob, (OX + XAX, ya), color=BLUE, lw=1.9, z=9)
-    arrow(axB, Ob, (OX, ya - ZB), color=BLUE, lw=1.9, z=9, halo=True)
+    arrow(axB, Ob, (OX, ya - ZAX), color=BLUE, lw=1.9, z=9, halo=True)
     text(axB, OX + XAX, ya + 3.0, "수평 (보어사이트)", size=11.5, color=BLUE, bold=True,
          ha="right", va="bottom")
-    text(axB, OX + 3.0, ya - ZB + 1.5, "z  아래", size=11.5, color=BLUE, bold=True,
+    text(axB, OX + 3.4, ya - ZAX + 1.5, "z  아래", size=11.5, color=BLUE, bold=True,
          ha="left", va="center")
 
     tb = at(Ob, RAY, EL)
@@ -549,24 +726,270 @@ def draw_polar():
     text(axB, *at(Ob, RAY * 0.58, EL + 7.5), s="R", size=13, color=ORANGE, bold=True,
          ha="center", va="center")
 
-    text(axB, OX + 3.4, ya - 5.2, "안테나", size=10.5, color=BLUE, bold=True,
-         ha="left", va="center")
-    text(axB, 97.0, yw - 3.6, "해수면", size=10.5, color=GREY, ha="right", va="center")
     text(axB, 2.0, 4.0, "z 는 아래가 +.  표적이 수평면보다 위에 있으면 z 는 음수가 된다.",
          size=10.5, color=GREY, va="center")
 
     # ------------------------------------------------------ 머리글
     text(lay, 0.038, 0.955, "(a) 위에서 본 그림 — 방위각 Az (Azimuth)", size=14.5, bold=True)
-    text(lay, 0.038, 0.913, "갑판을 내려다본 모습.  보어사이트에서 오른쪽으로 잰 각",
+    text(lay, 0.038, 0.913, "안테나를 위에서 내려다본 모습.  보어사이트에서 오른쪽으로 잰 각",
          size=11, color=GREY)
-    text(lay, 0.536, 0.955, "(b) 뒤에서 본 그림 — 고각 El (Elevation)", size=14.5, bold=True)
-    text(lay, 0.536, 0.913, "같은 배를 선미 쪽에서 본 모습.  수평면에서 위로 잰 각",
+    text(lay, 0.536, 0.955, "(b) 옆에서 본 그림 — 고각 El (Elevation)", size=14.5, bold=True)
+    text(lay, 0.536, 0.913, "같은 안테나를 옆에서 본 모습.  수평면에서 위로 잰 각",
          size=11, color=GREY)
 
     save(fig, "fig02_polar.png")
 
 
-# ================================================ 4장 : 한 표적을 여러 기준에서 재기
+# ================================================= 좌표계의 필요성 (일반 예시)
+def draw_observers():
+    """같은 물체를 두 사람이 서로 다른 자리에서 본다.
+
+    좌표계를 아직 하나도 소개하지 않은 자리에서 "왜 기준이 여럿인가" 를 보이는 그림이라,
+    레이다도 배도 나오지 않는다. 사람 둘과 물체 하나면 충분하다.
+
+    A 는 동쪽(0°)을, B 는 서쪽에 가까운 190° 를 본다. 물체는 두 사람 사이 아래쪽에 있어서
+    A 에게는 오른쪽, B 에게는 왼쪽이 된다. 같은 물체인데 말이 정반대로 나온다는 것이 요점이다.
+    """
+    W, H = 1500, 760
+    fig, lay = canvas(W, H)
+
+    box = (0.030, 0.055, 0.940, 0.790)
+    TOP = 100.0 * (box[3] * H) / (box[2] * W)
+    ax = stage(fig, list(box), (0, 100), (0, TOP))
+
+    TGT = (58.0, 7.0)
+    A, A_DEG = (14.0, 24.0), 0.0
+    B, B_DEG = (86.0, 30.0), 190.0
+
+    # ------------------------------------------------------------------ 물체
+    poly(ax, [(TGT[0] - 3.2, TGT[1] - 2.6), (TGT[0] + 3.2, TGT[1] - 2.6),
+              (TGT[0] + 3.2, TGT[1] + 2.6), (TGT[0] - 3.2, TGT[1] + 2.6)],
+         fc=ORANGE, ec=ORANGE, lw=1.2, z=8)
+    text(ax, TGT[0], TGT[1] - 4.6, "물체 하나", size=12.5, color=ORANGE, bold=True,
+         ha="center", va="top")
+
+    for who, c, deg, side, dist in (("A", A, A_DEG, "오른쪽 21°", "9 m"),
+                                    ("B", B, B_DEG, "왼쪽 29°", "7 m")):
+        u = person_top(ax, c, deg, look=21.0)
+        tip = (c[0] + u[0] * 16.0, c[1] + u[1] * 16.0)
+        arrow(ax, (c[0] + u[0] * 4.2, c[1] + u[1] * 4.2), tip, color=BLUE, lw=1.7,
+              head=10, z=9)                              # 머리에 겹치지 않게 띄운다
+        text(ax, tip[0] + u[0] * 3.2, tip[1] + u[1] * 3.2, "앞", size=11, color=BLUE,
+             bold=True, ha="center", va="center")
+        line(ax, c, TGT, color="#C7CDD8", lw=1.2, dashes=(4, 3), z=3)
+        q = arc_between(ax, c, tip, TGT, 12.0)
+        text(ax, q[0], q[1], side, size=11.5, color=ORANGE, bold=True, ha="center",
+             va="center")
+        text(ax, c[0], c[1] + 4.6, "관측자 %s" % who, size=12.5, color=NAVY, bold=True,
+             ha="center", va="bottom")
+        mid = ((c[0] + TGT[0]) / 2.0, (c[1] + TGT[1]) / 2.0)
+        text(ax, mid[0], mid[1] - 2.2, dist, size=11, color=GREY, ha="center", va="top")
+
+    bubble(ax, 18.0, 36.5, "내 오른쪽에 있는데.", size=12, color=BLUE, fc="#F2F6FC")
+    bubble(ax, 79.0, 40.0, "내 왼쪽에 있는데?", size=12, color=BLUE, fc="#F2F6FC")
+
+    # ------------------------------------------------------------------ 글자
+    text(lay, 0.030, 0.950, "같은 물체를 두 사람이 본다", size=14.5, bold=True)
+    text(lay, 0.030, 0.905,
+         "물체도 그 자리, 두 사람도 그 자리.  달라진 것은 어디에 서서 어디를 보느냐뿐이다.",
+         size=11, color=GREY)
+
+    save(fig, "fig18_observers.png")
+
+
+# ============================================ 좌표변환의 기본 동작 (일반 예시)
+def draw_two_frames():
+    """좌표계 둘을 맞추는 데 필요한 동작은 두 가지뿐이라는 그림.
+
+    구체적인 값(설치 방위 · 레버암)은 일부러 넣지 않는다. 실제 숫자는 02 실전 설계에서
+    한 번에 따라가므로, 여기서는 "축을 돌린다 / 원점을 옮긴다" 두 그림이면 된다.
+    """
+    W, H = 1700, 425
+    fig, lay = canvas(W, H)
+
+    box = (0.045, 0.115, 0.400, 0.700)
+    TOP = 100.0 * (box[3] * H) / (box[2] * W)
+    axA = stage(fig, list(box), (0, 100), (0, TOP))
+    axB = stage(fig, [0.545, box[1], box[2], box[3]], (0, 100), (0, TOP))
+    line(lay, (0.500, 0.090), (0.500, 0.880), color="#E4E7ED", lw=1.0, z=1)
+
+    def frame(ax, o, deg, tone, xlab, ylab, ln=30.0, lw=2.0, size=12):
+        """직각인 축 두 개. deg 는 x 축이 향하는 각"""
+        for a, lab in ((deg, xlab), (deg + 90.0, ylab)):
+            tip = at(o, ln, a)
+            arrow(ax, o, tip, color=tone, lw=lw, head=10, z=6)
+            text(ax, *at(o, ln * 1.16, a), s=lab, size=size, color=tone, bold=True,
+                 ha="center", va="center")
+        ax.add_patch(Circle(o, 1.1, facecolor=tone, edgecolor="none", zorder=7))
+
+    # --------------------------------------------------- ① 회전 : 원점은 같다
+    O = (34.0, 8.0)
+    frame(axA, O, 0.0, "#8FA8D2", "x", "y")
+    frame(axA, O, 38.0, ORANGE, "x′", "y′")
+    arcdeg(axA, O, 15.5, 0.0, 38.0, color=ORANGE, lw=1.8)
+    text(axA, *at(O, 21.0, 19.0), s="θ", size=14, color=ORANGE, bold=True, ha="center",
+         va="center")
+    text(axA, O[0], O[1] - 4.4, "원점은 같다", size=11, color=GREY, ha="center", va="top")
+
+    # ------------------------------------------ ② 평행이동 : 축 방향은 같다
+    O1, O2 = (14.0, 8.0), (56.0, 17.0)
+    frame(axB, O1, 0.0, "#8FA8D2", "x", "y", ln=20.0, lw=1.8, size=11)
+    frame(axB, O2, 0.0, ORANGE, "x′", "y′", ln=20.0, lw=1.8, size=11)
+    arrow(axB, O1, O2, color=GREEN, lw=2.2, head=12, z=9, halo=True)
+    text(axB, (O1[0] + O2[0]) / 2 + 1.0, (O1[1] + O2[1]) / 2 + 3.2, "t", size=14,
+         color=GREEN, bold=True, ha="center", va="center")
+    text(axB, O1[0], O1[1] - 4.4, "축 방향은 같다", size=11, color=GREY, ha="center",
+         va="top")
+
+    # ------------------------------------------------------------------ 글자
+    text(lay, 0.045, 0.955, "① 회전 (rotation) — 기준 방향이 다를 때", size=14, bold=True)
+    text(lay, 0.045, 0.872, "두 좌표계의 축이 어긋난 만큼 θ 돌려서 맞춘다", size=11,
+         color=GREY)
+    text(lay, 0.545, 0.955, "② 평행이동 (translation) — 기준 점이 다를 때", size=14,
+         bold=True)
+    text(lay, 0.545, 0.872, "두 좌표계의 원점이 떨어진 만큼 t 옮겨서 맞춘다", size=11,
+         color=GREY)
+
+    save(fig, "fig19_two_frames.png")
+
+
+# ========================================================= 11장 : 직교좌표 유도
+# 나눠 담는 예시 각. 실제 과제 값(Az 30° · El 0°)은 El 이 0 이라 그림으로 못 쓴다.
+# 사선 그림에서 x 축은 화면 40° 방향이므로, 표적 방향이 거기 겹치지 않게 Az 를 크게 잡는다
+DEC_AZ, DEC_EL, DEC_R = 55.0, 20.0, 60.0
+
+
+def draw_cartesian():
+    """직교좌표 공식이 어디서 나오는지.
+
+    (a) 는 표적 하나를 세 축에 나눠 담는 사선 그림이다. 직각삼각형이 두 개 보인다.
+        세로 삼각형 O-P-T : 빗변 R, 각 El  ->  밑변 R cos(El), 높이 R sin(El)
+        가로 삼각형 O-Px-P : 빗변 R cos(El), 각 Az  ->  밑변 x, 높이 y
+    (b) 는 그 두 삼각형만 따로 떼어 평면에 눕힌 것이다. 새로 배울 것이 없고
+        "밑변 = 빗변 × cos, 높이 = 빗변 × sin" 을 두 번 쓴 것이 공식의 전부임을 보인다.
+
+    z 만 부호가 붙는 이유도 여기서 보인다. 삼각형이 주는 것은 "위로 R sin(El)" 인데
+    z 축은 아래가 + 라서 부호를 뒤집어 z = -R sin(El) 이 된다.
+
+    (a) 에서 x · y 축 화살표는 그리지 않는다. 사선 투영에서 x 축은 화면 40° 방향이라
+    R 화살표와 거의 겹쳐 오히려 읽기 어려워지고, 축의 정의는 앞 장(10장)에서 이미 했다.
+    여기서 필요한 것은 "그 축 방향으로 얼마씩 갔는가" 세 개다.
+    """
+    W, H = 1340, 638
+    fig, lay = canvas(W, H)
+
+    axA = stage(fig, [0.025, 0.045, 0.480, 0.820], (0, 100),
+                (0, 100 * (0.820 * H) / (0.480 * W)))
+    axB = stage(fig, [0.545, 0.045, 0.435, 0.820], (0, 100),
+                (0, 100 * (0.820 * H) / (0.435 * W)))
+    line(lay, (0.522, 0.055), (0.522, 0.900), color="#E4E7ED", lw=1.0, z=1)
+
+    rh = DEC_R * math.cos(math.radians(DEC_EL))         # 수평면에 눕힌 길이
+    rv = DEC_R * math.sin(math.radians(DEC_EL))         # 위로 올라간 길이
+    fwd = rh * math.cos(math.radians(DEC_AZ))           # x 성분
+    rgt = rh * math.sin(math.radians(DEC_AZ))           # y 성분
+
+    # ------------------------------------------- (a) 사선으로 본 나눠 담기
+    O = (12.0, 32.0)
+    Px = iso(O, fwd, 0.0)                               # x 만큼 간 자리
+    P = iso(O, fwd, rgt)                                # 표적을 수평면에 내린 발
+    T = (P[0], P[1] + rv)                               # 표적 (수평면보다 위)
+
+    poly(axA, [iso(O, -4.0, -4.0), iso(O, 38.0, -4.0), iso(O, 38.0, 52.0),
+               iso(O, -4.0, 52.0)], fc="#F2F6FC", ec="#DCE3EE", lw=1.0, z=1)
+    text(axA, *iso(O, -1.0, 46.0), s="수평면", size=9.5, color=FAINT, ha="center")
+
+    ztip = (O[0], O[1] - 17.0)                          # 아래 방향만 화살표로 남긴다
+    arrow(axA, O, ztip, color="#8FA8D2", lw=1.4, head=9, z=3)
+    text(axA, ztip[0], ztip[1] - 2.2, "z축 (아래)", size=9.5, color=GREY, ha="center",
+         va="top")
+
+    # 세로 삼각형 : R 을 El 로 나눈다
+    line(axA, O, P, color=GREEN, lw=2.0, z=5)
+    line(axA, P, T, color=GREEN, lw=2.0, ls="--", z=5)
+    right_angle(axA, P, O, T, 2.8, color=GREEN)
+    text(axA, T[0] + 2.4, 0.5 * (P[1] + T[1]), "R sin(El)", size=10, color=GREEN,
+         bold=True, ha="left", va="center")
+    text(axA, 0.5 * (O[0] + P[0]) + 2.0, 0.5 * (O[1] + P[1]) - 4.2, "R cos(El)", size=10,
+         color=GREEN, bold=True, ha="center", va="center")
+
+    # 가로 삼각형 : 남은 수평 성분을 Az 로 다시 나눈다
+    line(axA, O, Px, color=BLUE, lw=2.8, z=6)
+    line(axA, Px, P, color=BLUE, lw=2.8, z=6)
+    right_angle(axA, Px, O, P, 2.8, color=BLUE)
+    text(axA, O[0] + (Px[0] - O[0]) * 0.55 - 3.0, O[1] + (Px[1] - O[1]) * 0.55 + 3.6,
+         "x", size=13, color=BLUE, bold=True, ha="center", va="center")
+    text(axA, Px[0] + (P[0] - Px[0]) * 0.80 + 2.2, Px[1] + (P[1] - Px[1]) * 0.80 + 4.2,
+         "y", size=13, color=BLUE, bold=True, ha="center", va="center")
+
+    # 표적까지의 시선거리. 수평 성분 위를 지나가므로 흰 테두리를 둘러 앞으로 보이게 한다
+    arrow(axA, O, T, color=ORANGE, lw=2.3, head=11, z=7, halo=True)
+    axA.add_patch(Circle(T, 1.5, facecolor=ORANGE, edgecolor="none", zorder=8))
+    text(axA, T[0] + 2.6, T[1] + 1.4, "표적", size=11, color=NAVY, bold=True, va="bottom")
+    text(axA, O[0] + (T[0] - O[0]) * 0.72, O[1] + (T[1] - O[1]) * 0.72 + 3.2, "R", size=13,
+         color=ORANGE, bold=True, ha="center", va="center")
+
+    arc_between(axA, O, Px, P, 12.0)
+    text(axA, *at(O, 18.0, 30.0), s="Az", size=10.5, color=ORANGE, bold=True,
+         ha="center", va="center")
+    arc_between(axA, O, P, T, 26.0)
+    text(axA, *at(O, 37.7, 3.0), s="El", size=10.5, color=ORANGE, bold=True,
+         ha="center", va="center")
+
+    text(axA, 2.0, 3.0, "세 축 방향으로 간 거리 셋 (x, y, z) 이 직교좌표다.", size=10,
+         color=GREY, va="center")
+
+    # ------------------------------------------- (b) 삼각형 두 개만 떼어 놓기
+    TB = axB.get_ylim()[1]
+
+    def triangle(y0, hgt, base_len, ang_lab, hyp_lab, hyp_color, base_lab, side_lab):
+        """왼쪽 아래 꼭짓점에 각이 있고 오른쪽 아래가 직각인 직각삼각형 한 개"""
+        A = (10.0, y0)
+        B = (10.0 + base_len, y0)
+        C = (B[0], y0 + hgt)
+        poly(axB, [A, B, C], fc="#F5F8FD", ec="#DCE3EE", lw=1.0, z=1)
+        line(axB, A, B, color=BLUE, lw=2.4, z=4)
+        line(axB, B, C, color=BLUE, lw=2.4, z=4)
+        line(axB, A, C, color=hyp_color, lw=2.2, z=4)
+        right_angle(axB, B, A, C, 3.2, color=FAINT)
+        q = arc_between(axB, A, B, C, 11.0)
+        text(axB, q[0] + 1.0, q[1], ang_lab, size=12, color=ORANGE, bold=True,
+             ha="center", va="center")
+        text(axB, 0.5 * (A[0] + C[0]) - 1.0, 0.5 * (A[1] + C[1]) + 3.4, hyp_lab, size=11,
+             color=hyp_color, bold=True, ha="center", va="bottom")
+        text(axB, 0.5 * (A[0] + B[0]) + 2.0, y0 - 4.2, base_lab, size=11, color=BLUE,
+             bold=True, ha="center", va="center")
+        text(axB, B[0] + 3.0, y0 + hgt * 0.5, side_lab, size=11, color=BLUE, bold=True,
+             ha="left", va="center")
+
+    text(axB, 3.0, TB * 0.965, "① 고각 El 로 위아래를 먼저 뗀다", size=11.5, color=NAVY,
+         bold=True, va="center")
+    triangle(TB * 0.640, TB * 0.235, 56.0, "El", "R", ORANGE, "R cos(El)", "R sin(El)")
+    text(axB, 3.0, TB * 0.520,
+         "위로 올라간 몫이 R sin(El).  z 축은 아래가 + 라서  z = -R sin(El)",
+         size=9.5, color=GREY, va="center")
+
+    text(axB, 3.0, TB * 0.435, "② 남은 수평 성분을 Az 로 다시 나눈다", size=11.5, color=NAVY,
+         bold=True, va="center")
+    triangle(TB * 0.135, TB * 0.205, 56.0, "Az", "R cos(El)", GREEN, "x", "y")
+    text(axB, 3.0, TB * 0.045,
+         "x = R cos(El) cos(Az)        y = R cos(El) sin(Az)",
+         size=10, color=BLUE, bold=True, va="center")
+
+    # ------------------------------------------------------ 머리글
+    text(lay, 0.025, 0.950, "(a) 표적 하나를 세 축에 나눠 담기", size=12.5, bold=True)
+    text(lay, 0.025, 0.902, "x 보어사이트 · y 오른쪽 · z 아래.  R 을 El 로, 그다음 Az 로 나눈다",
+         size=9.5, color=GREY)
+    text(lay, 0.545, 0.950, "(b) 공식은 어디서 나왔나 — 직각삼각형, 두 번", size=12.5, bold=True)
+    text(lay, 0.545, 0.902, "밑변 = 빗변 × cos ,   높이 = 빗변 × sin   (삼각비의 정의)",
+         size=9.5, color=GREY)
+
+    save(fig, "fig17_cartesian.png")
+
+
+# ================================================ 한 표적을 여러 기준에서 재기
+# 들어가며를 3장으로 줄이면서 이 그림은 슬라이드에서 빠졌다.
+# 카드 네 장이 같은 내용을 더 짧게 담고 있어서다. 되살릴 때를 대비해 생성기는 남겨 둔다.
 def draw_one_target():
     """같은 표적 하나를 안테나 · 함선 · 진북 세 기준에서 재면 각도만 30 · 120 · 165 로
     달라진다는 것을 왼쪽에, 그 표적이 지구에서는 어디인지를 오른쪽에 그린다.
@@ -740,9 +1163,15 @@ def draw_derive():
 def draw_body():
     """동체(Body) 좌표계 FRD 와 자세각 세 가지.
 
-    자세각 세 칸은 각각 다른 시점이라 배도 그 시점대로 그린다.
-    roll 은 뒤에서 본 선미도, pitch 는 옆에서 본 측면도, yaw 는 위에서 본 평면도다.
-    z 축은 화면 속으로 들어가므로 ⊙(나오는 방향) 이 아니라 ⊗ 로 표시한다.
+    왼쪽은 좌표계 정의라 배를 그린다. 원점이 배의 무게중심이고 세 축이 배에 붙어 있다는 것이
+    이 그림의 내용이기 때문이다.
+
+    오른쪽 자세각 세 칸은 배 대신 레이다 안테나를 그린다. 안테나는 동체에 볼트로 고정된
+    고정형이라 배가 기운 각이 그대로 안테나가 기운 각이고, 이 발표에서 그 세 각이 실제로
+    쓰이는 곳은 "안테나가 잰 값을 얼마나 되돌려야 하는가" 이기 때문이다.
+
+    세 칸은 각각 다른 시점이라 안테나도 그 시점대로 그린다. roll 은 뒤에서 본 정면도,
+    pitch 는 옆에서 본 측면도, yaw 는 위에서 본 평면도다.
     """
     W, H = 1378, 589
     fig, lay = canvas(W, H)
@@ -769,22 +1198,26 @@ def draw_body():
     # ------------------------------------------------- 오른쪽 : 자세각 세 가지
     TR = axR.get_ylim()[1]
     base = TR * 0.46                                    # 세 칸 공통 기준선
-    for cx in (17.0, 50.0, 83.0):
+    for cx in (17.0, 50.0):                             # 위에서 본 yaw 칸에는 수평선이 없다
         line(axR, (cx - 15.0, base), (cx + 15.0, base), color="#C7CDD8", lw=1.0,
              dashes=(4, 3), z=1)
 
-    # 굽은 화살표는 배 밑을 지나가고, 화살촉이 향하는 쪽이 곧 + 방향이다
-    ship_stern(axR, 17.0, base, 15.0, ang=24.0)         # roll : 우현이 내려간 모습
-    curve_arrow(axR, (17.0 - 13.0, base - 7.0), (17.0 + 13.0, base - 10.0), rad=-0.34)
+    # 굽은 화살표는 안테나 밑을 지나가고, 화살촉이 향하는 쪽이 곧 + 방향이다
+    SA = 11.0                                           # 안테나 크기 (세 칸 공통)
+    antenna_front(axR, (17.0, base), SA, ang=24.0)      # roll : 우현(화면 오른쪽)이 내려간 모습
+    curve_arrow(axR, (17.0 - 13.0, base - 5.0), (17.0 + 13.0, base - 8.0), rad=-0.34)
 
-    ship_side(axR, 50.0 - 17.0, base, 34.0, ang=15.0)   # pitch : 선수가 들린 모습
-    curve_arrow(axR, (50.0 - 14.0, base - 10.0), (50.0 + 14.0, base - 4.0), rad=0.34)
+    Pp = antenna_profile(axR, (50.0, base), SA, ang=15.0)   # pitch : 보어사이트 쪽이 들린 모습
+    arrow(axR, Pp(ANT_SKIN, ANT_FACE_MID), Pp(1.05, ANT_FACE_MID), color=BLUE, lw=1.6,
+          head=9, z=10)
+    curve_arrow(axR, (50.0 - 13.0, base - 8.0), (50.0 + 13.0, base - 3.0), rad=0.34)
 
-    yc2 = base - 6.0
-    ship_top(axR, 83.0, yc2, 30.0, ang=62.0, wake=False)           # yaw : 위에서 본 모습
-    line(axR, (83.0, yc2), (83.0, yc2 + 21.0), color="#C7CDD8", lw=1.0, dashes=(4, 3), z=1)
-    text(axR, 83.0, yc2 + 22.0, "진북", size=9, color=FAINT, ha="center", va="bottom")
-    curve_arrow(axR, at((83.0, yc2), 14.5, 90.0), at((83.0, yc2), 14.5, 66.0), rad=-0.32)
+    yc2 = base + 1.5                                    # yaw : 위에서 본 모습
+    Py = antenna_plan(axR, (83.0, yc2), SA, ang=62.0)
+    arrow(axR, Py(ANT_SKIN, 0.0), Py(1.05, 0.0), color=BLUE, lw=1.6, head=9, z=10)
+    line(axR, (83.0, yc2), (83.0, yc2 + 15.5), color="#C7CDD8", lw=1.0, dashes=(4, 3), z=1)
+    text(axR, 83.0, yc2 + 16.5, "진북", size=9, color=FAINT, ha="center", va="bottom")
+    curve_arrow(axR, at((83.0, yc2), 14.0, 90.0), at((83.0, yc2), 14.0, 64.0), rad=-0.32)
 
     # ------------------------------------------------------------------ 글자
     # 오른쪽 제목이 0.455 에서 시작하므로 왼쪽 제목은 거기까지만 쓴다
@@ -794,6 +1227,8 @@ def draw_body():
     text(lay, 0.455, 0.945, "자세각 세 가지", size=13, bold=True)
     text(lay, 0.455, 0.888, "C_ned←body = Rz(yaw) · Ry(pitch) · Rx(roll)   (3-2-1 순서)",
          size=11.5, color=ORANGE, bold=True)
+    text(lay, 0.455, 0.836, "안테나는 동체에 고정 — 배가 기운 각이 곧 안테나가 기운 각이다.",
+         size=9.5, color=FAINT)
 
     cols = (("roll  (횡동요)", "뒤에서 본 모습\nx축 둘레\n우현이 내려가면 +", 0.545),
             ("pitch (종동요)", "옆에서 본 모습\ny축 둘레\n선수가 들리면 +", 0.720),
@@ -861,7 +1296,8 @@ def draw_layout():
     save(fig, "fig10_layout.png")
 
 
-# ================================================================ 7장 : 회전
+# ================================================================ 회전의 의미
+# 들어가며를 줄이면서 이 그림은 슬라이드에서 빠졌다. 되살릴 때를 대비해 생성기는 남겨 둔다.
 def draw_rotate():
     """같은 배 · 같은 표적을 안테나 축과 함선 축에서 각각 읽으면 숫자가 어떻게 달라지는가"""
     W, H = 1496, 760
@@ -1265,7 +1701,9 @@ def draw_uv():
     save(fig, "fig03_uv.png")
 
 
-# ============================================== 6장 : 회전 + 평행이동을 행렬로
+# ============================================== 회전 + 평행이동을 행렬로
+# 들어가며를 3장으로 줄이면서 이 그림도 슬라이드에서 빠졌다.
+# "새 좌표 = R · 옛 좌표 + t" 한 줄로 대신했다. 되살릴 때를 대비해 생성기는 남겨 둔다.
 def draw_two_ops():
     """새 좌표 = R · 옛 좌표 + t. (빼기는 나눔 글꼴에도 있는 en dash 로 적는다) 왼쪽은 일반형, 오른쪽은 예제(안테나 → 동체)의 실제 숫자"""
     W_IN, H_IN = 12.1, 2.25
@@ -1346,8 +1784,9 @@ def draw_two_ops():
 
 if __name__ == "__main__":
     what = sys.argv[1] if len(sys.argv) > 1 else "all"
-    names = ("all", "intro", "target", "polar", "derive", "body", "layout", "rotate",
-             "nedenu", "ecef", "roll", "uv", "twoops")
+    names = ("all", "intro", "observers", "frames", "target", "polar", "cartesian",
+             "derive", "body", "layout", "rotate", "nedenu", "ecef", "roll", "uv",
+             "twoops")
     if what not in names:
         sys.exit("사용법: python make_figures.py [%s]" % "|".join(names))
     if what in ("all", "intro"):
@@ -1356,6 +1795,12 @@ if __name__ == "__main__":
         draw_one_target()
     if what in ("all", "polar"):
         draw_polar()
+    if what in ("all", "cartesian"):
+        draw_cartesian()
+    if what in ("all", "observers"):
+        draw_observers()
+    if what in ("all", "frames"):
+        draw_two_frames()
     if what in ("all", "derive"):
         draw_derive()
     if what in ("all", "body"):
