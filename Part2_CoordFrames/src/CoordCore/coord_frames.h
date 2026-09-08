@@ -83,14 +83,14 @@ typedef struct
 {
     FLOAT64                 dAz;        // 안테나가 보는 방향 [rad]. 뱃머리에서 시계방향으로 잰 각
     FLOAT64                 dTilt;      // 안테나 면이 위로 들린 각 [rad]
-    ST_Vec3                 stOffset;   // 무게중심 -> 안테나 위치 [m]. 동체 좌표 (x 앞, y 오른쪽, z 아래)
+    ST_Vec3                 stOffset;   // 무게중심 -> 안테나 위치 [m]. 동체 좌표 (x 선수, y 우현, z 아래)
 } ST_Mount;
 
-// 1) 안테나 극좌표 <-> 안테나 직교좌표 (x 안테나 정면, y 오른쪽, z 아래)
+// 1) 안테나 극좌표 <-> 안테나 직교좌표 (x 왼쪽, y 위, z 보어사이트)
 ST_Vec3     f_PolarToXyz(const ST_Polar stPolar);
 ST_Polar    f_XyzToPolar(const ST_Vec3 stXyz);
 
-// 2) 안테나 <-> 동체 (x 뱃머리, y 오른쪽, z 아래)
+// 2) 안테나 <-> 동체 (x 선수, y 우현, z 아래)
 ST_Vec3     f_AntToBody(const ST_Mount stMount, const ST_Vec3 stAnt);
 ST_Vec3     f_BodyToAnt(const ST_Mount stMount, const ST_Vec3 stBody);
 

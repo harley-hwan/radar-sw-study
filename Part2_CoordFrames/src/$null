@@ -1,0 +1,10 @@
+﻿cmd : 'vswhere.exe' is not recognized as an internal or external command,
+At line:12 char:1
++ cmd /c $bat 2>`$null | Select-Object -Last 14
++ ~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: ('vswhere.exe' i...ternal command,:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+operable program or batch file.
+'swapb.exe' is not recognized as an internal or external command,
+operable program or batch file.
