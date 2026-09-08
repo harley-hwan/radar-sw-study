@@ -3,6 +3,8 @@
 // @brief	좌표변환 구현. 행렬 연산은 참고 소스코드로 받은 matrixCalcLib 을 그대로 씀.
 //			위치는 3x1, 회전은 3x3 matrix 로 두고 Matrix_Product / Matrix_Transpose 로 돌림.
 //			각도 되찾을 때는 asin 말고 atan2. 반올림으로 인자가 1 을 넘으면 asin 은 NaN 이 나옴.
+//			안테나 좌표계만 면 기준(x 왼쪽, y 위, z 보어사이트) 이고 동체 이후는 전부 z 가 아래다.
+//			참고 자료 2.1.9 / 2.1.10 의 정의를 그대로 따른다.
 // @author	hwan
 // @date	2026.09.02.
 //
@@ -77,13 +79,25 @@ static matrix f_RotZ(const FLOAT64 dAng)
     return stR;
 }
 
-// 안테나 -> 동체 회전. 설치 방위만큼 z 축으로, 설치 고각만큼 y 축으로
+// 안테나 면 기준 축(x 왼쪽, y 위, z 보어사이트) 을 동체 축(x 선수, y 우현, z 아래) 으로 돌려 놓는 상수 행렬.
+// 참고 자료 2.2.9 의 R_Ant.Temp^G.B = Rz(-90) * Rx(-90) 과 같다
+static matrix f_RotAntAxisToBody(VOID)
+{
+    matrix stRz = f_RotZ(-PI / 2.0);
+    matrix stRx = f_RotX(-PI / 2.0);
+
+    return Matrix_Product2(&stRz, &stRx);
+}
+
+// 안테나 -> 동체 회전. 축을 먼저 맞추고, 설치 고각만큼 y 축으로, 설치 방위만큼 z 축으로
 static matrix f_RotAntToBody(const ST_Mount stMount)
 {
-    matrix stRz = f_RotZ(stMount.dAz);
-    matrix stRy = f_RotY(stMount.dTilt);
+    matrix stRz   = f_RotZ(stMount.dAz);
+    matrix stRy   = f_RotY(stMount.dTilt);
+    matrix stAxis = f_RotAntAxisToBody();
+    matrix stMnt  = Matrix_Product2(&stRz, &stRy);
 
-    return Matrix_Product2(&stRz, &stRy);
+    return Matrix_Product2(&stMnt, &stAxis);
 }
 
 // 동체 -> NED 회전. yaw, pitch, roll 순서로 곱함. 순서를 바꾸면 값이 달라지니 주의
@@ -109,20 +123,20 @@ ST_Vec3 f_PolarToXyz(const ST_Polar stPolar)
 {
     ST_Vec3 stXyz;
 
-    stXyz.dX =  stPolar.dRange * cos(stPolar.dEl) * cos(stPolar.dAz);
-    stXyz.dY =  stPolar.dRange * cos(stPolar.dEl) * sin(stPolar.dAz);
-    stXyz.dZ = -stPolar.dRange * sin(stPolar.dEl);     // z 가 아래라서 위에 있으면 음수
+    stXyz.dX = stPolar.dRange * cos(stPolar.dEl) * sin(stPolar.dAz);   // x 는 왼쪽. Az 가 반시계(+) 라 sin
+    stXyz.dY = stPolar.dRange * sin(stPolar.dEl);                      // y 는 위
+    stXyz.dZ = stPolar.dRange * cos(stPolar.dEl) * cos(stPolar.dAz);   // z 는 보어사이트
     return stXyz;
 }
 
 ST_Polar f_XyzToPolar(const ST_Vec3 stXyz)
 {
     ST_Polar stPolar;
-    FLOAT64  dXy = sqrt(stXyz.dX * stXyz.dX + stXyz.dY * stXyz.dY);    // 수평 거리
+    FLOAT64  dXz = sqrt(stXyz.dX * stXyz.dX + stXyz.dZ * stXyz.dZ);    // 안테나 면의 좌우-보어사이트 평면 거리
 
-    stPolar.dRange = sqrt(dXy * dXy + stXyz.dZ * stXyz.dZ);
-    stPolar.dAz    = atan2(stXyz.dY, stXyz.dX);
-    stPolar.dEl    = atan2(-stXyz.dZ, dXy);
+    stPolar.dRange = sqrt(dXz * dXz + stXyz.dY * stXyz.dY);
+    stPolar.dAz    = atan2(stXyz.dX, stXyz.dZ);                        // 보어사이트(z) 에서 왼쪽(x) 으로
+    stPolar.dEl    = atan2(stXyz.dY, dXz);                             // 그 평면에서 위(y) 로
     return stPolar;
 }
 

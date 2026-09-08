@@ -1,7 +1,9 @@
 ﻿//
 // @file	coord_frames.h
 // @brief	레이다 좌표변환. 안테나 극좌표 -> 안테나 직교 -> 동체 -> NED -> ECEF -> LLA 순서로 가고
-//			역변환은 그 반대. 거리는 m, 각도는 라디안. 모든 좌표계에서 z 는 아래 방향.
+//			역변환은 그 반대. 거리는 m, 각도는 라디안.
+//			안테나 좌표계는 안테나 면 기준 : x 왼쪽, y 위, z 보어사이트 (참고 자료 2.1.9).
+//			동체 · NED 는 x 선수(북), y 우현(동), z 아래.
 // @author	hwan
 // @date	2026.09.02.
 //
@@ -47,7 +49,7 @@ typedef struct
 typedef struct
 {
     FLOAT64                 dRange;     // 시선거리 [m]
-    FLOAT64                 dAz;        // 방위각 [rad]. 안테나 정면에서 오른쪽이 +
+    FLOAT64                 dAz;        // 방위각 [rad]. 보어사이트에서 반시계(왼쪽)가 + (오른손 법칙)
     FLOAT64                 dEl;        // 고각 [rad]. 위가 +
 } ST_Polar;
 
