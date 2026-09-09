@@ -1,12 +1,4 @@
-﻿//
-// @file	CoordUIDlg.cpp
-// @brief	메인 대화상자. 입력은 도 단위로 받아 라디안으로 바꿔 CoordCore 에 넘기고,
-//			입력칸이나 슬라이더가 바뀌면 바로 다시 계산해서 단계별 결과를 표에 찍음.
-//			변환 로직은 여기 없고 f_* 함수만 부름
-// @author	hwan
-// @date	2026.09.02.
-//
-#include "pch.h"
+﻿#include "pch.h"
 #include "framework.h"
 #include <cmath>
 #include "CoordUI.h"
@@ -17,10 +9,8 @@
 #define new DEBUG_NEW
 #endif
 
-// 슬라이더는 정수만 되니까 0.1 도 단위로 씀
 #define COORD_UI_SLIDER_SCALE	10
 
-// 표 행 번호
 enum {
 	enum_Row_FwdAnt = 0,
 	enum_Row_FwdBody,
@@ -121,12 +111,11 @@ void CCoordUIDlg::SetEditDouble(INT32 nId, FLOAT64 dValue, INT32 nDigits)
 	SetDlgItemText(nId, str);
 }
 
-// 구조체는 라디안이고 화면은 도. 바꾸는 건 여기서 한 번만
 void CCoordUIDlg::SetInputs(const ST_Polar& stMeas, const ST_Lla& stShip, const ST_Attitude& stAtt, const ST_Mount& stMount)
 {
 	const BOOL bReady = m_bReady;
 
-	m_bReady = FALSE;		// 칸 하나 채울 때마다 계산하지 않게 잠시 끔
+	m_bReady = FALSE;
 	SetEditDouble(IDC_EDIT_RANGE,      stMeas.dRange, 1);
 	SetEditDouble(IDC_EDIT_AZ,         RAD2DEG(stMeas.dAz), 3);
 	SetEditDouble(IDC_EDIT_EL,         RAD2DEG(stMeas.dEl), 3);
@@ -164,7 +153,6 @@ void CCoordUIDlg::ReadInputs(ST_Polar& stMeas, ST_Lla& stShip, ST_Attitude& stAt
 	stMount.stOffset.dZ = GetEditDouble(IDC_EDIT_OFF_Z);
 }
 
-// 편집칸 값을 슬라이더 위치로. SetPos 는 WM_HSCROLL 을 안 보내서 되돌아오지 않음
 void CCoordUIDlg::SyncSliders()
 {
 	m_sliderRoll.SetPos(static_cast<INT32>(std::floor(GetEditDouble(IDC_EDIT_ROLL)  * COORD_UI_SLIDER_SCALE + 0.5)));
@@ -185,7 +173,7 @@ void CCoordUIDlg::SetRow(INT32 nRow, LPCTSTR lpszLabel, FLOAT64 dA, FLOAT64 dB, 
 	m_listSteps.SetItemText(nRow, 3, str);
 }
 
-// main.c 와 같은 순서. 정변환 5단계 -> 역변환 5단계 -> 최종 출력 두 가지
+// 정변환 5단계 -> 역변환 5단계 -> 최종 출력 두 가지
 void CCoordUIDlg::Calculate()
 {
 	ST_Polar    stMeas;
@@ -212,7 +200,7 @@ void CCoordUIDlg::Calculate()
 		return;
 	}
 
-	// 정변환. 안테나에서 출발해서 한 단계씩 밖으로
+	// 정변환.
 	stAnt      = f_PolarToXyz(stMeas);
 	stBody     = f_AntToBody(stMount, stAnt);
 	stNed      = f_BodyToNed(stAtt, stBody);
@@ -220,7 +208,7 @@ void CCoordUIDlg::Calculate()
 	stShipEcef = f_LlaToEcef(stShip);
 	stTarget   = f_EcefToLla(stEcef);
 
-	// 역변환. 표적 LLA 에서 다시 안테나까지. 입력값이 그대로 나와야 정상
+	// 역변환.
 	stEcefBack = f_LlaToEcef(stTarget);
 	stNedBack  = f_EcefToNed(stShip, stEcefBack);
 	stBodyBack = f_NedToBody(stAtt, stNedBack);
@@ -239,7 +227,7 @@ void CCoordUIDlg::Calculate()
 	SetRow(enum_Row_InvAnt,   _T("역변환 4) 동체 -> 안테나 직교 (x, y, z)"),  stAntBack.dX, stAntBack.dY, stAntBack.dZ, 4);
 	SetRow(enum_Row_InvPolar, _T("역변환 5) 안테나 직교 -> 극좌표 (R, Az, El)"), stBack.dRange, RAD2DEG(stBack.dAz), RAD2DEG(stBack.dEl), 6);
 
-	// 최종 출력. 조건 6 이 요구하는 두 가지
+	// 최종 출력.
 	str.Format(_T("lat = %.9f deg,  lon = %.9f deg,  alt = %.4f m"),
 		RAD2DEG(stTarget.dLat), RAD2DEG(stTarget.dLon), stTarget.dAlt);
 	SetDlgItemText(IDC_STATIC_LLA, str);
@@ -255,7 +243,6 @@ void CCoordUIDlg::Calculate()
 	SetDlgItemText(IDC_STATIC_ERR, str);
 }
 
-// 슬라이더를 움직이면 편집칸에 값을 써 넣고, 그 EN_CHANGE 가 계산까지 이어짐
 void CCoordUIDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
 	if (pScrollBar != nullptr)
@@ -279,7 +266,7 @@ void CCoordUIDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 	CDialogEx::OnHScroll(nSBCode, nPos, pScrollBar);
 }
 
-// 입력칸이 바뀌면 바로 다시 계산. 자세 칸이면 슬라이더도 맞춰 줌
+// 입력칸이 바뀌면 바로 다시 계산.
 void CCoordUIDlg::OnEnChangeInput(UINT nId)
 {
 	if (!m_bReady)
@@ -335,7 +322,6 @@ HCURSOR CCoordUIDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-// Enter 는 창을 닫지 않고 계산
 void CCoordUIDlg::OnOK()
 {
 	Calculate();

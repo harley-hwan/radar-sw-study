@@ -2,9 +2,7 @@
 // @file	coord_frames.c
 // @brief	좌표변환 구현. 행렬 연산은 참고 소스코드로 받은 matrixCalcLib 을 그대로 씀.
 //			위치는 3x1, 회전은 3x3 matrix 로 두고 Matrix_Product / Matrix_Transpose 로 돌림.
-//			각도 되찾을 때는 asin 말고 atan2. 반올림으로 인자가 1 을 넘으면 asin 은 NaN 이 나옴.
 //			안테나 좌표계만 면 기준(x 왼쪽, y 위, z 보어사이트) 이고 동체 이후는 전부 z 가 아래다.
-//			참고 자료 2.1.9 / 2.1.10 의 정의를 그대로 따른다.
 // @author	hwan
 // @date	2026.09.02.
 //
@@ -17,7 +15,7 @@
 #define LLA_TOL_LAT         1e-12   // [rad]
 #define LLA_TOL_ALT         1e-6    // [m]
 
-// ST_Vec3 <-> 3x1 행렬. 라이브러리 함수가 전부 matrix 만 받아서 들어갈 때 / 나올 때 바꿔줌
+// ST_Vec3 <-> 3x1 행렬.
 static matrix f_ToMat(const ST_Vec3 stV)
 {
     matrix stM;
@@ -39,7 +37,7 @@ static ST_Vec3 f_ToVec(const matrix *stpM)
     return stV;
 }
 
-// 각 축 회전행렬. Matrix_Identity 는 9x9 로 잡혀서 못 쓰고, 3x3 으로 초기화한 뒤 0 아닌 칸만 채움
+// 각 축 회전행렬. 3x3 으로 초기화한 뒤 0 아닌 칸만 채움
 static matrix f_RotX(const FLOAT64 dAng)
 {
     matrix stR;
@@ -80,7 +78,7 @@ static matrix f_RotZ(const FLOAT64 dAng)
 }
 
 // 안테나 면 기준 축(x 왼쪽, y 위, z 보어사이트) 을 동체 축(x 선수, y 우현, z 아래) 으로 돌려 놓는 상수 행렬.
-// 참고 자료 2.2.9 의 R_Ant.Temp^G.B = Rz(-90) * Rx(-90) 과 같다
+// 참고 자료 2.2.9 의 R_Ant.Temp^G.B = Rz(-90) * Rx(-90)
 static matrix f_RotAntAxisToBody(VOID)
 {
     matrix stRz = f_RotZ(-PI / 2.0);
@@ -89,7 +87,7 @@ static matrix f_RotAntAxisToBody(VOID)
     return Matrix_Product2(&stRz, &stRx);
 }
 
-// 안테나 -> 동체 회전. 축을 먼저 맞추고, 설치 고각만큼 y 축으로, 설치 방위만큼 z 축으로
+// 안테나 -> 동체 회전. 축을 먼저 맞추고 설치 방위, 백틸트 순으로 돌림. 순서를 바꾸면 값이 달라짐
 static matrix f_RotAntToBody(const ST_Mount stMount)
 {
     matrix stRz   = f_RotZ(stMount.dAz);
@@ -100,7 +98,7 @@ static matrix f_RotAntToBody(const ST_Mount stMount)
     return Matrix_Product2(&stMnt, &stAxis);
 }
 
-// 동체 -> NED 회전. yaw, pitch, roll 순서로 곱함. 순서를 바꾸면 값이 달라지니 주의
+// 동체 -> NED 회전. yaw, pitch, roll 순서로 곱함. 순서를 바꾸면 값이 달라짐
 static matrix f_RotBodyToNed(const ST_Attitude stAtt)
 {
     matrix stRz = f_RotZ(stAtt.dYaw);

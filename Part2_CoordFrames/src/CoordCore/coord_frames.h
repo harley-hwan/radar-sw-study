@@ -14,7 +14,6 @@
 extern "C" {
 #endif
 
-// 규칙 자료형 중 여기서 쓰는 것만. windows.h 를 먼저 include 했으면 거기 있는 걸 그대로 씀
 #ifndef _WINDOWS_
 typedef signed int          INT32;
 typedef char                CHAR;
@@ -33,7 +32,7 @@ typedef double              FLOAT64;
 
 //
 // @struct	ST_Vec3
-// @brief	3차원 벡터. 어느 좌표계든 공통으로 씀
+// @brief	3차원 벡터.
 //
 typedef struct
 {

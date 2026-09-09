@@ -1632,112 +1632,126 @@ def draw_roll_beam():
 
 # ================================================== 12장 : UV (방향코사인) 이란
 def draw_uv():
-    """u, v, w 가 어디서 오는지를 두 단계로 나눠 보인다.
+    """방향은 반지름 1 인 반구 위의 한 점 — 그 한 장면으로만 설명한다.
 
-    표적이 어느 쪽인지는 '길이 1 짜리 화살표' 하나로 적을 수 있다.
-    그 화살표를 안테나의 세 축에 나눠 담은 양이 u, v, w 다.
-    나누는 순서가 곧 공식의 모양이다. 먼저 El 로 위아래를 떼고(v),
-    남은 수평 성분 cos(El) 을 Az 로 다시 앞뒤·좌우에 나눠 담는다(w, u).
+    u, v, w 는 그 점의 세 좌표다. (u, v) 는 점을 안테나 면에 내린 그림자이고,
+    남은 높이가 w 다. u² + v² + w² = 1 이라 셋 중 둘을 정하면 나머지는 따라온다.
 
-    축 관례는 7 · 8장과 같다 : z(w) 보어사이트 · x(u) 왼쪽 · y(v) 위.
-    그래서 위에서 본 그림은 왼쪽(+Az)이 화면 위이고, u-v 원판은 보어사이트에서
-    바깥을 내다본 그림이라 u 가 화면 왼쪽으로 간다.
+    보기 규칙 — 굵기와 선 모양으로 역할을 가른다 :
+        표적 방향   굵은 주황 실선 (흰 테두리)   ← 주인공
+        u · v · w   중간 굵기 색 실선            ← 그 방향의 세 성분
+        좌표축      가는 회색 점선               ← 눈금 노릇만
+
+    시점은 안테나 면을 눕히고 고도 22° 에서 본 정투영이다. 고도를 낮게 잡아야 표적
+    화살표가 시선축과 나란해져 짧게 눌리는 일이 없다 (지금 배치에서 반지름의 53 %).
     """
     W, H = 1156, 663
     fig, lay = canvas(W, H)
-    ar = (0.300 * H) / (0.380 * W)
-    axS = stage(fig, [0.045, 0.590, 0.380, 0.300], (0, 100), (0, 100 * ar))
-    axT = stage(fig, [0.045, 0.250, 0.380, 0.300], (0, 100), (0, 100 * ar))
-    axD = stage(fig, [0.520, 0.205, 0.430, 0.640], (0, 100),
-                (0, 100 * (0.640 * H) / (0.430 * W)))
+    axD = stage(fig, [0.008, 0.150, 0.545, 0.790], (0, 100),
+                (0, 100 * (0.790 * H) / (0.545 * W)))
 
-    EL, AZ, ARM = 26.0, 30.0, 58.0
+    EL, AZ = 35.0, 20.0
 
-    # ---------------------------------------- 1단계 : 옆에서 보면 El 이 위아래를 뗀다
-    O = (13.0, 11.0)
-    line(axS, (O[0] - 5.0, O[1]), (O[0] + 80.0, O[1]), color="#C7CDD8", lw=1.1, z=1)
-    text(axS, O[0] + 81.0, O[1], "수평면", size=9.5, color=FAINT, va="center")
-    tip = at(O, ARM, EL)
-    foot = (tip[0], O[1])
-    arrow(axS, O, tip, color=ORANGE, lw=2.2, head=11, z=6)
-    text(axS, *at(O, ARM * 0.55, EL + 7.0), s="길이 1", size=11, color=ORANGE, bold=True,
-         ha="center", va="bottom")
-    arrow(axS, O, foot, color=BLUE, lw=1.6, head=9, z=5)
-    text(axS, (O[0] + foot[0]) / 2, O[1] - 2.0, "cos(El)", size=11, color=BLUE, bold=True,
-         ha="center", va="top")
-    arrow(axS, foot, tip, color=GREEN, lw=1.6, head=9, z=5)
-    text(axS, tip[0] + 2.0, (O[1] + tip[1]) / 2, "v = sin(El)", size=11, color=GREEN,
-         bold=True, va="center")
-    arcdeg(axS, O, 13.0, 0.0, EL, color=NAVY, lw=1.3)
-    text(axS, *at(O, 16.5, EL / 2), s="El", size=11, color=NAVY, bold=True, ha="left",
-         va="center")
-    text(axS, 100.0, 34.0, "옆에서 본 그림", size=9.5, color=FAINT, ha="right", va="center")
+    BETA = 22.0
+    SB, CB = math.sin(math.radians(BETA)), math.cos(math.radians(BETA))
+    K = math.sqrt(0.5)
+    EU, EV, EW = (-K, -SB * K), (K, -SB * K), (0.0, CB)
+    C, RS = (46.0, 32.0), 38.0
+    N = 144
 
-    # ------------------------ 2단계 : 위에서 보면 Az 가 남은 cos(El) 을 다시 나눈다
-    #  7장 (a) 와 같은 시점 — 위에서 내려다보면 보어사이트의 왼쪽(+Az)이 화면 위다
-    P = (13.0, 8.0)
-    arrow(axT, P, (P[0] + 78.0, P[1]), color="#C7CDD8", lw=1.4, head=9, z=1)
-    text(axT, P[0] + 79.0, P[1], "보어사이트", size=9.5, color=FAINT, va="center")
-    tp = at(P, ARM, AZ)
-    ft = (tp[0], P[1])
-    arrow(axT, P, tp, color=ORANGE, lw=2.2, head=11, z=6)
-    text(axT, *at(P, ARM * 0.55, AZ + 8.0), s="cos(El)", size=11, color=ORANGE, bold=True,
-         ha="center", va="bottom")
-    arrow(axT, P, ft, color=BLUE, lw=1.6, head=9, z=5)
-    text(axT, (P[0] + ft[0]) / 2, P[1] - 2.0, "w = cos(El)·cos(Az)", size=11, color=BLUE,
-         bold=True, ha="center", va="top")
-    arrow(axT, ft, tp, color=GREEN, lw=1.6, head=9, z=5)
-    text(axT, tp[0] + 2.0, (P[1] + tp[1]) / 2, "u = cos(El)·sin(Az)", size=11, color=GREEN,
-         bold=True, va="center")
-    arcdeg(axT, P, 13.0, 0.0, AZ, color=NAVY, lw=1.3)
-    text(axT, *at(P, 16.5, AZ / 2), s="Az", size=11, color=NAVY, bold=True, ha="left",
-         va="center")
-    text(axT, 100.0, 42.0, "위에서 내려다본 그림 — 왼쪽이 화면 위", size=9.5, color=FAINT,
-         ha="right", va="center")
+    def p3(u, v, w):
+        return (C[0] + RS * (u * EU[0] + v * EV[0] + w * EW[0]),
+                C[1] + RS * (u * EU[1] + v * EV[1] + w * EW[1]))
 
-    # ------------------- 보어사이트에서 바깥을 내다본 u-v 평면 (w 는 화면 안쪽으로)
-    C, RD = (48.0, 0.46 * axD.get_ylim()[1]), 31.0
-    axD.add_patch(Circle(C, RD, facecolor="#F2F5FA", edgecolor="#3D4A5F", lw=1.6, zorder=2))
-    for frac, lab in ((0.500, "30°"), (0.866, "60°")):     # 보어사이트에서 벌어진 각
-        axD.add_patch(Circle(C, RD * frac, facecolor="none", edgecolor="#C7CDD8", lw=1.0,
-                             linestyle=(0, (4, 3)), zorder=3))
-        text(axD, *at(C, RD * frac, 62.0), s=lab, size=9, color=FAINT, ha="center",
-             va="center")
-    for d_, lab, ha, va in ((180.0, "u  왼쪽", "right", "center"),
-                            (90.0, "v  위", "left", "center")):
-        arrow(axD, C, at(C, RD + 5.0, d_), color=GREY, lw=1.4, head=9, z=5)
-        q = at(C, RD + 7.5, d_)
-        text(axD, q[0] + (2.0 if d_ == 90.0 else 0.0), q[1], lab, size=12, color=GREY,
-             bold=True, ha=ha, va=va)
-    axis_mark(axD, C, 2.2, into=True, color=NAVY)
-    text(axD, C[0] + 4.0, C[1] + 3.6, "w", size=11, color=NAVY, bold=True, ha="left",
-         va="bottom")
+    def ring(rad, w, n=N):
+        return [p3(rad * math.cos(2 * math.pi * i / n), rad * math.sin(2 * math.pi * i / n), w)
+                for i in range(n + 1)]
 
-    tgt = (C[0] - RD * 0.5, C[1])
-    axD.add_patch(Circle(tgt, 2.4, facecolor=ORANGE, edgecolor="none", zorder=8))
-    text(axD, tgt[0], tgt[1] - 8.5, "표적 (u, v) = (0.5, 0)", size=10.5, color=ORANGE,
-         bold=True, ha="center", va="top")
-    text(axD, C[0], C[1] - RD - 5.0, "u² + v² = 1  —  이 원 밖으로는 빔을 못 만든다",
-         size=10, color=GREY, ha="center", va="top")
+    def curve(ax, pts, color, lw, z, dashes=None):
+        ln, = ax.plot([q[0] for q in pts], [q[1] for q in pts], color=color, lw=lw,
+                      zorder=z, solid_capstyle="round")
+        if dashes:
+            ln.set_dashes(dashes)
+
+    # 바닥 원판 = 안테나 면
+    poly(axD, ring(1.0, 0.0)[:-1], fc="#EDF2FA", ec="#9FB2CE", lw=1.3, z=2)
+    for phi in range(0, 360, 30):                       # 반구 자오선
+        cp, sp = math.cos(math.radians(phi)), math.sin(math.radians(phi))
+        curve(axD, [p3(math.sin(math.radians(a)) * cp, math.sin(math.radians(a)) * sp,
+                       math.cos(math.radians(a))) for a in range(0, 91, 3)],
+              "#D8E1EE", 0.8, 3)
+    for ang, lab in ((30.0, "30°"), (60.0, "60°")):
+        rr, hh = math.sin(math.radians(ang)), math.cos(math.radians(ang))
+        curve(axD, ring(rr, hh), "#B4C4DA", 1.0, 4)
+        curve(axD, ring(rr, 0.0), "#CFD6E0", 0.9, 3, dashes=(4, 3))
+        q = p3(0.0, rr, hh)
+        text(axD, q[0] + 1.6, q[1] + 0.4, lab, size=9, color=FAINT, ha="left", va="bottom")
+    curve(axD, ring(1.0, 0.0), "#8FA3BE", 1.5, 5)
+
+    # ── 좌표축 : 가는 회색 점선. 눈금 노릇만 하므로 뒤로 물린다
+    for vec, lab, ha, va, dx, dy in (((0.0, 0.0, 1.28), "w  보어사이트", "center", "bottom", 0.0, 1.8),
+                                     ((1.24, 0.0, 0.0), "u  왼쪽", "left", "top", 1.6, -1.4),
+                                     ((0.0, 1.24, 0.0), "v  위", "right", "top", -1.6, -1.4)):
+        tq = p3(*vec)
+        arrow(axD, C, tq, color="#9AA4B4", lw=1.1, head=8, z=6, ls=(0, (5, 3)))
+        text(axD, tq[0] + dx, tq[1] + dy, lab, size=11, color=GREY, bold=True, ha=ha, va=va)
+
+    ce = math.cos(math.radians(EL))
+    uu, vv, ww = ce * math.sin(math.radians(AZ)), math.sin(math.radians(EL)), \
+        ce * math.cos(math.radians(AZ))
+    Pp, Sp, Up = p3(uu, vv, ww), p3(uu, vv, 0.0), p3(uu, 0.0, 0.0)
+    HALO = [pe.withStroke(linewidth=3.4, foreground="white")]
+
+    # ── 세 성분 : 중간 굵기 색 실선
+    arrow(axD, C, Up, color=GREEN, lw=2.3, head=10, z=8)
+    arrow(axD, Up, Sp, color=GREEN, lw=2.3, head=10, z=8)
+    arrow(axD, Sp, Pp, color=BLUE, lw=2.3, head=10, z=9)
+    right_angle(axD, Sp, C, Pp, 2.8, color=BLUE)
+    # u 는 화살표 왼쪽 위, v 는 화살표 아래 — 서로 붙지 않게 반대쪽으로 뗀다
+    text(axD, 0.5 * (C[0] + Up[0]) - 1.2, 0.5 * (C[1] + Up[1]) + 2.4, "u",
+         size=15, color=GREEN, bold=True, ha="right", va="bottom", path_effects=HALO)
+    text(axD, 0.5 * (Up[0] + Sp[0]), 0.5 * (Up[1] + Sp[1]) - 2.4, "v", size=15,
+         color=GREEN, bold=True, ha="center", va="top", path_effects=HALO)
+    text(axD, Sp[0] + 2.2, Sp[1] + 0.70 * (Pp[1] - Sp[1]), "w", size=15, color=BLUE,
+         bold=True, ha="left", va="center", path_effects=HALO)
+
+    # ── 표적 방향 : 가장 굵은 주황 실선. 흰 테두리로 격자 위에서도 끊기지 않게
+    arrow(axD, C, Pp, color=ORANGE, lw=3.6, head=17, z=10, halo=True)
+    axD.add_patch(Circle(Pp, 3.0, facecolor=ORANGE, edgecolor="white", lw=1.4, zorder=11))
+    text(axD, Pp[0] - 3.8, Pp[1] + 2.6, "표적 방향", size=12.5, color=ORANGE, bold=True,
+         ha="right", va="bottom", path_effects=HALO)
+    text(axD, Pp[0] - 3.8, Pp[1] + 0.4, "길이 1", size=10.5, color=GREY,
+         ha="right", va="top", path_effects=HALO)
+    axD.add_patch(Circle(Sp, 2.4, facecolor="white", edgecolor=GREEN, lw=1.8, zorder=11))
+    text(axD, Sp[0] + 3.2, Sp[1] - 1.0, "그림자 (u, v)", size=11, color=GREEN, bold=True,
+         ha="left", va="top", path_effects=HALO)
+
+    text(axD, 46.0, 3.0, "안테나 면을 눕혀 그린 그림 · w 는 면에서 똑바로 나오는 방향",
+         size=9, color=FAINT, ha="center", va="center")
 
     # ------------------------------------------------------------------ 글자
-    text(lay, 0.045, 0.950, "길이 1 화살표를 세 축에 나눠 담기", size=12.5, bold=True)
-    text(lay, 0.045, 0.908, "① El 로 v 를 떼고  →  ② 남은 cos(El) 을 Az 로 나눠 w 와 u",
-         size=10, color=GREY)
-    text(lay, 0.545, 0.950, "보어사이트에서 내다본 u–v 평면", size=12.5, bold=True)
-    text(lay, 0.545, 0.908, "점 (u, v) 는 표적 방향의 그림자 · w 는 화면 안쪽",
-         size=10, color=GREY)
+    X = 0.565
+    text(lay, X, 0.912, "방향은 반구 위의 한 점", size=13, bold=True)
+    text(lay, X, 0.868, "u, v, w 는 그 점의 세 좌표다", size=10, color=GREY)
 
-    text(lay, 0.045, 0.158,
-         "u = x / R = cos(El)·sin(Az)      v = y / R = sin(El)      w = z / R = cos(El)·cos(Az)",
-         size=12, color=NAVY, bold=True)
-    text(lay, 0.045, 0.104,
-         "앞 장 직교좌표 (x, y, z) 를 거리 R 로 나눈 것이다 — 거리를 지우고 방향만 남겼다. "
-         "그래서 u² + v² + w² = 1 이다.",
-         size=10.5, color=GREY)
-    text(lay, 0.045, 0.052,
-         "각 성분이 그 축과 이루는 각의 코사인이라 '방향코사인' 이라 부른다. "
-         "u, v 는 약자가 아니라 성분의 이름이다.",
+    for i, s_ in enumerate(["u  =  x / R  =  cos(El)·sin(Az)",
+                            "v  =  y / R  =  sin(El)",
+                            "w  =  z / R  =  cos(El)·cos(Az)"]):
+        text(lay, X, 0.762 - i * 0.064, s_, size=12, color=NAVY, bold=True)
+
+    text(lay, X, 0.512, "u² + v² + w²  =  1", size=13, color=ORANGE, bold=True)
+    text(lay, X, 0.462, "셋 중 둘을 정하면 나머지는 따라온다", size=10, color=GREY)
+
+    text(lay, X, 0.366, "El 35° · Az 20° 이면", size=10, color=GREY)
+    text(lay, X, 0.310, "u 0.280    v 0.574    w 0.770", size=11.5, color=NAVY, bold=True)
+
+    # 순수하게 기하로만 적는다. 위상배열 이야기는 자료에서 뺐다
+    text(lay, X, 0.218, "그림자 (u, v) 는 u² + v² ≤ 1 인 원판", size=10, color=GREY)
+    text(lay, X, 0.174, "안에만 놓인다 — 그 밖의 (u, v) 에", size=10, color=GREY)
+    text(lay, X, 0.130, "해당하는 방향은 없다", size=10, color=GREY)
+
+    text(lay, 0.018, 0.052,
+         "앞 장 직교좌표 (x, y, z) 를 거리 R 로 나눈 것이다 — 거리를 지우고 방향만 남겼다.",
          size=10.5, color=GREY)
 
     save(fig, "fig03_uv.png")
@@ -2176,7 +2190,10 @@ def draw_lla():
 # 카드 위에 얹으므로 배경은 비운다 (fig20 · fig22 와 같은 방식). 수식은 mathtext.
 # 상자 폭은 글자를 실제로 재서 정한다 (데이터 좌표 = 화면 px 이라 잰 값을 그대로 쓴다).
 def draw_lla_flow():
-    """윗줄 LLA → ECEF (한 번에), 아랫줄 ECEF → LLA (λ 는 바로, φ 는 대입 반복, h 는 마지막)."""
+    """윗줄 LLA → ECEF (한 번에), 아랫줄 ECEF → LLA (λ 는 바로, φ 와 h 는 한 상자 안에서 대입 반복).
+
+    아랫줄 반복은 참고 자료 2.2.2 순서도 = f_EcefToLla() 와 같은 식이다.
+    """
     from matplotlib.patches import FancyBboxPatch
     W, H = 2400, 463
     fig, lay = canvas(W, H, bg=None)
@@ -2252,23 +2269,22 @@ def draw_lla_flow():
     put((xs + xp) / 2, YB - 34, "자전축까지의 거리", "k", va="top")
     x = max(xl, xp)
     arr([(xp, YB), (x + GAP, YB)])
-    x, _ = box(x + GAP, YB, [(r"$\varphi_0 = \arctan(Z\,/\,p)$", "math"),
+    x, _ = box(x + GAP, YB, [(r"$\varphi_0 = \arctan(Z\,/\,p),\ \ h_0 = 0$", "math"),
                              ("지구를 구로 본 첫 값", "k")])
     arr([(x, YB), (x + GAP, YB)])
     xl0 = x + GAP
-    x, hl = box(xl0, YB, [(r"$\tan\varphi = \left(Z + e^2 R_N\sin\varphi\right)/\,p"
-                          r"\quad\rightarrow\quad\varphi$", "math"),
-                          ("오른쪽에도 φ 가 있어 한 번에 못 푼다 → 대입해서 새 φ", "k"),
-                          (r"$e^2 R_N \sin\varphi$ = 단면 그림의 OG (구면이면 0)", "k")],
+    # 참고 자료 2.2.2 순서도 = f_EcefToLla() 와 같은 반복. φ 와 h 를 한 상자 안에서 번갈아 구한다
+    x, hl = box(xl0, YB, [(r"$R_N = a\,/\,\sqrt{1 - e^2\sin^2\varphi}$"
+                           r"$\qquad h = p\,/\cos\varphi - R_N$", "math"),
+                          (r"$\tan\varphi = Z\,(R_N + h)\ /\ "
+                           r"\left[\,p\,(R_N(1 - e^2) + h)\,\right]"
+                           r"\quad\rightarrow\quad\varphi$", "math"),
+                          ("오른쪽에도 φ 가 있어 한 번에 못 푼다 → φ 와 h 를 번갈아 대입", "k")],
                fc=WARMFC, ec=LOOPC)
     yb = YB - hl / 2
     arr([(x - 60, yb), (x - 60, 22), (xl0 + 60, 22), (xl0 + 60, yb)], color=LOOPC, lw=1.7)
-    put((xl0 + x) / 2 + 30, (yb + 22) / 2, "앞 값과 다르면 다시 넣는다  (보통 3 ~ 4 번)", "kb",
+    put((xl0 + x) / 2 + 30, (yb + 22) / 2, "앞 값과 다르면 다시 넣는다  (이번 과제 6 번)", "kb",
         color=LOOPC)
-    arr([(x, YB), (x + GAP, YB)])
-    xh0 = x + GAP
-    x, _ = box(xh0, YB, [(r"$h = p\,/\cos\varphi - R_N$", "math")])
-    put((xh0 + x) / 2, YB - 34, "φ 가 정해진 뒤 한 번", "k", va="top")
     xj = x + GAP / 2
     arr([(x, YB), (xj, YB), (xj, YC - 9), (xj + GAP / 2, YC - 9)])
     arr([(xl + 150, YT), (xj, YT), (xj, YC + 9), (xj + GAP / 2, YC + 9)])
@@ -2426,22 +2442,29 @@ def _vec(name, sub, tail=""):
 
 # =============================================== 10장 : 안테나 → 동체 흐름도
 def draw_body_flow():
-    """[p_안테나] → Ry(백틸트) → Rz(설치방위) → + 레버암 → [p_동체]. 상자 아래에 이번 과제 값."""
+    """[p_안테나] → 축 맞춤 A → Rz(설치방위) → Ry(백틸트) → + 레버암 → [p_동체].
+
+    A 는 안테나 면 축을 동체 축에 겹쳐 놓는 상수 행렬이라 벡터에 가장 먼저 닿는다
+    (식 Rz · Ry · A 의 맨 오른쪽). 그다음 설치 방위, 백틸트 순으로 돌리는데, 이쪽은
+    12장 자세 회전 yaw → pitch → roll 과 같은 약속이라 식을 왼쪽부터 읽은 순서다.
+    """
     W, H = 2400, 300
     fig, ax, F = _flow_canvas(W, H, scale=1.18)
     w0 = F.rich(0, H - 24, [("안테나 → 동체 변환", "b")], size=11.4 * 1.18, color=BLUE,
                 ha="left")
-    F.note(w0 + 18, H - 24, "상자를 왼쪽부터 읽은 것이 실제로 도는 순서", ha="left")
+    F.note(w0 + 18, H - 24, "축을 먼저 맞추고, 설치 방위 → 백틸트 순서로 돌린다", ha="left")
     Y = 178
     x, spans = F.chain(0, Y, [
         [(_vec("p", "안테나", "  (x 왼쪽, y 위, z 보어사이트)"), "main")],
         [("축 맞춤 A", "main")],
-        [("Ry(백틸트)", "main")],
         [("Rz(설치방위)", "main")],
+        [("Ry(백틸트)", "main")],
         [("+ 레버암", "main")],
         [(_vec("p", "동체"), "main")],
-    ], under=[("이번 과제 값 →", ORANGE), ("Rz(-90°)·Rx(-90°)", GREY), ("백틸트 0°", ORANGE),
-              ("설치 방위 90°", ORANGE), ("레버암 (-30, 0, -10) m", ORANGE), None],
+    # 상자에 이미 "+ 레버암" 이 있어 아래 라벨은 값만 적는다 (옆 라벨과 붙지 않게)
+    ], under=[("이번 과제 값 →", ORANGE), ("Rz(-90°)·Rx(-90°)", GREY),
+              ("설치 방위 90°", ORANGE), ("백틸트 0°", ORANGE),
+              ("(-30, 0, -10) m", ORANGE), None],
         ec=BLUE)
     if x > W:
         print("경고: fig25 가 %d px 로 캔버스(%d)를 넘는다" % (x, W))
@@ -2454,27 +2477,30 @@ def draw_body_flow():
 
 # =============================================== 12장 : 동체 → NED 흐름도
 def draw_ned_flow():
-    """[p_동체] → Rx(roll) → Ry(pitch) → Rz(yaw) → [p_NED] → 축만 바꿔 적음 → [p_ENU]."""
+    """[p_동체] → Rz(yaw) → Ry(pitch) → Rx(roll) → [p_NED] → 축만 바꿔 적음 → [p_ENU].
+
+    자세 회전은 yaw → pitch → roll 순서로 적용한다. 순서가 바뀌면 다른 값이 나오므로
+    상자도 식(Rz · Ry · Rx)과 같은 순서로 왼쪽부터 늘어놓는다."""
     W, H = 2400, 339
     fig, ax, F = _flow_canvas(W, H)
     w0 = F.rich(0, H - 20, [("동체 → NED 변환 공식", "b")], size=11.4, color=BLUE, ha="left")
-    F.note(w0 + 18, H - 20, "상자를 왼쪽부터 읽은 것이 실제로 도는 순서", ha="left")
+    F.note(w0 + 18, H - 20, "자세는 yaw → pitch → roll 순서로 돌린 것 · 상자도 식과 같은 순서", ha="left")
     Y = 190
     x, spans = F.chain(70, Y, [
         [(_vec("p", "동체"), "main")],
-        [("Rx(roll)", "main")],
-        [("Ry(pitch)", "main")],
         [("Rz(yaw)", "main")],
+        [("Ry(pitch)", "main")],
+        [("Rx(roll)", "main")],
         [(_vec("p", "NED", "  (N, E, D)"), "main")],
         [("축만 바꿔 적음", "main"), ("(E, N, U) = (E, N, -D)", "note")],
         [(_vec("p", "ENU", "  (E, N, U)"), "main")],
-    ], under=[("원점 = 무게중심", GREY), ("이번 과제  0°", ORANGE), ("이번 과제  0°", ORANGE),
-              ("이번 과제  45°", ORANGE), ("원점 = 무게중심 → 평행이동 없음", GREY), None,
+    ], under=[("원점 = 무게중심", GREY), ("이번 과제  45°", ORANGE), ("이번 과제  0°", ORANGE),
+              ("이번 과제  0°", ORANGE), ("원점 같음 → 평행이동 없음", GREY), None,
               ("같은 점, 다른 표기", GREY)],
         ec=BLUE)
     F.note(0, 62, [("식으로 쓰면   ", "n")] + _vec("p", "NED", " = Rz(yaw) · Ry(pitch) · Rx(roll) · ")
            + _vec("p", "동체")
-           + [("   — 적는 순서는 Rz · Ry · Rx (3-2-1), 도는 순서는 오른쪽(roll)부터", "n")],
+           + [("   — yaw → pitch → roll (3-2-1) 순서다. 순서가 바뀌면 값이 달라진다", "n")],
            ha="left", color=NAVY)
     F.note(0, 26, [("이번 과제   ", "n")] + _vec("p", "NED", " = Rz(45°) · Ry(0°) · Rx(0°) · ")
            + _vec("p", "동체", " = Rz(45°) · ") + _vec("p", "동체"),

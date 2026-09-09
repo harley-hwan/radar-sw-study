@@ -9,7 +9,7 @@
 // @date	2026.09.02.
 //
 #ifdef _WIN32
-#include <windows.h>    // 한글 콘솔 출력용. coord_frames.h 보다 먼저 include 해야 함
+#include <windows.h>
 #endif
 #include <stdio.h>
 #include <math.h>
@@ -51,7 +51,7 @@ INT32 main(VOID)
            RAD2DEG(stMount.dAz), RAD2DEG(stMount.dTilt),
            stMount.stOffset.dX, stMount.stOffset.dY, stMount.stOffset.dZ);
 
-    // 정변환. 안테나에서 출발해서 한 단계씩 밖으로
+    // 정변환.
     printf("\n[정변환]\n");
 
     stAnt = f_PolarToXyz(stMeas);
@@ -72,7 +72,7 @@ INT32 main(VOID)
     printf("      lat = %.9f deg, lon = %.9f deg, alt = %.4f m\n",
            RAD2DEG(stTarget.dLat), RAD2DEG(stTarget.dLon), stTarget.dAlt);
 
-    // 역변환. 표적 LLA 에서 다시 안테나까지. 입력값이 그대로 나와야 정상
+    // 역변환.
     printf("\n[역변환]\n");
 
     stEcef = f_LlaToEcef(stTarget);
