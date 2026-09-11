@@ -1,6 +1,6 @@
 //
 // @file	target_sim.h
-// @brief	표적 궤적 모의. 표적 구조체와 한 스텝 갱신, 플랫폼에서 본 관측값(거리·방위·고각).
+// @brief	표적 궤적 모의. 표적 구조체와 한 스텝 갱신.
 //			초기값은 위경도 · 동체 속력 · 자세각으로 받고, 상태는 ECEF 에서 갱신한다.
 //			좌표변환은 제공받은 CoordinateTransform.c 를 그대로 쓴다 (각도 라디안, 거리 m).
 // @author	hwan
@@ -74,12 +74,8 @@ VOID    f_SetTarget(ST_Target *pstTgt, DOUBLE64 dLatDeg, DOUBLE64 dLonDeg, DOUBL
                     DOUBLE64 dVheading, DOUBLE64 dRollDeg, DOUBLE64 dYawDeg, DOUBLE64 dPitchDeg);
 VOID    f_AddManeuver(ST_Target *pstTgt, DOUBLE64 dGravity, INT32 nTurnType, DOUBLE64 dStartTime, DOUBLE64 dEndTime);
 VOID    f_SetAssignment(ST_Scenario *pstScn, INT32 bWithManeuver);
-VOID    f_SetRandom(ST_Scenario *pstScn, UINT32 uSeed);
 VOID    f_StartScenario(ST_Scenario *pstScn);
 VOID    f_StepScenario(ST_Scenario *pstScn, DOUBLE64 dTime);
-
-// 플랫폼에서 본 표적 : r [m], az [rad, 북 0 · 시계방향 0~2π], el [rad]
-STRUCT_Coord_Sph f_Observe(const ST_Target *pstPf, const ST_Target *pstTgt);
 
 #ifdef __cplusplus
 }

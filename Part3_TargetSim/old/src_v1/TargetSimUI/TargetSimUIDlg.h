@@ -8,7 +8,6 @@
 
 #include "target_sim.h"
 #undef BOOL					// 제공받은 Define.h 가 BOOL 을 bool 로 정의해서 MFC 의 BOOL(int) 로 되돌린다
-#include "PpiView.h"
 #include "MapView.h"
 
 class CTargetSimUIDlg : public CDialogEx
@@ -28,15 +27,13 @@ protected:
 	CListCtrl	m_listState;
 	CSliderCtrl	m_slider;
 	CComboBox	m_comboSpeed;
-	CPpiView	m_ppi;
 	CMapView	m_map;
 
 	ST_Scenario	m_stScn;
 	PathList	m_paths;		// 실행 결과. [0] 플랫폼, [1..] 표적
 	BOOL		m_bPlaying;
-	UINT		m_uSeed;		// 무작위 시나리오 씨앗. 누를 때마다 하나씩 올라간다
 
-	void	Setup(BOOL bRandom);
+	void	Setup();
 	void	Run();
 	void	ShowStep(int nStep);
 	void	StopPlay();
@@ -47,11 +44,9 @@ protected:
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedRun();
-	afx_msg void OnBnClickedRandom();
 	afx_msg void OnBnClickedSave();
 	afx_msg void OnBnClickedPlay();
 	afx_msg void OnBnClickedManeuver();
-	afx_msg void OnBnClickedView();
 	virtual void OnOK() {}
 	virtual void OnCancel();
 	DECLARE_MESSAGE_MAP()

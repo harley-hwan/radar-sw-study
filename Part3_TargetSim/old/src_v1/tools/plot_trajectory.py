@@ -5,7 +5,6 @@
 
 <tag>_map.png : 평면 궤적 (경도 · 위도, 축 비율 1/cos(위도))
 <tag>_alt.png : 고도 - 시간
-<tag>_ppi.png : 플랫폼에서 본 거리 · 방위 (CSV 에 range_m/az_deg 열이 있을 때)
 """
 import argparse
 import csv
@@ -31,9 +30,6 @@ def read(path):
             d["lat"].append(float(row["lat_deg"]))
             d["lon"].append(float(row["lon_deg"]))
             d["alt"].append(float(row["alt_m"]))
-            if "range_m" in row:
-                d.setdefault("rng", []).append(float(row["range_m"]))
-                d.setdefault("az", []).append(float(row["az_deg"]))
     return data
 
 
@@ -55,16 +51,12 @@ def main():
     ax = fig.add_axes([0.17, 0.12, 0.79, 0.80])
     lons = [v for d in data.values() for v in d["lon"]]
     lats = [v for d in data.values() for v in d["lat"]]
-    many = len(data) > 5          # 표적이 많으면 범례 대신 궤적 끝에 번호를 단다
     for i, d in sorted(data.items()):
         if i == 0:
             ax.plot(d["lon"][0], d["lat"][0], "^", ms=9, color=COLORS[0], label=label(i))
         else:
-            ax.plot(d["lon"], d["lat"], color=COLORS[i % len(COLORS)], lw=2, label=None if many else label(i))
+            ax.plot(d["lon"], d["lat"], color=COLORS[i % len(COLORS)], lw=2, label=label(i))
             ax.plot(d["lon"][0], d["lat"][0], "o", ms=5, color=COLORS[i % len(COLORS)])
-            if many:
-                ax.annotate("T%d" % i, (d["lon"][-1], d["lat"][-1]), fontsize=8, color=COLORS[i % len(COLORS)],
-                            xytext=(4, 4), textcoords="offset points")
     lat_c, lon_c = 0.5 * (min(lats) + max(lats)), 0.5 * (min(lons) + max(lons))
     asp = 1.0 / math.cos(math.radians(lat_c))
     lon_span = (max(lons) - min(lons)) * 1.3 + 0.01
@@ -97,27 +89,6 @@ def main():
     ax.legend(prop=FONT)
     fig.tight_layout()
     fig.savefig(os.path.join(a.out, a.tag + "_alt.png"))
-
-    # 플랫폼에서 본 극좌표 (북이 위, 시계방향). 화면의 PPI 와 같은 색
-    if any("rng" in d for d in data.values()):
-        BG, GRID, TXT, LINE = "#050E09", "#005428", "#60C882", "#8CFFAA"
-        fig = plt.figure(figsize=(5.0, 5.0), dpi=150, facecolor=BG)
-        ax = fig.add_axes([0.08, 0.06, 0.84, 0.84], projection="polar", facecolor=BG)
-        ax.set_theta_zero_location("N")
-        ax.set_theta_direction(-1)
-        for i, d in sorted(data.items()):
-            if i and "rng" in d:
-                th = [math.radians(v) for v in d["az"]]
-                rk = [v / 1000.0 for v in d["rng"]]
-                ax.plot(th, rk, color=LINE, lw=1.5, alpha=0.9)
-                ax.plot(th[0], rk[0], "o", ms=4, color=LINE)
-                ax.annotate("T%d" % i, (th[-1], rk[-1]), color=LINE, fontsize=8, xytext=(4, 4), textcoords="offset points")
-        ax.set_thetagrids(range(0, 360, 30), ["%03d" % v for v in range(0, 360, 30)])
-        ax.tick_params(colors=TXT, labelsize=8)
-        ax.grid(color=GRID)
-        ax.spines["polar"].set_color(GRID)
-        ax.set_title("플랫폼에서 본 거리 [km] · 방위 (○ 시작)", fontproperties=FONT, color=TXT)
-        fig.savefig(os.path.join(a.out, a.tag + "_ppi.png"), facecolor=BG)
     print("saved:", a.out)
 
 

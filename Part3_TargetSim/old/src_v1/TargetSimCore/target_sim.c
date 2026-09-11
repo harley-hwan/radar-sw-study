@@ -5,8 +5,6 @@
 // @author	hwan
 // @date	2026.09.12.
 //
-#include <math.h>
-#include <stdlib.h>
 #include <string.h>
 #include "target_sim.h"
 
@@ -89,67 +87,6 @@ VOID f_SetAssignment(ST_Scenario *pstScn, INT32 bWithManeuver)
 }
 
 
-// [dLo, dHi) 균일 난수
-static DOUBLE64 f_Rand(DOUBLE64 dLo, DOUBLE64 dHi)
-{
-    return dLo + (dHi - dLo) * (DOUBLE64)rand() / ((DOUBLE64)RAND_MAX + 1.0);
-}
-
-
-//
-// @brief	무작위 시나리오. 플랫폼은 과제 조건 그대로, 표적 MAX_TARGET 개를 6~24 km 에 뿌린다.
-//			짝수 번은 대함(고도 0, 10~30 m/s), 홀수 번은 대공(300~3000 m, 150~300 m/s), 대략 플랫폼 쪽을 향한다.
-//			위치는 플랫폼 기준 NED 로 정하고 f_Trans_Ned_To_Ecef → f_Trans_Ecef_To_Lla 로 위경도를 얻는다.
-//			기동은 표적당 1~3 개를 겹치지 않게 차례로 붙인다.
-// @author	hwan
-//
-VOID f_SetRandom(ST_Scenario *pstScn, UINT32 uSeed)
-{
-    const DOUBLE64    dPfLat = DEG2RAD(32.0), dPfLon = DEG2RAD(126.0);
-    STRUCT_Coord_Rect stPf, stEcef;
-    STRUCT_Coord_Lla  stLla;
-    INT32             i, j;
-
-    memset(pstScn, 0, sizeof(*pstScn));
-    pstScn->dSimTime   = 60.0;
-    pstScn->dDt        = 0.1;
-    pstScn->nTargetCnt = MAX_TARGET;
-    f_SetTarget(&pstScn->stPlatform, 32.0, 126.0, 0.0, 0.0, 0.0, 0.0, 0.0);
-    stPf = f_Trans_Lla_To_Ecef(dPfLon, dPfLat, 0.0);
-
-    srand(uSeed);
-    for (i = 0; i < MAX_TARGET; i++)
-    {
-        ST_Target *pstTgt = &pstScn->astTarget[i];
-        INT32      bAir   = i % 2;
-        DOUBLE64   dRange = f_Rand(6000.0, 24000.0);                                       // 플랫폼에서 본 거리 [m]
-        DOUBLE64   dBrg   = f_Rand(0.0, 360.0);                                            // 플랫폼에서 본 방위 [deg]
-        DOUBLE64   dYaw   = fmod(dBrg + 180.0 + f_Rand(-60.0, 60.0) + 360.0, 360.0);       // 플랫폼 쪽 ± 60 도
-        DOUBLE64   dTime  = f_Rand(2.0, 10.0);
-
-        stEcef = f_Trans_Ned_To_Ecef(dRange * cos(DEG2RAD(dBrg)), dRange * sin(DEG2RAD(dBrg)), 0.0,
-                                     stPf.x, stPf.y, stPf.z, dPfLat, dPfLon);
-        stLla  = f_Trans_Ecef_To_Lla(stEcef.x, stEcef.y, stEcef.z);
-        f_SetTarget(pstTgt, RAD2DEG(stLla.Lat), RAD2DEG(stLla.Lon),
-                    bAir ? f_Rand(300.0, 3000.0) : 0.0,
-                    bAir ? f_Rand(150.0, 300.0)  : f_Rand(10.0, 30.0),
-                    0.0, dYaw, 0.0);
-
-        for (j = rand() % 3; (j >= 0) && (dTime < 50.0); j--)
-        {
-            DOUBLE64 dDur  = f_Rand(4.0, 12.0);
-            DOUBLE64 dSign = (rand() % 2) ? 1.0 : -1.0;
-
-            if (bAir && (rand() % 4 == 0))
-                f_AddManeuver(pstTgt, dSign * f_Rand(0.3, 0.8), TURN_PITCH, dTime, dTime + dDur * 0.5);         // 가끔 기수 올리기/내리기
-            else
-                f_AddManeuver(pstTgt, dSign * (bAir ? f_Rand(1.0, 4.0) : f_Rand(0.05, 0.2)), TURN_YAW, dTime, dTime + dDur);
-            dTime += dDur + f_Rand(2.0, 8.0);
-        }
-    }
-}
-
-
 // 상태 칸 초기화. f_Trans_Lla_To_Ecef 는 인자 순서가 (경도, 위도, 고도) 다
 static VOID f_InitTarget(ST_Target *pstTgt)
 {
@@ -223,30 +160,4 @@ VOID f_StepScenario(ST_Scenario *pstScn, DOUBLE64 dTime)
     {
         f_StepTarget(&pstScn->astTarget[i], dTime, pstScn->dDt);
     }
-}
-
-
-//
-// @brief	플랫폼에서 본 표적의 거리·방위·고각. ECEF 차이를 플랫폼 기준 NED 로 돌린 뒤 구면좌표로.
-//			f_Trans_Ant_XYZ_To_Sph 는 (x 오른쪽, y 위, z 앞) 축이라 NED 의 (e, -d, n) 을 넣는다.
-// @author	hwan
-//
-STRUCT_Coord_Sph f_Observe(const ST_Target *pstPf, const ST_Target *pstTgt)
-{
-    STRUCT_Coord_Rect stNed;
-    STRUCT_Coord_Sph  stSph;
-
-    stNed = f_Trans_Ecef_To_Ned(pstTgt->stPos.x, pstTgt->stPos.y, pstTgt->stPos.z,
-                                pstPf->stPos.x, pstPf->stPos.y, pstPf->stPos.z,
-                                pstPf->stLla.Lat, pstPf->stLla.Lon);
-    stSph = f_Trans_Ant_XYZ_To_Sph(stNed.y, -stNed.z, stNed.x);
-    if (stSph.az < 0.0)
-    {
-        stSph.az += 2.0 * PI;
-    }
-    if (stSph.az >= 2.0 * PI - 1e-9)                // 정북 (-0.000…) 이 360 으로 찍히지 않게
-    {
-        stSph.az = 0.0;
-    }
-    return stSph;
 }

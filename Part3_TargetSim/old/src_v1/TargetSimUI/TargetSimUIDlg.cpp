@@ -25,7 +25,6 @@ static const int s_anSpeed[] = { 1, 2, 5, 10 };		// 배속 = 한 틱에 진행�
 CTargetSimUIDlg::CTargetSimUIDlg(CWnd *pParent /*=nullptr*/)
 	: CDialogEx(IDD_TARGETSIM_DIALOG, pParent)
 	, m_bPlaying(FALSE)
-	, m_uSeed(GetTickCount())
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -37,7 +36,6 @@ void CTargetSimUIDlg::DoDataExchange(CDataExchange *pDX)
 	DDX_Control(pDX, IDC_LIST_STATE,   m_listState);
 	DDX_Control(pDX, IDC_SLIDER_TIME,  m_slider);
 	DDX_Control(pDX, IDC_COMBO_SPEED,  m_comboSpeed);
-	DDX_Control(pDX, IDC_PPI,          m_ppi);
 	DDX_Control(pDX, IDC_MAP,          m_map);
 }
 
@@ -47,12 +45,9 @@ BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
 	ON_WM_HSCROLL()
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BTN_RUN,        &CTargetSimUIDlg::OnBnClickedRun)
-	ON_BN_CLICKED(IDC_BTN_RANDOM,     &CTargetSimUIDlg::OnBnClickedRandom)
 	ON_BN_CLICKED(IDC_BTN_SAVE,       &CTargetSimUIDlg::OnBnClickedSave)
 	ON_BN_CLICKED(IDC_BTN_PLAY,       &CTargetSimUIDlg::OnBnClickedPlay)
 	ON_BN_CLICKED(IDC_CHECK_MANEUVER, &CTargetSimUIDlg::OnBnClickedManeuver)
-	ON_BN_CLICKED(IDC_RADIO_PPI,      &CTargetSimUIDlg::OnBnClickedView)
-	ON_BN_CLICKED(IDC_RADIO_MAP,      &CTargetSimUIDlg::OnBnClickedView)
 END_MESSAGE_MAP()
 
 
@@ -69,17 +64,14 @@ BOOL CTargetSimUIDlg::OnInitDialog()
 	m_listTargets.InsertColumn(3, _T("고도 m"),   LVCFMT_RIGHT, 48);
 	m_listTargets.InsertColumn(4, _T("속력 m/s"), LVCFMT_RIGHT, 56);
 	m_listTargets.InsertColumn(5, _T("r/y/p"),   LVCFMT_RIGHT, 62);
-	m_listTargets.InsertColumn(6, _T("기동 (g, 축, 시작~끝 s)"), LVCFMT_LEFT, 260);
+	m_listTargets.InsertColumn(6, _T("기동 (g, 축, 시작~끝 s)"), LVCFMT_LEFT, 200);
 
 	m_listState.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES);
-	m_listState.InsertColumn(0, _T("구분"),    LVCFMT_LEFT,  46);
-	m_listState.InsertColumn(1, _T("위도"),    LVCFMT_RIGHT, 76);
-	m_listState.InsertColumn(2, _T("경도"),    LVCFMT_RIGHT, 76);
-	m_listState.InsertColumn(3, _T("고도 m"),  LVCFMT_RIGHT, 56);
-	m_listState.InsertColumn(4, _T("yaw"),     LVCFMT_RIGHT, 46);
-	m_listState.InsertColumn(5, _T("거리 km"), LVCFMT_RIGHT, 58);
-	m_listState.InsertColumn(6, _T("방위"),    LVCFMT_RIGHT, 48);
-	m_listState.InsertColumn(7, _T("고각"),    LVCFMT_RIGHT, 48);
+	m_listState.InsertColumn(0, _T("구분"),   LVCFMT_LEFT,  46);
+	m_listState.InsertColumn(1, _T("위도"),   LVCFMT_RIGHT, 84);
+	m_listState.InsertColumn(2, _T("경도"),   LVCFMT_RIGHT, 84);
+	m_listState.InsertColumn(3, _T("고도 m"), LVCFMT_RIGHT, 64);
+	m_listState.InsertColumn(4, _T("yaw"),    LVCFMT_RIGHT, 56);
 
 	for (int n : s_anSpeed)
 	{
@@ -89,25 +81,19 @@ BOOL CTargetSimUIDlg::OnInitDialog()
 	}
 	m_comboSpeed.SetCurSel(1);
 
-	CheckRadioButton(IDC_RADIO_PPI, IDC_RADIO_MAP, IDC_RADIO_PPI);
-	OnBnClickedView();
-	Setup(FALSE);
+	Setup();
 	return TRUE;
 }
 
 
-// 시나리오를 만들고 (과제 조건 또는 무작위) 표에 보여 준다
-void CTargetSimUIDlg::Setup(BOOL bRandom)
+// 과제 조건으로 시나리오를 만들고 표에 보여 준다
+void CTargetSimUIDlg::Setup()
 {
 	static const LPCTSTR apszAxis[] = { _T("-"), _T("roll"), _T("yaw"), _T("pitch") };
 	CString str, strMan;
 
 	StopPlay();
-	if (bRandom)
-		f_SetRandom(&m_stScn, ++m_uSeed);
-	else
-		f_SetAssignment(&m_stScn, IsDlgButtonChecked(IDC_CHECK_MANEUVER) == BST_CHECKED);
-	SetDlgItemText(IDC_STATIC_SCN, bRandom ? _T("표적 (초기값) - 무작위") : _T("표적 (초기값) - 과제 조건"));
+	f_SetAssignment(&m_stScn, IsDlgButtonChecked(IDC_CHECK_MANEUVER) == BST_CHECKED);
 
 	m_listTargets.DeleteAllItems();
 	for (int i = 0; i <= m_stScn.nTargetCnt; i++)
@@ -133,7 +119,6 @@ void CTargetSimUIDlg::Setup(BOOL bRandom)
 	}
 
 	m_paths.clear();
-	m_ppi.SetPaths(nullptr, m_stScn.dDt);
 	m_map.SetPaths(nullptr);
 	m_listState.DeleteAllItems();
 	m_slider.EnableWindow(FALSE);
@@ -143,7 +128,7 @@ void CTargetSimUIDlg::Setup(BOOL bRandom)
 }
 
 
-// 60 초를 0.1 초 간격으로 돌리며 매 스텝 위경도와 플랫폼에서 본 거리·방위·고각을 모은다
+// 60 초를 0.1 초 간격으로 돌리며 매 스텝 위경도를 모은다
 void CTargetSimUIDlg::Run()
 {
 	const int nSteps = static_cast<int>(std::floor(m_stScn.dSimTime / m_stScn.dDt + 0.5));
@@ -152,15 +137,7 @@ void CTargetSimUIDlg::Run()
 		for (int i = 0; i <= m_stScn.nTargetCnt; i++)
 		{
 			const ST_Target *pstTgt = (i == 0) ? &m_stScn.stPlatform : &m_stScn.astTarget[i - 1];
-			ST_Point pt = { RAD2DEG(pstTgt->stLla.Lat), RAD2DEG(pstTgt->stLla.Lon), pstTgt->stLla.Alt, RAD2DEG(pstTgt->stAtt.Yaw), 0.0, 0.0, 0.0 };
-
-			if (i > 0)
-			{
-				const STRUCT_Coord_Sph stObs = f_Observe(&m_stScn.stPlatform, pstTgt);
-				pt.dRange = stObs.r;
-				pt.dAz    = RAD2DEG(stObs.az);
-				pt.dEl    = RAD2DEG(stObs.el);
-			}
+			ST_Point pt = { RAD2DEG(pstTgt->stLla.Lat), RAD2DEG(pstTgt->stLla.Lon), pstTgt->stLla.Alt, RAD2DEG(pstTgt->stAtt.Yaw) };
 			m_paths[i].push_back(pt);
 		}
 	};
@@ -174,7 +151,6 @@ void CTargetSimUIDlg::Run()
 		record();
 	}
 
-	m_ppi.SetPaths(&m_paths, m_stScn.dDt);
 	m_map.SetPaths(&m_paths);
 	m_slider.SetRange(0, nSteps, TRUE);
 	m_slider.SetTicFreq(nSteps / 6);
@@ -194,7 +170,6 @@ void CTargetSimUIDlg::ShowStep(int nStep)
 	{
 		return;
 	}
-	m_ppi.SetStep(nStep);
 	m_map.SetStep(nStep);
 	m_listState.DeleteAllItems();
 	for (int i = 0; i < static_cast<int>(m_paths.size()); i++)
@@ -207,12 +182,6 @@ void CTargetSimUIDlg::ShowStep(int nStep)
 		str.Format(_T("%.6f"), p.dLon); m_listState.SetItemText(i, 2, str);
 		str.Format(_T("%.2f"),  p.dAlt); m_listState.SetItemText(i, 3, str);
 		str.Format(_T("%.1f"),  p.dYaw); m_listState.SetItemText(i, 4, str);
-		if (i > 0)
-		{
-			str.Format(_T("%.3f"), p.dRange / 1000.0); m_listState.SetItemText(i, 5, str);
-			str.Format(_T("%.1f"),  p.dAz);            m_listState.SetItemText(i, 6, str);
-			str.Format(_T("%.2f"),  p.dEl);            m_listState.SetItemText(i, 7, str);
-		}
 	}
 	str.Format(_T("t = %.1f s"), nStep * m_stScn.dDt);
 	SetDlgItemText(IDC_STATIC_TIME, str);
@@ -284,34 +253,19 @@ void CTargetSimUIDlg::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 	CDialogEx::OnHScroll(nSBCode, nPos, pScrollBar);
 }
 
-// 오른쪽 화면 고르기 : 레이다 화면(PPI) 또는 지도
-void CTargetSimUIDlg::OnBnClickedView()
-{
-	const BOOL bPpi = (IsDlgButtonChecked(IDC_RADIO_PPI) == BST_CHECKED);
-
-	m_ppi.ShowWindow(bPpi ? SW_SHOW : SW_HIDE);
-	m_map.ShowWindow(bPpi ? SW_HIDE : SW_SHOW);
-}
-
 void CTargetSimUIDlg::OnBnClickedManeuver()
 {
-	Setup(FALSE);
+	Setup();
 }
 
 void CTargetSimUIDlg::OnBnClickedRun()
 {
-	Setup(FALSE);
-	Run();
-}
-
-void CTargetSimUIDlg::OnBnClickedRandom()
-{
-	Setup(TRUE);
+	Setup();
 	Run();
 }
 
 
-// t, id, 위도, 경도, 고도, yaw, 거리, 방위, 고각 을 한 줄씩
+// t, id, 위도, 경도, 고도, yaw 를 한 줄씩
 void CTargetSimUIDlg::OnBnClickedSave()
 {
 	CFileDialog dlg(FALSE, _T("csv"), _T("trajectory.csv"), OFN_OVERWRITEPROMPT, _T("CSV (*.csv)|*.csv||"), this);
@@ -326,14 +280,13 @@ void CTargetSimUIDlg::OnBnClickedSave()
 		AfxMessageBox(_T("파일을 열 수 없습니다"));
 		return;
 	}
-	fprintf(fp, "t,id,lat_deg,lon_deg,alt_m,yaw_deg,range_m,az_deg,el_deg\n");
+	fprintf(fp, "t,id,lat_deg,lon_deg,alt_m,yaw_deg\n");
 	for (size_t k = 0; k < m_paths[0].size(); k++)
 	{
 		for (size_t i = 0; i < m_paths.size(); i++)
 		{
 			const ST_Point &p = m_paths[i][k];
-			fprintf(fp, "%.1f,%d,%.9f,%.9f,%.4f,%.4f,%.3f,%.4f,%.4f\n", k * m_stScn.dDt, static_cast<int>(i),
-			        p.dLat, p.dLon, p.dAlt, p.dYaw, p.dRange, p.dAz, p.dEl);
+			fprintf(fp, "%.1f,%d,%.9f,%.9f,%.4f,%.4f\n", k * m_stScn.dDt, static_cast<int>(i), p.dLat, p.dLon, p.dAlt, p.dYaw);
 		}
 	}
 	fclose(fp);

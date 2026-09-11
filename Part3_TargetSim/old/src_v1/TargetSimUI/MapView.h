@@ -6,7 +6,17 @@
 //
 #pragma once
 
-#include "SimPath.h"
+#include <vector>
+
+struct ST_Point
+{
+	double	dLat;		// [deg]
+	double	dLon;		// [deg]
+	double	dAlt;		// [m]
+	double	dYaw;		// [deg]
+};
+
+typedef std::vector<std::vector<ST_Point>> PathList;	// [표적][스텝], 0 은 플랫폼
 
 
 class CMapView : public CStatic
