@@ -11,6 +11,23 @@ extern "C" {
 
 #define TGT_MAX_TARGET_NUM			10
 #define TGT_MAX_MANEUVER_NUM		30
+#define TGT_MAX_STEP_NUM			100000
+#define TGT_MIN_STEP_TIME			1.0e-3								// [s]
+
+typedef enum
+{
+	TGT_OK = 0,
+	TGT_ERR_NULL,
+	TGT_ERR_TARGET_NUM,
+	TGT_ERR_MANEUVER_NUM,
+	TGT_ERR_TIME,
+	TGT_ERR_SPEED,
+	TGT_ERR_TURN_TYPE,
+	TGT_ERR_MANEUVER_OVERLAP,
+	TGT_ERR_COORD,
+	TGT_ERR_SIM_STATE,
+	TGT_ERR_SIM_END
+} EN_TgtStatus;
 
 // 기동 회전축. 값은 과제 명세를 그대로 따른다.
 typedef enum
@@ -63,7 +80,7 @@ typedef struct
 	ST_TargetInit		st_Target[TGT_MAX_TARGET_NUM];
 } ST_SimConfig;
 
-// 한 시각의 상태. 위치와 속도는 ECEF 에서 갱신하고 LLA 는 출력용으로 함께 보관한다.
+// 한 시각의 상태. 위치와 속도는 ECEF 에서 갱신하고, LLA 는 출력과 다음 스텝의 NED 기준으로 함께 보관한다.
 typedef struct
 {
 	FLOAT64				simTime;							// [s]
@@ -72,6 +89,31 @@ typedef struct
 	ST_CoordLla			st_Lla;								// lat, lon [rad] / alt [m]
 	ST_CoordAtt			st_Att;								// roll, pitch, yaw [rad]
 } ST_TargetState;
+
+// 한 시각의 플랫폼·표적 상태. 호출자는 스텝마다 이 구조체를 복사해 보관한다.
+typedef struct
+{
+	FLOAT64				simTime;							// [s] nStepIndex * stepTime
+	INT32				nStepIndex;							// 0 ~ nStepNum
+	INT32				nTargetNum;
+	ST_TargetState		st_Platform;
+	ST_TargetState		st_Target[TGT_MAX_TARGET_NUM];		// 설정과 같은 인덱스, nTargetNum 이후 칸은 0
+} ST_SimSample;
+
+// 시나리오 진행 상태. 설정 사본을 함께 두어 초기화 뒤 원본 설정이 바뀌어도 진행에 영향이 없다.
+typedef struct
+{
+	INT32				nStepNum;							// 표본 수는 nStepNum + 1
+	ST_SimSample		st_Sample;							// 가장 최근 표본
+	ST_SimConfig		st_Config;
+} ST_SimState;
+
+TSCORE_API EN_TgtStatus		f_Tgt_ValidateConfig(const ST_SimConfig *st_Config);
+TSCORE_API EN_TgtStatus		f_Tgt_InitState(ST_TargetState *st_State, const ST_CoordLla *st_InitLla, const ST_CoordAtt *st_InitAtt, FLOAT64 headingSpeed);
+TSCORE_API EN_TgtStatus		f_Tgt_StepTarget(ST_TargetState *st_State, const ST_TargetInit *st_Target, FLOAT64 stepTime);
+TSCORE_API EN_TgtStatus		f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config);
+TSCORE_API EN_TgtStatus		f_Tgt_StepSim(ST_SimState *st_Sim);
+TSCORE_API const CHAR *		f_Tgt_StatusStr(EN_TgtStatus status);
 
 #ifdef __cplusplus
 }
