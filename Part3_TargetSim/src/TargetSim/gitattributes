@@ -1,0 +1,62 @@
+# 저장소(object DB)에는 항상 LF 로 저장하고, 작업 디렉터리에는 CRLF 로 체크아웃한다.
+# text 속성은 core.autocrlf 보다 우선하므로, 각자 PC 설정과 무관하게 동일하게 동작한다.
+* text=auto eol=crlf
+
+# LF 를 유지해야 하는 파일
+*.sh            text eol=lf
+*.bash          text eol=lf
+Makefile        text eol=lf
+makefile        text eol=lf
+*.mk            text eol=lf
+
+# 소스 / 프로젝트 파일 (기본값과 같지만 의도를 명시)
+*.c             text eol=crlf
+*.h             text eol=crlf
+*.cpp           text eol=crlf
+*.hpp           text eol=crlf
+*.inl           text eol=crlf
+*.rc            text eol=crlf
+*.rc2           text eol=crlf
+*.def           text eol=crlf
+*.sln           text eol=crlf
+*.vcxproj       text eol=crlf
+*.filters       text eol=crlf
+*.props         text eol=crlf
+*.targets       text eol=crlf
+*.bat           text eol=crlf
+*.cmd           text eol=crlf
+*.ps1           text eol=crlf
+
+# 이미지
+*.ico           binary
+*.bmp           binary
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.cur           binary
+
+# 문서
+*.pdf           binary
+*.doc           binary
+*.docx          binary
+*.ppt           binary
+*.pptx          binary
+*.xls           binary
+*.xlsx          binary
+*.hwp           binary
+*.hwpx          binary
+
+# 압축 / 빌드 산출물
+*.zip           binary
+*.7z            binary
+*.rar           binary
+*.exe           binary
+*.dll           binary
+*.lib           binary
+*.obj           binary
+*.pdb           binary
+*.ilk           binary
+*.exp           binary
+*.res           binary
+*.aps           binary
