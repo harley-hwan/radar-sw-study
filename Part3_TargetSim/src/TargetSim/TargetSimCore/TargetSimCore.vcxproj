@@ -92,6 +92,7 @@
     <ClInclude Include="include\CoordinateTransform_JH.h" />
     <ClInclude Include="include\Define_JH.h" />
     <ClInclude Include="include\matrixCalcLib_JH.h" />
+    <ClInclude Include="include\TargetSim_JH.h" />
     <ClInclude Include="include\TargetSimCoreApi.h" />
   </ItemGroup>
   <ItemGroup>

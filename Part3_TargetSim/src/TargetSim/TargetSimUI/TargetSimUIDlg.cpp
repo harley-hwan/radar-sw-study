@@ -33,7 +33,7 @@ CTargetSimUIDlg::CTargetSimUIDlg(CWnd* pParent)
 	: CDialogEx(IDD_TARGETSIMUI_DIALOG, pParent)
 	, m_hIcon(nullptr)
 {
-	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
+	m_hIcon = ::LoadIcon(nullptr, IDI_APPLICATION);
 }
 
 void CTargetSimUIDlg::DoDataExchange(CDataExchange* pDX)
@@ -45,6 +45,7 @@ BOOL CTargetSimUIDlg::OnInitDialog()
 {
 	CDialogEx::OnInitDialog();
 
+	// IDM_ABOUTBOX 는 시스템 명령 범위 안에 있어야 한다.
 	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
 	ASSERT(IDM_ABOUTBOX < 0xF000);
 

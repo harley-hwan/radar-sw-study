@@ -40,11 +40,6 @@ END
 #endif    // APSTUDIO_INVOKED
 
 /////////////////////////////////////////////////////////////////////////////
-// Icon
-//
-IDR_MAINFRAME           ICON                    "res\\TargetSimUI.ico"
-
-/////////////////////////////////////////////////////////////////////////////
 // Dialog
 //
 IDD_TARGETSIMUI_DIALOG DIALOGEX 0, 0, 320, 200
@@ -62,9 +57,8 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "About TargetSim"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
 BEGIN
-    ICON            IDR_MAINFRAME,IDC_STATIC,14,14,21,20
-    LTEXT           "TargetSim",IDC_STATIC,48,14,166,8,SS_NOPREFIX
-    LTEXT           "Part3 TargetSim / radar-sw-study",IDC_STATIC,48,26,166,8
+    LTEXT           "TargetSim",IDC_STATIC,14,14,200,8,SS_NOPREFIX
+    LTEXT           "Part3 TargetSim / radar-sw-study",IDC_STATIC,14,26,200,8
     DEFPUSHBUTTON   "OK",IDOK,171,51,50,14,WS_GROUP
 END
 
