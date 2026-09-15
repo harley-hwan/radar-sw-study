@@ -109,6 +109,8 @@
     <ClInclude Include="TargetSimUI.h" />
     <ClInclude Include="TargetSimUIDlg.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="TrajectoryPlot_JH.h" />
+    <ClInclude Include="UiNumber_JH.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -117,6 +119,8 @@
     </ClCompile>
     <ClCompile Include="TargetSimUI.cpp" />
     <ClCompile Include="TargetSimUIDlg.cpp" />
+    <ClCompile Include="TrajectoryPlot_JH.cpp" />
+    <ClCompile Include="UiNumber_JH.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TargetSimUI.rc" />

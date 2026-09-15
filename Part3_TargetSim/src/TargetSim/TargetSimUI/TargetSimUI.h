@@ -16,4 +16,4 @@ public:
 	DECLARE_MESSAGE_MAP()
 };
 
-extern CTargetSimUIApp theApp;
+extern CTargetSimUIApp g_TargetSimApp;
