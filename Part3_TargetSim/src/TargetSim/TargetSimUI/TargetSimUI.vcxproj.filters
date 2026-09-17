@@ -39,6 +39,18 @@
     <ClInclude Include="UiNumber_JH.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="UiTheme_JH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="GridCtrl_JH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Scenario_JH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="SimResult_JH.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -54,6 +66,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="UiNumber_JH.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="GridCtrl_JH.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Scenario_JH.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="SimResult_JH.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -287,11 +287,14 @@ static EN_TgtStatus f_Tgt_Propagate(ST_TargetState *st_State, const ST_CoordAtt 
 	EN_CoordStatus	enCoord;
 	ST_TargetState	st_Next;
 	ST_CoordAtt		st_AttMid;
+	ST_CoordLla		st_LlaMid;
+	ST_CoordRect	st_PosMid;
+	ST_CoordRect	st_VelStart;
 	ST_CoordRect	st_VelMid;
 	ST_CoordRect	st_Delta;
 	FLOAT64			halfStep;
 
-	// 중점법: 스텝 중앙 자세로 구한 속도로 위치를 옮긴다. NED 기준 위경도는 스텝 시작 값이다.
+	// 중점법: 반 스텝 뒤의 자세와 위치에서 구한 속도로 한 스텝을 옮긴다.
 	halfStep = 0.5 * stepTime;
 
 	st_AttMid.roll	= st_State->st_Att.roll + (st_Rate->roll * halfStep);
@@ -303,7 +306,29 @@ static EN_TgtStatus f_Tgt_Propagate(ST_TargetState *st_State, const ST_CoordAtt 
 	st_Next.st_Att.pitch	= f_Coord_WrapAngle(st_State->st_Att.pitch + (st_Rate->pitch * stepTime));
 	st_Next.st_Att.yaw		= f_Coord_WrapAngle(st_State->st_Att.yaw + (st_Rate->yaw * stepTime));
 
-	enCoord = f_Tgt_GetVelEcef(&st_VelMid, &st_AttMid, &st_State->st_Lla, headingSpeed);
+	// 반 스텝 뒤 위치는 스텝 시작 속도로 예측한다. 중앙 속도까지 스텝 시작 위경도를 NED 기준으로 만들면 지구 곡률만큼 방향이 뒤처져
+	// 수평 비행 고도가 스텝마다 d^2/2R 씩 오르고 위치 오차가 stepTime 에 비례해서만 줄어든다.
+	enCoord = f_Tgt_GetVelEcef(&st_VelStart, &st_State->st_Att, &st_State->st_Lla, headingSpeed);
+
+	if (enCoord == COORD_OK)
+	{
+		enCoord = f_Coord_VecScale(&st_Delta, &st_VelStart, halfStep);
+	}
+
+	if (enCoord == COORD_OK)
+	{
+		enCoord = f_Coord_VecAdd(&st_PosMid, &st_State->st_PosEcef, &st_Delta);
+	}
+
+	if (enCoord == COORD_OK)
+	{
+		enCoord = f_Trans_Ecef_To_Lla(&st_LlaMid, &st_PosMid);
+	}
+
+	if (enCoord == COORD_OK)
+	{
+		enCoord = f_Tgt_GetVelEcef(&st_VelMid, &st_AttMid, &st_LlaMid, headingSpeed);
+	}
 
 	if (enCoord == COORD_OK)
 	{
