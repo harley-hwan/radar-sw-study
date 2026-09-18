@@ -2,6 +2,7 @@
 
 #include "matrixCalcLib_JH.h"
 
+// 행렬 크기가 1 ~ MAT_MAX_DIM 인지 본다.
 static EN_MatStatus f_Mat_Validate(const ST_Matrix *st_Mat)
 {
 	EN_MatStatus enStatus;
@@ -23,6 +24,7 @@ static EN_MatStatus f_Mat_Validate(const ST_Matrix *st_Mat)
 	return enStatus;
 }
 
+// 피연산자 세 개의 크기가 서로 맞는지 본다.
 static EN_MatStatus f_Mat_ValidateOperands(const ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs)
 {
 	EN_MatStatus enStatus;
@@ -149,6 +151,7 @@ static EN_MatStatus f_Mat_GaussJordan(FLOAT64 aug[][2 * MAT_MAX_DIM], INT32 n, I
 	return enStatus;
 }
 
+// 크기를 정하고 원소를 0 으로 채운다.
 EN_MatStatus f_Mat_Init(ST_Matrix *st_Mat, INT32 row, INT32 column)
 {
 	EN_MatStatus	enStatus;
@@ -181,6 +184,7 @@ EN_MatStatus f_Mat_Init(ST_Matrix *st_Mat, INT32 row, INT32 column)
 	return enStatus;
 }
 
+// 단위행렬을 만든다.
 EN_MatStatus f_Mat_Identity(ST_Matrix *st_Mat, INT32 dim)
 {
 	EN_MatStatus	enStatus;
@@ -199,6 +203,7 @@ EN_MatStatus f_Mat_Identity(ST_Matrix *st_Mat, INT32 dim)
 	return enStatus;
 }
 
+// 행 우선으로 나열한 원소 배열을 행렬에 싣는다.
 EN_MatStatus f_Mat_Load(ST_Matrix *st_Mat, INT32 row, INT32 column, const FLOAT64 *pt_Element, INT32 elementCount)
 {
 	EN_MatStatus	enStatus;
@@ -232,6 +237,7 @@ EN_MatStatus f_Mat_Load(ST_Matrix *st_Mat, INT32 row, INT32 column, const FLOAT6
 	return enStatus;
 }
 
+// 행렬을 복사한다.
 EN_MatStatus f_Mat_Copy(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 {
 	EN_MatStatus	enStatus;
@@ -266,6 +272,7 @@ EN_MatStatus f_Mat_Copy(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 	return enStatus;
 }
 
+// 행렬 덧셈.
 EN_MatStatus f_Mat_Add(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs)
 {
 	EN_MatStatus	enStatus;
@@ -298,6 +305,7 @@ EN_MatStatus f_Mat_Add(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matr
 	return enStatus;
 }
 
+// 행렬 뺄셈.
 EN_MatStatus f_Mat_Sub(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs)
 {
 	EN_MatStatus	enStatus;
@@ -330,6 +338,7 @@ EN_MatStatus f_Mat_Sub(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matr
 	return enStatus;
 }
 
+// 행렬 상수배.
 EN_MatStatus f_Mat_Scale(ST_Matrix *st_Out, const ST_Matrix *st_Src, FLOAT64 scalar)
 {
 	EN_MatStatus	enStatus;
@@ -362,6 +371,7 @@ EN_MatStatus f_Mat_Scale(ST_Matrix *st_Out, const ST_Matrix *st_Src, FLOAT64 sca
 	return enStatus;
 }
 
+// 행렬 곱.
 EN_MatStatus f_Mat_Mul(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs)
 {
 	EN_MatStatus	enStatus;
@@ -409,6 +419,7 @@ EN_MatStatus f_Mat_Mul(ST_Matrix *st_Out, const ST_Matrix *st_Lhs, const ST_Matr
 	return enStatus;
 }
 
+// 행렬 세 개를 차례로 곱한다.
 EN_MatStatus f_Mat_Mul3(ST_Matrix *st_Out, const ST_Matrix *st_A, const ST_Matrix *st_B, const ST_Matrix *st_C)
 {
 	EN_MatStatus	enStatus;
@@ -424,6 +435,7 @@ EN_MatStatus f_Mat_Mul3(ST_Matrix *st_Out, const ST_Matrix *st_A, const ST_Matri
 	return enStatus;
 }
 
+// 전치행렬. 입출력이 같은 객체여도 된다.
 EN_MatStatus f_Mat_Transpose(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 {
 	EN_MatStatus	enStatus;
@@ -461,6 +473,7 @@ EN_MatStatus f_Mat_Transpose(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 	return enStatus;
 }
 
+// Gauss-Jordan 소거로 역행렬을 구한다. 특이행렬이면 거부한다.
 EN_MatStatus f_Mat_Inverse(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 {
 	EN_MatStatus	enStatus;
@@ -526,6 +539,7 @@ EN_MatStatus f_Mat_Inverse(ST_Matrix *st_Out, const ST_Matrix *st_Src)
 	return enStatus;
 }
 
+// A x = B 를 Gauss-Jordan 소거로 푼다.
 EN_MatStatus f_Mat_Solve(ST_Matrix *st_Out, const ST_Matrix *st_A, const ST_Matrix *st_B)
 {
 	EN_MatStatus	enStatus;
@@ -696,6 +710,7 @@ EN_MatStatus f_Mat_Det(const ST_Matrix *st_Src, FLOAT64 *pt_Det)
 	return enStatus;
 }
 
+// 두 행렬이 허용오차 안에서 같은지 본다.
 INT32 f_Mat_IsEqual(const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs, FLOAT64 tolerance)
 {
 	INT32	isEqual = 1;
@@ -727,6 +742,7 @@ INT32 f_Mat_IsEqual(const ST_Matrix *st_Lhs, const ST_Matrix *st_Rhs, FLOAT64 to
 	return isEqual;
 }
 
+// 행렬 연산 상태 코드의 이름 문자열.
 const CHAR *f_Mat_StatusStr(EN_MatStatus status)
 {
 	const CHAR *text;

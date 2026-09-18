@@ -50,6 +50,7 @@ protected:
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialogEx)
 END_MESSAGE_MAP()
 
+// 컨트롤 하나를 옮기고 크기를 바꾼다.
 static VOID f_Ui_Move(CWnd *st_Dlg, INT32 ctrlId, INT32 left, INT32 top, INT32 width, INT32 height)
 {
 	CWnd *st_Ctrl = st_Dlg->GetDlgItem(ctrlId);
@@ -60,6 +61,7 @@ static VOID f_Ui_Move(CWnd *st_Dlg, INT32 ctrlId, INT32 left, INT32 top, INT32 w
 	}
 }
 
+// 컨트롤을 켜고 끈다. 끌 때 대화상자의 포커스가 사라지지 않게 먼저 옮긴다.
 static VOID f_Ui_EnableCtrl(CDialog *st_Dlg, INT32 ctrlId, INT32 isEnabled)
 {
 	CWnd *st_Ctrl = st_Dlg->GetDlgItem(ctrlId);
@@ -117,6 +119,7 @@ BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
 	ON_NOTIFY(NM_CUSTOMDRAW, IDC_RESULT_LIST, &CTargetSimUIDlg::f_OnResultCustomDraw)
 END_MESSAGE_MAP()
 
+// 주 대화상자.
 CTargetSimUIDlg::CTargetSimUIDlg(CWnd *st_Parent)
 	: CDialogEx(IDD_TARGETSIMUI_DIALOG, st_Parent)
 	, iconHandle(nullptr)
@@ -148,10 +151,12 @@ CTargetSimUIDlg::CTargetSimUIDlg(CWnd *st_Parent)
 	(VOID)memset(&st_RunConfig, 0, sizeof(st_RunConfig));
 }
 
+// 창 자원은 MFC 가 정리한다.
 CTargetSimUIDlg::~CTargetSimUIDlg()
 {
 }
 
+// 컨트롤 변수를 대화상자 자원에 잇는다.
 VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 {
 	CDialogEx::DoDataExchange(st_Dx);
@@ -165,6 +170,7 @@ VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 	DDX_Control(st_Dx, IDC_SIM_DURATION_SPIN, st_DurationSpin);
 }
 
+// 글꼴, 색, 콤보를 갖추고 명세 시나리오를 불러 첫 실행까지 한다.
 BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 {
 	CClientDC	st_Dc(this);
@@ -258,6 +264,7 @@ BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 
 // 배치
 
+// 두 표의 열 정의. 제목, 종류, 너비 비율, 증감 폭, 허용 범위를 한자리에 둔다.
 VOID CTargetSimUIDlg::f_SetupGrids(VOID)
 {
 	ST_GridColumn	st_ObjColumn[UI_OBJ_COL_NUM] =
@@ -294,6 +301,7 @@ VOID CTargetSimUIDlg::f_SetupGrids(VOID)
 	st_MnvGrid.f_Setup(st_MnvColumn, UI_MNV_COL_NUM, dpi);
 }
 
+// 처음 창 크기를 정한다. 화면이 더 작으면 화면에 맞춘다.
 VOID CTargetSimUIDlg::f_SetInitialSize(VOID)
 {
 	CRect	st_Work;
@@ -321,6 +329,7 @@ VOID CTargetSimUIDlg::f_SetInitialSize(VOID)
 	}
 }
 
+// 최소 창 크기를 알린다.
 VOID CTargetSimUIDlg::OnGetMinMaxInfo(MINMAXINFO *st_Info)
 {
 	CRect st_Min(0, 0, f_Ui_Scale(UI_MIN_WIDTH, dpi), f_Ui_Scale(UI_MIN_HEIGHT, dpi));
@@ -350,6 +359,7 @@ VOID CTargetSimUIDlg::OnGetMinMaxInfo(MINMAXINFO *st_Info)
 	}
 }
 
+// 크기가 바뀌면 배치를 다시 계산한다.
 VOID CTargetSimUIDlg::OnSize(UINT32 type, INT32 width, INT32 height)
 {
 	CDialogEx::OnSize(type, width, height);
@@ -360,6 +370,7 @@ VOID CTargetSimUIDlg::OnSize(UINT32 type, INT32 width, INT32 height)
 	}
 }
 
+// 위 막대, 좌우 카드, 상태 줄의 자리를 직접 계산한다. 모든 치수는 화면 배율을 거친다.
 VOID CTargetSimUIDlg::f_Layout(VOID)
 {
 	const INT32	margin = f_Ui_Scale(UI_MARGIN, dpi);
@@ -506,6 +517,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	}
 }
 
+// 흰 둥근 사각형 카드 하나를 그린다.
 VOID CTargetSimUIDlg::f_DrawCard(CDC *st_Dc, const CRect &st_Card) const
 {
 	const INT32	radius = f_Ui_Scale(UI_CARD_RADIUS, dpi);
@@ -519,6 +531,7 @@ VOID CTargetSimUIDlg::f_DrawCard(CDC *st_Dc, const CRect &st_Card) const
 	(VOID)st_Dc->SelectObject(st_OldPen);
 }
 
+// 페이지 바탕과 카드를 그린다.
 BOOL CTargetSimUIDlg::OnEraseBkgnd(CDC *st_Dc)
 {
 	static const INT32	s_FramedCtrl[4] = { IDC_OBJ_GRID, IDC_MNV_GRID, IDC_RESULT_LIST, IDC_PLOT };
@@ -558,6 +571,7 @@ BOOL CTargetSimUIDlg::OnEraseBkgnd(CDC *st_Dc)
 	return TRUE;
 }
 
+// 글자와 슬라이더의 배경색을 카드 색에 맞춘다.
 HBRUSH CTargetSimUIDlg::OnCtlColor(CDC *st_Dc, CWnd *st_Wnd, UINT32 ctlColor)
 {
 	HBRUSH		brush = CDialogEx::OnCtlColor(st_Dc, st_Wnd, ctlColor);
@@ -602,6 +616,7 @@ HBRUSH CTargetSimUIDlg::OnCtlColor(CDC *st_Dc, CWnd *st_Wnd, UINT32 ctlColor)
 	return brush;
 }
 
+// 시스템 메뉴의 정보 항목을 처리한다.
 VOID CTargetSimUIDlg::OnSysCommand(UINT32 commandId, LPARAM lParam)
 {
 	if ((commandId & 0xFFF0U) == IDM_ABOUTBOX)
@@ -617,6 +632,7 @@ VOID CTargetSimUIDlg::OnSysCommand(UINT32 commandId, LPARAM lParam)
 	}
 }
 
+// 최소화 상태에서 아이콘을 그린다.
 VOID CTargetSimUIDlg::OnPaint(VOID)
 {
 	if (IsIconic() != FALSE)
@@ -638,21 +654,25 @@ VOID CTargetSimUIDlg::OnPaint(VOID)
 	}
 }
 
+// 끌 때 쓸 아이콘.
 HCURSOR CTargetSimUIDlg::OnQueryDragIcon(VOID)
 {
 	return static_cast<HCURSOR>(iconHandle);
 }
 
+// Enter 로 창이 닫히지 않게 한다. Enter 는 표의 편집 확정에 쓴다.
 VOID CTargetSimUIDlg::OnOK(VOID)
 {
 	// Enter 로 닫지 않는다.
 }
 
+// Esc 로 창이 닫히지 않게 한다. Esc 는 표의 편집 되돌림에 쓴다.
 VOID CTargetSimUIDlg::OnCancel(VOID)
 {
 	// Esc 로 닫지 않는다.
 }
 
+// 닫는 중임을 표시해 남은 변경과 미뤄 둔 실행을 버린다.
 VOID CTargetSimUIDlg::OnClose(VOID)
 {
 	// 닫히면서 편집칸이 포커스를 잃어도 다시 실행하지 않는다.
@@ -679,6 +699,7 @@ VOID CTargetSimUIDlg::f_PrepareModal(VOID)
 	}
 }
 
+// Ctrl+O, Ctrl+S 같은 단축키를 컨트롤보다 먼저 가로챈다.
 BOOL CTargetSimUIDlg::PreTranslateMessage(MSG *st_Msg)
 {
 	const INT32	isCtrl = (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0;
@@ -725,6 +746,7 @@ BOOL CTargetSimUIDlg::PreTranslateMessage(MSG *st_Msg)
 
 // 편집
 
+// 객체 번호로 편집 글자를 찾는다. 0 은 플랫폼이다.
 ST_ObjectText *CTargetSimUIDlg::f_GetObject(INT32 nObject)
 {
 	ST_ObjectText *st_Object = nullptr;
@@ -745,11 +767,13 @@ ST_ObjectText *CTargetSimUIDlg::f_GetObject(INT32 nObject)
 	return st_Object;
 }
 
+// 위 막대에 시나리오 이름과 "(수정됨)" 표시를 적는다.
 VOID CTargetSimUIDlg::f_ShowScenarioName(VOID)
 {
 	SetDlgItemText(IDC_SCN_NAME, (isModified != 0) ? (st_ScenarioName + _T(" (수정됨)")) : st_ScenarioName);
 }
 
+// 편집 글자를 두 표에 다시 그리고 실행을 예약한다.
 VOID CTargetSimUIDlg::f_RefreshAll(VOID)
 {
 	f_StopPlay();
@@ -771,6 +795,7 @@ VOID CTargetSimUIDlg::f_RefreshAll(VOID)
 	f_RunScenario();
 }
 
+// 객체 표를 편집 글자로 채운다.
 VOID CTargetSimUIDlg::f_RefreshObjGrid(VOID)
 {
 	const INT32			nRowNum = st_Scenario.nTargetNum + 1;
@@ -806,6 +831,7 @@ VOID CTargetSimUIDlg::f_RefreshObjGrid(VOID)
 	st_ObjGrid.Invalidate(FALSE);
 }
 
+// 지금 고른 표적의 기동 표를 채운다.
 VOID CTargetSimUIDlg::f_RefreshMnvGrid(INT32 isNewTarget)
 {
 	const ST_ObjectText	*st_Object = (nCurObject >= 1) ? f_GetObject(nCurObject) : nullptr;
@@ -850,6 +876,7 @@ VOID CTargetSimUIDlg::f_RefreshMnvGrid(INT32 isNewTarget)
 	f_UpdateTitles();
 }
 
+// 기동 한 줄의 회전각과 선회 반경을 계산해 보여 준다. Roll 은 궤적을 휘지 않아 반경이 없다.
 VOID CTargetSimUIDlg::f_UpdateMnvComputed(INT32 nManeuver)
 {
 	const ST_ObjectText	*st_Object = (nCurObject >= 1) ? f_GetObject(nCurObject) : nullptr;
@@ -885,6 +912,7 @@ VOID CTargetSimUIDlg::f_UpdateMnvComputed(INT32 nManeuver)
 	}
 }
 
+// 두 표의 제목에 현재 개수를 적고 추가, 삭제 버튼을 켜고 끈다.
 VOID CTargetSimUIDlg::f_UpdateTitles(VOID)
 {
 	const ST_ObjectText	*st_Object = (nCurObject >= 1) ? f_GetObject(nCurObject) : nullptr;
@@ -922,6 +950,7 @@ VOID CTargetSimUIDlg::f_UpdateTitles(VOID)
 	f_Ui_EnableCtrl(this, IDC_MNV_DELETE, ((st_Object != nullptr) && (st_Object->nManeuverNum > 0)) ? 1 : 0);
 }
 
+// 기동 시각 열의 증감 폭을 지금 간격에 맞춘다. 증감만 쓰면 스텝 격자를 벗어나지 않는다.
 VOID CTargetSimUIDlg::f_UpdateTimeNudge(VOID)
 {
 	FLOAT64	step = 0.0;
@@ -944,6 +973,7 @@ VOID CTargetSimUIDlg::f_UpdateTimeNudge(VOID)
 	st_MnvGrid.f_SetColumnNudge(UI_MNV_COL_FIELD + SCN_FIELD_END, step, nDecimal, 0.0, duration);
 }
 
+// 위 막대의 시간과 간격 편집칸을 편집 글자에 반영한다.
 VOID CTargetSimUIDlg::f_CommitSimFields(VOID)
 {
 	CString st_Duration;
@@ -964,11 +994,13 @@ VOID CTargetSimUIDlg::f_CommitSimFields(VOID)
 	}
 }
 
+// 시간이나 간격 칸이 포커스를 잃으면 반영한다.
 VOID CTargetSimUIDlg::f_OnSimFieldKillFocus(VOID)
 {
 	f_CommitSimFields();
 }
 
+// 간격을 고르면 반영하고 다시 실행한다.
 VOID CTargetSimUIDlg::f_OnStepSelChange(VOID)
 {
 	const INT32	nSelected = st_StepCombo.GetCurSel();
@@ -983,6 +1015,7 @@ VOID CTargetSimUIDlg::f_OnStepSelChange(VOID)
 	}
 }
 
+// 시간 증감 버튼. 하한은 지금 간격이다.
 VOID CTargetSimUIDlg::f_OnDurationSpin(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const NMUPDOWN	*st_UpDown = reinterpret_cast<NMUPDOWN *>(st_Hdr);
@@ -1018,6 +1051,7 @@ VOID CTargetSimUIDlg::f_OnDurationSpin(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 1;
 }
 
+// 고른 객체를 바꾸고 기동 표와 그림을 거기에 맞춘다.
 VOID CTargetSimUIDlg::f_SelectObject(INT32 nObject)
 {
 	if ((nObject >= 0) && (nObject <= st_Scenario.nTargetNum))
@@ -1034,6 +1068,7 @@ VOID CTargetSimUIDlg::f_SelectObject(INT32 nObject)
 	}
 }
 
+// 객체 표에서 행이 바뀌면 그 객체를 고른다.
 VOID CTargetSimUIDlg::f_OnObjRowChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_GridNotify *st_Notify = reinterpret_cast<ST_GridNotify *>(st_Hdr);
@@ -1055,6 +1090,7 @@ VOID CTargetSimUIDlg::f_OnObjRowChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 객체 표의 칸이 바뀌면 편집 글자에 넣고 다시 실행한다.
 VOID CTargetSimUIDlg::f_OnObjCellChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_GridNotify	*st_Notify = reinterpret_cast<ST_GridNotify *>(st_Hdr);
@@ -1081,6 +1117,7 @@ VOID CTargetSimUIDlg::f_OnObjCellChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 기동 표의 칸이 바뀌면 편집 글자에 넣고 다시 실행한다.
 VOID CTargetSimUIDlg::f_OnMnvCellChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_GridNotify	*st_Notify = reinterpret_cast<ST_GridNotify *>(st_Hdr);
@@ -1214,6 +1251,7 @@ VOID CTargetSimUIDlg::f_OnObjDrawCell(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 표적을 추가한다. 값만 물려받고 기동은 가져오지 않는다.
 VOID CTargetSimUIDlg::f_OnTargetAddClicked(VOID)
 {
 	const INT32 nNewTarget = st_Scenario.f_AddTarget(nCurObject - 1, 0);
@@ -1227,6 +1265,7 @@ VOID CTargetSimUIDlg::f_OnTargetAddClicked(VOID)
 	}
 }
 
+// 표적을 복제한다. 기동까지 그대로 가져온다.
 VOID CTargetSimUIDlg::f_OnTargetCopyClicked(VOID)
 {
 	const INT32 nNewTarget = (nCurObject >= 1) ? st_Scenario.f_AddTarget(nCurObject - 1, 1) : -1;
@@ -1240,6 +1279,7 @@ VOID CTargetSimUIDlg::f_OnTargetCopyClicked(VOID)
 	}
 }
 
+// 고른 표적을 지운다.
 VOID CTargetSimUIDlg::f_OnTargetDeleteClicked(VOID)
 {
 	INT32 nNext = nCurObject;
@@ -1265,6 +1305,7 @@ VOID CTargetSimUIDlg::f_OnTargetDeleteClicked(VOID)
 	}
 }
 
+// 고른 표적에 기동을 넣는다.
 VOID CTargetSimUIDlg::f_OnManeuverAddClicked(VOID)
 {
 	const INT32 nNewManeuver = (nCurObject >= 1) ? st_Scenario.f_AddManeuver(nCurObject - 1) : -1;
@@ -1279,6 +1320,7 @@ VOID CTargetSimUIDlg::f_OnManeuverAddClicked(VOID)
 	}
 }
 
+// 고른 기동을 지운다.
 VOID CTargetSimUIDlg::f_OnManeuverDeleteClicked(VOID)
 {
 	const ST_ObjectText	*st_Object = (nCurObject >= 1) ? f_GetObject(nCurObject) : nullptr;
@@ -1310,6 +1352,7 @@ VOID CTargetSimUIDlg::f_OnManeuverDeleteClicked(VOID)
 
 // 시나리오
 
+// 시나리오 버튼 아래에 팝업 메뉴를 편다.
 VOID CTargetSimUIDlg::f_OnScenarioMenuClicked(VOID)
 {
 	CMenu	st_Menu;
@@ -1335,6 +1378,7 @@ VOID CTargetSimUIDlg::f_OnScenarioMenuClicked(VOID)
 	}
 }
 
+// 프리셋을 불러온다.
 VOID CTargetSimUIDlg::f_OnScenarioPreset(UINT32 command)
 {
 	st_ObjGrid.f_EndEdit(1);
@@ -1345,6 +1389,7 @@ VOID CTargetSimUIDlg::f_OnScenarioPreset(UINT32 command)
 	f_RefreshAll();
 }
 
+// 시나리오 파일을 연다. 읽기에 실패하면 편집 중이던 시나리오를 그대로 둔다.
 VOID CTargetSimUIDlg::f_OpenScenario(VOID)
 {
 	CFileDialog	st_FileDlg(TRUE, _T("tsim"), nullptr, OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY,
@@ -1367,6 +1412,7 @@ VOID CTargetSimUIDlg::f_OpenScenario(VOID)
 	}
 }
 
+// 시나리오를 파일로 저장한다.
 VOID CTargetSimUIDlg::f_SaveScenario(VOID)
 {
 	CFileDialog	st_FileDlg(FALSE, _T("tsim"), _T("scenario.tsim"), OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY,
@@ -1397,6 +1443,7 @@ VOID CTargetSimUIDlg::f_SaveScenario(VOID)
 
 // 그림
 
+// 그림에서 시작점을 누르면 그 객체를 고른다.
 VOID CTargetSimUIDlg::f_OnPlotSelect(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_PlotNotify *st_Notify = reinterpret_cast<ST_PlotNotify *>(st_Hdr);
@@ -1407,6 +1454,7 @@ VOID CTargetSimUIDlg::f_OnPlotSelect(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 그림에서 시작점을 끌면 초기 위도와 경도를 바꾼다.
 VOID CTargetSimUIDlg::f_OnPlotMove(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_PlotNotify	*st_Notify = reinterpret_cast<ST_PlotNotify *>(st_Hdr);
@@ -1425,6 +1473,7 @@ VOID CTargetSimUIDlg::f_OnPlotMove(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 그림에서 기수 손잡이를 돌리면 초기 Yaw 를 바꾼다.
 VOID CTargetSimUIDlg::f_OnPlotTurn(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_PlotNotify	*st_Notify = reinterpret_cast<ST_PlotNotify *>(st_Hdr);
@@ -1440,6 +1489,7 @@ VOID CTargetSimUIDlg::f_OnPlotTurn(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 고도 패널을 짚으면 보고 있는 시각을 옮긴다.
 VOID CTargetSimUIDlg::f_OnPlotScrub(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const ST_PlotNotify *st_Notify = reinterpret_cast<ST_PlotNotify *>(st_Hdr);
@@ -1451,6 +1501,7 @@ VOID CTargetSimUIDlg::f_OnPlotScrub(NMHDR *st_Hdr, LRESULT *pt_Result)
 
 // 실행
 
+// 다시 실행을 예약한다. 직전 실행이 빨랐으면 바로, 오래 걸렸으면 입력이 멎은 뒤에 한 번 돈다.
 VOID CTargetSimUIDlg::f_ScheduleRun(VOID)
 {
 	if (isClosing != 0)
@@ -1480,6 +1531,7 @@ VOID CTargetSimUIDlg::f_ScheduleRun(VOID)
 	}
 }
 
+// 오류 표식을 지운다.
 VOID CTargetSimUIDlg::f_ClearIssueMarks(VOID)
 {
 	isIssueActive = 0;
@@ -1523,6 +1575,7 @@ VOID CTargetSimUIDlg::f_MarkIssue(VOID)
 	st_MnvGrid.f_SetErrorCell(nMnvRow, nMnvColumn);
 }
 
+// 재진입을 막고 한 번 실행한다.
 VOID CTargetSimUIDlg::f_RunScenario(VOID)
 {
 	isRunPending = 0;
@@ -1536,6 +1589,7 @@ VOID CTargetSimUIDlg::f_RunScenario(VOID)
 	}
 }
 
+// 설정을 만들어 돌리고, 성공하면 표와 그림과 슬라이더를 새 결과로 바꾼다.
 VOID CTargetSimUIDlg::f_RunScenarioOnce(VOID)
 {
 	ST_ScnIssue	st_Issue;
@@ -1594,6 +1648,7 @@ VOID CTargetSimUIDlg::f_RunScenarioOnce(VOID)
 	st_ObjGrid.Invalidate(FALSE);
 }
 
+// 입력 오류를 상태 줄에 적고 해당 칸을 표시한다.
 VOID CTargetSimUIDlg::f_ShowIssue(const ST_ScnIssue *st_Issue)
 {
 	CString st_Text = st_Issue->st_Message;
@@ -1610,6 +1665,7 @@ VOID CTargetSimUIDlg::f_ShowIssue(const ST_ScnIssue *st_Issue)
 	f_MarkIssue();
 }
 
+// 결과 표의 열을 객체 수에 맞춰 다시 만든다.
 VOID CTargetSimUIDlg::f_SetupResultList(VOID)
 {
 	static const LPCTSTR	s_PartName[3] = { _T(" 위도 [°]"), _T(" 경도 [°]"), _T(" 고도 [m]") };
@@ -1663,6 +1719,7 @@ VOID CTargetSimUIDlg::f_SetupResultList(VOID)
 	isSyncing = 0;
 }
 
+// 가상 리스트가 요청한 칸의 글자를 준다. 보이는 행만 여기로 온다.
 VOID CTargetSimUIDlg::f_OnResultGetDispInfo(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	NMLVDISPINFO	*st_Info = reinterpret_cast<NMLVDISPINFO *>(st_Hdr);
@@ -1684,6 +1741,7 @@ VOID CTargetSimUIDlg::f_OnResultGetDispInfo(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 리스트 기본 글자 검색을 막는다.
 VOID CTargetSimUIDlg::f_OnResultFindItem(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	// 가상 리스트의 글자 검색. 0 을 돌려주면 0 행으로 가므로 없음(-1)
@@ -1692,6 +1750,7 @@ VOID CTargetSimUIDlg::f_OnResultFindItem(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = -1;
 }
 
+// 결과 표에서 행을 고르면 그 시각으로 옮긴다.
 VOID CTargetSimUIDlg::f_OnResultItemChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const NMLISTVIEW *st_Item = reinterpret_cast<NMLISTVIEW *>(st_Hdr);
@@ -1707,6 +1766,7 @@ VOID CTargetSimUIDlg::f_OnResultItemChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
+// 결과 표에서 현재 시각 행을 강조한다.
 VOID CTargetSimUIDlg::f_OnResultCustomDraw(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	NMLVCUSTOMDRAW *st_Draw = reinterpret_cast<NMLVCUSTOMDRAW *>(st_Hdr);
@@ -1728,6 +1788,7 @@ VOID CTargetSimUIDlg::f_OnResultCustomDraw(NMHDR *st_Hdr, LRESULT *pt_Result)
 	}
 }
 
+// 결과를 CSV 로 저장한다. 화면 결과가 지금 입력과 다르면 경고 문구를 붙인다.
 VOID CTargetSimUIDlg::f_OnSaveCsvClicked(VOID)
 {
 	CString	st_Message;
@@ -1778,6 +1839,7 @@ VOID CTargetSimUIDlg::f_OnSaveCsvClicked(VOID)
 
 // 재생
 
+// 보고 있는 시각을 바꾼다. 슬라이더와 표와 그림을 맞추는 유일한 경로다.
 VOID CTargetSimUIDlg::f_ShowStep(INT32 nStep, INT32 syncSource)
 {
 	const INT32	nSampleNum = st_Result.f_GetSampleNum();
@@ -1825,6 +1887,7 @@ VOID CTargetSimUIDlg::f_ShowStep(INT32 nStep, INT32 syncSource)
 	}
 }
 
+// 재생을 시작한다. 끝에 있으면 처음으로 되감는다.
 VOID CTargetSimUIDlg::f_StartPlay(VOID)
 {
 	if ((st_Result.f_GetSampleNum() > 1) && (st_Result.f_GetStepTime() > 0.0))
@@ -1845,6 +1908,7 @@ VOID CTargetSimUIDlg::f_StartPlay(VOID)
 	}
 }
 
+// 재생을 멈춘다.
 VOID CTargetSimUIDlg::f_StopPlay(VOID)
 {
 	if ((isPlaying != 0) && (GetSafeHwnd() != nullptr))
@@ -1856,6 +1920,7 @@ VOID CTargetSimUIDlg::f_StopPlay(VOID)
 	isPlaying = 0;
 }
 
+// 재생과 일시정지 버튼.
 VOID CTargetSimUIDlg::f_OnPlayClicked(VOID)
 {
 	if (isPlaying != 0)
@@ -1868,6 +1933,7 @@ VOID CTargetSimUIDlg::f_OnPlayClicked(VOID)
 	}
 }
 
+// 재생 배속을 바꾼다.
 VOID CTargetSimUIDlg::f_OnSpeedSelChange(VOID)
 {
 	const INT32 nSelected = st_SpeedCombo.GetCurSel();
@@ -1880,6 +1946,7 @@ VOID CTargetSimUIDlg::f_OnSpeedSelChange(VOID)
 	}
 }
 
+// 재생 타이머와 미뤄 둔 실행 타이머를 처리한다.
 VOID CTargetSimUIDlg::OnTimer(UINT_PTR timerId)
 {
 	const INT32	nSampleNum = st_Result.f_GetSampleNum();
@@ -1919,6 +1986,7 @@ VOID CTargetSimUIDlg::OnTimer(UINT_PTR timerId)
 	}
 }
 
+// 시각 슬라이더를 움직이면 그 시각으로 옮긴다.
 VOID CTargetSimUIDlg::OnHScroll(UINT32 scrollCode, UINT32 thumbPos, CScrollBar *st_ScrollBar)
 {
 	if ((st_ScrollBar != nullptr) && (st_Result.f_GetSampleNum() > 0) && (st_ScrollBar->GetSafeHwnd() == st_TimeSlider.GetSafeHwnd()))
@@ -1932,6 +2000,7 @@ VOID CTargetSimUIDlg::OnHScroll(UINT32 scrollCode, UINT32 thumbPos, CScrollBar *
 	}
 }
 
+// 결과가 있을 때만 재생과 저장 컨트롤을 켠다.
 VOID CTargetSimUIDlg::f_EnableResultControls(INT32 isEnabled)
 {
 	f_Ui_EnableCtrl(this, IDC_PLAY, isEnabled);
@@ -1946,6 +2015,7 @@ VOID CTargetSimUIDlg::f_EnableResultControls(INT32 isEnabled)
 	}
 }
 
+// 상태 줄에 글을 적고 종류에 맞는 색으로 칠한다.
 VOID CTargetSimUIDlg::f_SetStatus(INT32 kind, const CString &st_Text)
 {
 	CWnd *st_Ctrl = GetDlgItem(IDC_RUN_STATUS);

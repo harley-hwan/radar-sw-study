@@ -7,6 +7,7 @@
 
 #include "UiCommon.h"
 
+// 문자열을 실수로 읽는다. 허용 문자를 먼저 걸러 inf, nan, 16 진수 표기가 들어오지 않게 한다.
 EN_NumParse f_Num_Parse(const CString &st_Text, FLOAT64 *pt_Value)
 {
 	EN_NumParse	enResult;
@@ -49,6 +50,7 @@ EN_NumParse f_Num_Parse(const CString &st_Text, FLOAT64 *pt_Value)
 	return enResult;
 }
 
+// 고정 소수 자릿수로 적는다. 반올림해서 0 이 되는 음수는 부호를 뗀다.
 INT32 f_Num_FormatFixed(CHAR *pt_Buf, INT32 bufSize, FLOAT64 value, INT32 nDecimal)
 {
 	INT32	nLength = -1;
@@ -83,6 +85,7 @@ INT32 f_Num_FormatFixed(CHAR *pt_Buf, INT32 bufSize, FLOAT64 value, INT32 nDecim
 	return nLength;
 }
 
+// f_Num_FormatFixed 의 CString 판.
 CString f_Num_ToText(FLOAT64 value, INT32 nDecimal)
 {
 	CHAR	pt_Buf[NUM_TEXT_SIZE];
@@ -119,6 +122,7 @@ static INT32 f_Num_NeededDecimal(FLOAT64 value)
 	return nDecimal;
 }
 
+// 문자열이 쓰고 있는 소수 자릿수. 지수 표기는 값에서 센다.
 INT32 f_Num_CountDecimal(const CString &st_Text)
 {
 	CString	st_Trim = st_Text;
@@ -154,6 +158,7 @@ INT32 f_Num_CountDecimal(const CString &st_Text)
 	return nDecimal;
 }
 
+// 문자열 값에 delta 를 더해 자릿수를 지켜 다시 쓴다. 허용 범위 끝에서 자른다.
 INT32 f_Num_Nudge(const CString &st_Text, FLOAT64 delta, INT32 nMinDecimal, FLOAT64 minValue, FLOAT64 maxValue, CString *st_Out)
 {
 	FLOAT64	value = 0.0;

@@ -4,6 +4,7 @@
 
 #define COORD_DCM_ELEMENT_COUNT		9
 
+// 원소 9 개를 3 x 3 행렬에 싣는다.
 static EN_CoordStatus f_Coord_SetDcm(ST_Matrix *st_Dcm, const FLOAT64 *pt_Element)
 {
 	EN_CoordStatus enStatus;
@@ -20,6 +21,7 @@ static EN_CoordStatus f_Coord_SetDcm(ST_Matrix *st_Dcm, const FLOAT64 *pt_Elemen
 	return enStatus;
 }
 
+// 자세각으로 동체 -> NED 변환 행렬을 만든다. Rz(yaw) Ry(pitch) Rx(roll) 을 전개한 식이다.
 EN_CoordStatus f_Coord_Dcm_Body_To_Ned(ST_Matrix *st_Dcm, const ST_CoordAtt *st_Att)
 {
 	EN_CoordStatus	enStatus;
@@ -61,6 +63,7 @@ EN_CoordStatus f_Coord_Dcm_Body_To_Ned(ST_Matrix *st_Dcm, const ST_CoordAtt *st_
 	return enStatus;
 }
 
+// 기준 위경도로 NED -> ECEF 변환 행렬을 만든다. 각 열이 그 지점의 북, 동, 아래 단위벡터다.
 EN_CoordStatus f_Coord_Dcm_Ned_To_Ecef(ST_Matrix *st_Dcm, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -97,6 +100,7 @@ EN_CoordStatus f_Coord_Dcm_Ned_To_Ecef(ST_Matrix *st_Dcm, FLOAT64 refLat, FLOAT6
 	return enStatus;
 }
 
+// NED 와 ENU 를 오가는 축 치환 행렬.
 EN_CoordStatus f_Coord_Dcm_Ned_To_Enu(ST_Matrix *st_Dcm)
 {
 	// 자기 자신이 역행렬인 치환 행렬이라 ENU -> NED 에도 그대로 쓴다.
@@ -121,6 +125,7 @@ EN_CoordStatus f_Coord_Dcm_Ned_To_Enu(ST_Matrix *st_Dcm)
 	return enStatus;
 }
 
+// 안테나 장착 방위와 기울기로 안테나 -> 동체 변환 행렬을 만든다.
 EN_CoordStatus f_Coord_Dcm_Ant_To_Body(ST_Matrix *st_Dcm, FLOAT64 mountYaw, FLOAT64 mountTilt)
 {
 	EN_CoordStatus	enStatus;
@@ -158,6 +163,7 @@ EN_CoordStatus f_Coord_Dcm_Ant_To_Body(ST_Matrix *st_Dcm, FLOAT64 mountYaw, FLOA
 	return enStatus;
 }
 
+// 벡터에 행렬을 곱한다. 입출력이 같은 객체여도 된다.
 EN_CoordStatus f_Coord_RotateVec(ST_CoordRect *st_Out, const ST_Matrix *st_Dcm, const ST_CoordRect *st_In)
 {
 	EN_CoordStatus	enStatus;
@@ -190,6 +196,7 @@ EN_CoordStatus f_Coord_RotateVec(ST_CoordRect *st_Out, const ST_Matrix *st_Dcm, 
 	return enStatus;
 }
 
+// 벡터에 전치 행렬을 곱한다. 정규직교 행렬이라 이것이 역변환이다.
 EN_CoordStatus f_Coord_RotateVecInv(ST_CoordRect *st_Out, const ST_Matrix *st_Dcm, const ST_CoordRect *st_In)
 {
 	EN_CoordStatus	enStatus;
@@ -222,6 +229,7 @@ EN_CoordStatus f_Coord_RotateVecInv(ST_CoordRect *st_Out, const ST_Matrix *st_Dc
 	return enStatus;
 }
 
+// 위경고도를 ECEF 직교좌표로 바꾼다.
 EN_CoordStatus f_Trans_Lla_To_Ecef(ST_CoordRect *st_Out, const ST_CoordLla *st_Lla)
 {
 	EN_CoordStatus	enStatus;
@@ -306,6 +314,7 @@ EN_CoordStatus f_Trans_Ecef_To_Lla(ST_CoordLla *st_Out, const ST_CoordRect *st_E
 	return enStatus;
 }
 
+// 구면 좌표(거리, 방위, 고각)를 직교좌표로 바꾼다.
 EN_CoordStatus f_Trans_Sph_To_Rect(ST_CoordRect *st_Out, const ST_CoordSph *st_Sph)
 {
 	EN_CoordStatus	enStatus;
@@ -329,6 +338,7 @@ EN_CoordStatus f_Trans_Sph_To_Rect(ST_CoordRect *st_Out, const ST_CoordSph *st_S
 	return enStatus;
 }
 
+// 직교좌표를 구면 좌표로 바꾼다.
 EN_CoordStatus f_Trans_Rect_To_Sph(ST_CoordSph *st_Out, const ST_CoordRect *st_Rect)
 {
 	EN_CoordStatus	enStatus;
@@ -352,6 +362,7 @@ EN_CoordStatus f_Trans_Rect_To_Sph(ST_CoordSph *st_Out, const ST_CoordRect *st_R
 	return enStatus;
 }
 
+// 구면 좌표를 방향여현 u, v 로 바꾼다.
 EN_CoordStatus f_Trans_Sph_To_Uv(ST_CoordUv *st_Out, const ST_CoordSph *st_Sph)
 {
 	EN_CoordStatus enStatus;
@@ -372,6 +383,7 @@ EN_CoordStatus f_Trans_Sph_To_Uv(ST_CoordUv *st_Out, const ST_CoordSph *st_Sph)
 	return enStatus;
 }
 
+// 방향여현 u, v 를 구면 좌표로 바꾼다. u^2 + v^2 가 1 을 넘으면 거부한다.
 EN_CoordStatus f_Trans_Uv_To_Sph(ST_CoordSph *st_Out, const ST_CoordUv *st_Uv)
 {
 	EN_CoordStatus	enStatus;
@@ -403,6 +415,7 @@ EN_CoordStatus f_Trans_Uv_To_Sph(ST_CoordSph *st_Out, const ST_CoordUv *st_Uv)
 	return enStatus;
 }
 
+// 안테나 좌표의 벡터를 동체 좌표로 바꾼다.
 EN_CoordStatus f_Trans_Ant_To_Body(ST_CoordRect *st_Out, const ST_CoordRect *st_Ant, FLOAT64 mountYaw, FLOAT64 mountTilt)
 {
 	EN_CoordStatus	enStatus;
@@ -418,6 +431,7 @@ EN_CoordStatus f_Trans_Ant_To_Body(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// 동체 좌표의 벡터를 안테나 좌표로 바꾼다.
 EN_CoordStatus f_Trans_Body_To_Ant(ST_CoordRect *st_Out, const ST_CoordRect *st_Body, FLOAT64 mountYaw, FLOAT64 mountTilt)
 {
 	EN_CoordStatus	enStatus;
@@ -433,6 +447,7 @@ EN_CoordStatus f_Trans_Body_To_Ant(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// 동체 좌표의 벡터를 NED 로 바꾼다. 동체 속도를 ECEF 로 옮기는 1 단계다.
 EN_CoordStatus f_Trans_Body_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_Body, const ST_CoordAtt *st_Att)
 {
 	EN_CoordStatus	enStatus;
@@ -448,6 +463,7 @@ EN_CoordStatus f_Trans_Body_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// NED 벡터를 동체 좌표로 바꾼다.
 EN_CoordStatus f_Trans_Ned_To_Body(ST_CoordRect *st_Out, const ST_CoordRect *st_Ned, const ST_CoordAtt *st_Att)
 {
 	EN_CoordStatus	enStatus;
@@ -463,6 +479,7 @@ EN_CoordStatus f_Trans_Ned_To_Body(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// NED 벡터를 ENU 로 바꾼다 (축 치환).
 EN_CoordStatus f_Trans_Ned_To_Enu(ST_CoordRect *st_Out, const ST_CoordRect *st_Ned)
 {
 	EN_CoordStatus	enStatus;
@@ -490,6 +507,7 @@ EN_CoordStatus f_Trans_Ned_To_Enu(ST_CoordRect *st_Out, const ST_CoordRect *st_N
 	return enStatus;
 }
 
+// ENU 벡터를 NED 로 바꾼다 (축 치환).
 EN_CoordStatus f_Trans_Enu_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_Enu)
 {
 	EN_CoordStatus	enStatus;
@@ -517,6 +535,7 @@ EN_CoordStatus f_Trans_Enu_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_E
 	return enStatus;
 }
 
+// NED 벡터를 ECEF 로 회전한다. 기준점을 더하지 않으므로 속도 같은 벡터에 쓴다.
 EN_CoordStatus f_Trans_NedVec_To_Ecef(ST_CoordRect *st_Out, const ST_CoordRect *st_Ned, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -532,6 +551,7 @@ EN_CoordStatus f_Trans_NedVec_To_Ecef(ST_CoordRect *st_Out, const ST_CoordRect *
 	return enStatus;
 }
 
+// ECEF 벡터를 NED 로 회전한다. 기준점을 빼지 않는다.
 EN_CoordStatus f_Trans_EcefVec_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_Ecef, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -547,6 +567,7 @@ EN_CoordStatus f_Trans_EcefVec_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *
 	return enStatus;
 }
 
+// NED 점을 ECEF 점으로 바꾼다. 회전한 뒤 기준점을 더한다.
 EN_CoordStatus f_Trans_Ned_To_Ecef(ST_CoordRect *st_Out, const ST_CoordRect *st_Ned, const ST_CoordRect *st_RefEcef, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -569,6 +590,7 @@ EN_CoordStatus f_Trans_Ned_To_Ecef(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// ECEF 점을 NED 점으로 바꾼다. 기준점을 뺀 뒤 역회전한다.
 EN_CoordStatus f_Trans_Ecef_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_Ecef, const ST_CoordRect *st_RefEcef, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -584,6 +606,7 @@ EN_CoordStatus f_Trans_Ecef_To_Ned(ST_CoordRect *st_Out, const ST_CoordRect *st_
 	return enStatus;
 }
 
+// 동체 기준 장착 오프셋을 ECEF 변위로 바꾼다.
 EN_CoordStatus f_Coord_LeverArm_Body_To_Ecef(ST_CoordRect *st_Out, const ST_CoordRect *st_BodyOffset, const ST_CoordAtt *st_Att, FLOAT64 refLat, FLOAT64 refLon)
 {
 	EN_CoordStatus	enStatus;
@@ -599,6 +622,7 @@ EN_CoordStatus f_Coord_LeverArm_Body_To_Ecef(ST_CoordRect *st_Out, const ST_Coor
 	return enStatus;
 }
 
+// 벡터 덧셈.
 EN_CoordStatus f_Coord_VecAdd(ST_CoordRect *st_Out, const ST_CoordRect *st_Lhs, const ST_CoordRect *st_Rhs)
 {
 	EN_CoordStatus enStatus;
@@ -619,6 +643,7 @@ EN_CoordStatus f_Coord_VecAdd(ST_CoordRect *st_Out, const ST_CoordRect *st_Lhs, 
 	return enStatus;
 }
 
+// 벡터 뺄셈.
 EN_CoordStatus f_Coord_VecSub(ST_CoordRect *st_Out, const ST_CoordRect *st_Lhs, const ST_CoordRect *st_Rhs)
 {
 	EN_CoordStatus enStatus;
@@ -639,6 +664,7 @@ EN_CoordStatus f_Coord_VecSub(ST_CoordRect *st_Out, const ST_CoordRect *st_Lhs, 
 	return enStatus;
 }
 
+// 벡터 상수배.
 EN_CoordStatus f_Coord_VecScale(ST_CoordRect *st_Out, const ST_CoordRect *st_Src, FLOAT64 scalar)
 {
 	EN_CoordStatus enStatus;
@@ -659,6 +685,7 @@ EN_CoordStatus f_Coord_VecScale(ST_CoordRect *st_Out, const ST_CoordRect *st_Src
 	return enStatus;
 }
 
+// 벡터 크기. 인자가 NULL 이면 0 이다.
 FLOAT64 f_Coord_VecNorm(const ST_CoordRect *st_Vec)
 {
 	FLOAT64 norm;
@@ -675,6 +702,7 @@ FLOAT64 f_Coord_VecNorm(const ST_CoordRect *st_Vec)
 	return norm;
 }
 
+// 각도를 (-PI, PI] 로 접는다. 자세각이 무한정 커지지 않게 한다.
 FLOAT64 f_Coord_WrapAngle(FLOAT64 angle)
 {
 	FLOAT64 wrapped;
@@ -689,6 +717,7 @@ FLOAT64 f_Coord_WrapAngle(FLOAT64 angle)
 	return wrapped - PI;
 }
 
+// 좌표 변환 상태 코드의 이름 문자열.
 const CHAR *f_Coord_StatusStr(EN_CoordStatus status)
 {
 	const CHAR *text;

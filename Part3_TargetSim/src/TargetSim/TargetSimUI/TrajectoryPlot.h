@@ -58,6 +58,8 @@ private:
 	VOID	f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const;
 	VOID	f_DrawEmpty(CDC *st_Dc, const CRect &st_Client) const;
 	VOID	f_MapToPixel(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
+	INT32	f_PlotToLla(FLOAT64 east, FLOAT64 north, ST_CoordLla *st_Lla) const;
+	INT32	f_LlaToPlot(FLOAT64 lat, FLOAT64 lon, ST_PlotPoint *st_Point) const;
 	VOID	f_AltToPixel(INT32 nStep, FLOAT64 alt, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 	INT32	f_GetHandlePixel(INT32 nObject, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 	INT32	f_HitTest(CPoint st_Point, INT32 *pt_Object) const;
@@ -76,7 +78,10 @@ private:
 	FLOAT64				pixelPerMeter;
 	FLOAT64				centerEast;
 	FLOAT64				centerNorth;
-	FLOAT64				gridMeter;
+	FLOAT64				centerLat;						// 보이는 영역 중심 [rad]
+	FLOAT64				centerLon;
+	FLOAT64				gridLatDeg;						// 격자 간격 [deg]
+	FLOAT64				gridLonDeg;
 	FLOAT64				altMin;
 	FLOAT64				altMax;
 	FLOAT64				altGrid;

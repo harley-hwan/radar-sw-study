@@ -30,21 +30,25 @@ BEGIN_MESSAGE_MAP(CGridEdit, CEdit)
 	ON_WM_MOUSEWHEEL()
 END_MESSAGE_MAP()
 
+// 칸 위에 뜨는 편집칸.
 CGridEdit::CGridEdit() noexcept
 	: st_Owner(nullptr)
 {
 }
 
+// 키와 휠을 넘겨줄 표를 지정한다.
 VOID CGridEdit::f_SetOwner(CGridCtrl *st_NewOwner)
 {
 	st_Owner = st_NewOwner;
 }
 
+// 모든 키를 직접 받는다. 대화상자가 Enter, Tab, Esc 를 가져가지 못하게 한다.
 UINT32 CGridEdit::OnGetDlgCode(VOID)
 {
 	return DLGC_WANTALLKEYS | DLGC_HASSETSEL;
 }
 
+// Enter, Esc, Tab, 위아래 키를 표에 넘긴다.
 VOID CGridEdit::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
 {
 	if ((st_Owner != nullptr) && ((key == VK_RETURN) || (key == VK_ESCAPE) || (key == VK_TAB) || (key == VK_UP) || (key == VK_DOWN)))
@@ -57,6 +61,7 @@ VOID CGridEdit::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
 	}
 }
 
+// 표에 넘긴 키는 기본 처리로 보내지 않는다.
 VOID CGridEdit::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
 {
 	// OnKeyDown 에서 처리한 키. 기본 처리로 넘기면 경고음이 난다.
@@ -66,6 +71,7 @@ VOID CGridEdit::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
 	}
 }
 
+// 포커스를 잃으면 편집을 확정한다.
 VOID CGridEdit::OnKillFocus(CWnd *st_NewWnd)
 {
 	CEdit::OnKillFocus(st_NewWnd);
@@ -76,6 +82,7 @@ VOID CGridEdit::OnKillFocus(CWnd *st_NewWnd)
 	}
 }
 
+// 휠을 값 증감으로 넘긴다.
 BOOL CGridEdit::OnMouseWheel(UINT32 flags, SHORT delta, CPoint st_Point)
 {
 	UNREFERENCED_PARAMETER(flags);
@@ -110,6 +117,7 @@ BEGIN_MESSAGE_MAP(CGridCtrl, CListCtrl)
 	ON_MESSAGE(GRID_WM_OPEN_CHOICE, &CGridCtrl::f_OnOpenChoice)
 END_MESSAGE_MAP()
 
+// 칸을 바로 고치는 표.
 CGridCtrl::CGridCtrl() noexcept
 	: nColumnNum(0)
 	, dpi(UI_BASE_DPI)
@@ -132,6 +140,7 @@ CGridCtrl::CGridCtrl() noexcept
 	}
 }
 
+// 열 정의와 화면 배율을 받아 표를 갖춘다.
 VOID CGridCtrl::f_Setup(const ST_GridColumn *st_NewColumn, INT32 nNewColumnNum, INT32 newDpi)
 {
 	CClientDC	st_Dc(this);
@@ -174,6 +183,7 @@ VOID CGridCtrl::f_Setup(const ST_GridColumn *st_NewColumn, INT32 nNewColumnNum, 
 	f_FitColumns();
 }
 
+// 행 수를 맞춘다. 모자라면 넣고 남으면 지운다.
 VOID CGridCtrl::f_SetRowNum(INT32 nRowNum)
 {
 	INT32 nTarget = nRowNum;
@@ -219,6 +229,7 @@ VOID CGridCtrl::f_SetRowNum(INT32 nRowNum)
 	Invalidate(FALSE);
 }
 
+// 칸 글자를 바꾼다. 같으면 건드리지 않는다.
 VOID CGridCtrl::f_SetCellText(INT32 nRow, INT32 nColumn, const CString &st_Text)
 {
 	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum))
@@ -230,6 +241,7 @@ VOID CGridCtrl::f_SetCellText(INT32 nRow, INT32 nColumn, const CString &st_Text)
 	}
 }
 
+// 칸 글자.
 CString CGridCtrl::f_GetCellText(INT32 nRow, INT32 nColumn) const
 {
 	CString st_Text;
@@ -242,6 +254,7 @@ CString CGridCtrl::f_GetCellText(INT32 nRow, INT32 nColumn) const
 	return st_Text;
 }
 
+// 행 색 표식. 그림의 궤적 색과 같은 색을 쓴다.
 VOID CGridCtrl::f_SetRowColor(INT32 nRow, COLORREF color)
 {
 	if ((nRow >= 0) && (nRow < GRID_MAX_ROW))
@@ -250,6 +263,7 @@ VOID CGridCtrl::f_SetRowColor(INT32 nRow, COLORREF color)
 	}
 }
 
+// 열의 증감 폭과 허용 범위를 바꾼다.
 VOID CGridCtrl::f_SetColumnNudge(INT32 nColumn, FLOAT64 nudgeStep, INT32 nMinDecimal, FLOAT64 minValue, FLOAT64 maxValue)
 {
 	if ((nColumn >= 0) && (nColumn < nColumnNum))
@@ -261,6 +275,7 @@ VOID CGridCtrl::f_SetColumnNudge(INT32 nColumn, FLOAT64 nudgeStep, INT32 nMinDec
 	}
 }
 
+// 붉게 표시할 칸. -1 을 주면 표시를 지운다.
 VOID CGridCtrl::f_SetErrorCell(INT32 nRow, INT32 nColumn)
 {
 	if ((nRow != nErrorRow) || (nColumn != nErrorColumn))
@@ -272,6 +287,7 @@ VOID CGridCtrl::f_SetErrorCell(INT32 nRow, INT32 nColumn)
 	}
 }
 
+// 행이 없을 때 보여 줄 안내 글.
 VOID CGridCtrl::f_SetEmptyText(const CString &st_Text)
 {
 	st_EmptyText = st_Text;
@@ -282,16 +298,19 @@ VOID CGridCtrl::f_SetEmptyText(const CString &st_Text)
 	}
 }
 
+// 현재 행.
 INT32 CGridCtrl::f_GetCurRow(VOID) const
 {
 	return nCurRow;
 }
 
+// 현재 열.
 INT32 CGridCtrl::f_GetCurColumn(VOID) const
 {
 	return nCurColumn;
 }
 
+// 행 nRowNum 개가 스크롤 없이 들어가는 높이. 실제 행 사각형을 재서 구한다.
 INT32 CGridCtrl::f_GetHeightForRows(INT32 nRowNum) const
 {
 	CRect	st_Header(0, 0, 0, 0);
@@ -314,6 +333,7 @@ INT32 CGridCtrl::f_GetHeightForRows(INT32 nRowNum) const
 	return headerHeight + (nRowNum * rowPitch) + 4;
 }
 
+// 현재 칸을 옮긴다. isEdit 이면 편집까지 연다.
 VOID CGridCtrl::f_SetCurCell(INT32 nRow, INT32 nColumn, INT32 isEdit)
 {
 	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum))
@@ -336,6 +356,7 @@ VOID CGridCtrl::f_SetCurCell(INT32 nRow, INT32 nColumn, INT32 isEdit)
 	}
 }
 
+// 편집할 수 있는 열인지 본다 (숫자 칸과 목록 칸).
 INT32 CGridCtrl::f_IsEditable(INT32 nColumn) const
 {
 	INT32 isEditable = 0;
@@ -348,6 +369,7 @@ INT32 CGridCtrl::f_IsEditable(INT32 nColumn) const
 	return isEditable;
 }
 
+// 칸 하나의 사각형.
 INT32 CGridCtrl::f_GetCellRect(INT32 nRow, INT32 nColumn, CRect *st_Rect) const
 {
 	CRect	st_Row;
@@ -368,6 +390,7 @@ INT32 CGridCtrl::f_GetCellRect(INT32 nRow, INT32 nColumn, CRect *st_Rect) const
 	return isOk;
 }
 
+// 열 너비를 비율대로 클라이언트 너비에 맞춘다. 마지막 열이 나머지를 가진다.
 VOID CGridCtrl::f_FitColumns(VOID)
 {
 	CRect	st_Client;
@@ -413,6 +436,7 @@ VOID CGridCtrl::f_FitColumns(VOID)
 	}
 }
 
+// 칸 하나만 다시 그리게 한다.
 VOID CGridCtrl::f_InvalidateCell(INT32 nRow, INT32 nColumn)
 {
 	CRect st_Rect;
@@ -423,6 +447,7 @@ VOID CGridCtrl::f_InvalidateCell(INT32 nRow, INT32 nColumn)
 	}
 }
 
+// 부모에게 WM_NOTIFY 를 보낸다.
 VOID CGridCtrl::f_Notify(UINT32 code, INT32 nRow, INT32 nColumn, INT32 isLive, HDC dcHandle, const RECT *st_Rect)
 {
 	ST_GridNotify	st_Notify;
@@ -450,6 +475,7 @@ VOID CGridCtrl::f_Notify(UINT32 code, INT32 nRow, INT32 nColumn, INT32 isLive, H
 
 // 그리기
 
+// 커스텀 드로우 단계를 받아 칸 그리기로 넘긴다.
 VOID CGridCtrl::f_OnCustomDraw(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	NMLVCUSTOMDRAW *st_Draw = reinterpret_cast<NMLVCUSTOMDRAW *>(st_Hdr);
@@ -500,6 +526,7 @@ VOID CGridCtrl::f_OnCustomDraw(NMHDR *st_Hdr, LRESULT *pt_Result)
 	}
 }
 
+// 칸 하나를 그린다. 현재 칸, 오류 칸, 행 색 표식을 여기서 처리한다.
 VOID CGridCtrl::f_DrawCell(CDC *st_Dc, INT32 nRow, INT32 nColumn)
 {
 	const INT32	padX = f_Ui_Scale(GRID_PAD_X, dpi);
@@ -615,6 +642,7 @@ VOID CGridCtrl::f_DrawCell(CDC *st_Dc, INT32 nRow, INT32 nColumn)
 
 // 편집
 
+// 칸 위에 편집칸과 증감 버튼을, 목록 칸이면 콤보를 띄운다.
 VOID CGridCtrl::f_BeginEdit(INT32 nRow, INT32 nColumn, LPCTSTR pt_InitialText)
 {
 	CRect	st_Cell;
@@ -691,6 +719,7 @@ VOID CGridCtrl::f_BeginEdit(INT32 nRow, INT32 nColumn, LPCTSTR pt_InitialText)
 	}
 }
 
+// 편집을 닫는다. isCommit 이면 친 값을, 아니면 편집을 열기 전 값을 쓴다.
 VOID CGridCtrl::f_EndEdit(INT32 isCommit)
 {
 	CString	st_NewText;
@@ -754,6 +783,7 @@ VOID CGridCtrl::f_EndEdit(INT32 isCommit)
 	}
 }
 
+// 다음이나 이전 편집 칸으로 옮긴다. 행 끝에서는 다음 행으로 넘어가고 읽기 전용 칸은 건너뛴다.
 VOID CGridCtrl::f_MoveEdit(INT32 nDirection)
 {
 	const INT32	nRowNum = GetItemCount();
@@ -804,6 +834,7 @@ VOID CGridCtrl::f_MoveEdit(INT32 nDirection)
 	}
 }
 
+// 편집칸의 값을 증감한다. 편집을 닫지 않고 바로 반영해 값을 굴리는 동안 결과가 따라 움직인다.
 VOID CGridCtrl::f_Nudge(INT32 nDirection, INT32 isCoarse)
 {
 	CString	st_Text;
@@ -836,6 +867,7 @@ VOID CGridCtrl::f_Nudge(INT32 nDirection, INT32 isCoarse)
 	}
 }
 
+// 편집칸에서 온 키를 확정, 되돌림, 이동, 증감으로 가른다.
 VOID CGridCtrl::f_OnEditKey(UINT32 key)
 {
 	const INT32 isCoarse = (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0;
@@ -867,16 +899,19 @@ VOID CGridCtrl::f_OnEditKey(UINT32 key)
 	}
 }
 
+// 편집칸에서 온 휠을 증감으로 넘긴다.
 VOID CGridCtrl::f_OnEditWheel(INT32 nNotch)
 {
 	f_Nudge(nNotch, (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0);
 }
 
+// 편집칸이 포커스를 잃으면 확정한다.
 VOID CGridCtrl::f_OnEditKillFocus(VOID)
 {
 	f_EndEdit(1);
 }
 
+// 증감 버튼을 값 증감으로 넘긴다.
 VOID CGridCtrl::f_OnSpinDelta(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const NMUPDOWN *st_UpDown = reinterpret_cast<NMUPDOWN *>(st_Hdr);
@@ -890,6 +925,7 @@ VOID CGridCtrl::f_OnSpinDelta(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 1;
 }
 
+// 목록에서 고른 값을 칸에 넣고 부모에게 알린다.
 VOID CGridCtrl::f_OnComboSelEndOk(VOID)
 {
 	CString	st_NewText;
@@ -912,6 +948,7 @@ VOID CGridCtrl::f_OnComboSelEndOk(VOID)
 	}
 }
 
+// 목록이 닫히면 편집을 확정한다.
 VOID CGridCtrl::f_OnComboCloseUp(VOID)
 {
 	f_EndEdit(1);
@@ -919,6 +956,7 @@ VOID CGridCtrl::f_OnComboCloseUp(VOID)
 
 // 입력
 
+// 방향키와 글자를 직접 받는다.
 UINT32 CGridCtrl::OnGetDlgCode(VOID)
 {
 	const MSG	*st_Msg = GetCurrentMessage();
@@ -938,6 +976,7 @@ UINT32 CGridCtrl::OnGetDlgCode(VOID)
 	return code;
 }
 
+// 좌우 키로 편집 가능한 열을 오가고, F2, Enter, Space 로 편집을 연다.
 VOID CGridCtrl::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
 {
 	INT32 nColumn;
@@ -981,6 +1020,7 @@ VOID CGridCtrl::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
 	}
 }
 
+// 숫자를 치면 그 글자로 편집을 연다.
 VOID CGridCtrl::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
 {
 	const TCHAR	typed = static_cast<TCHAR>(key);
@@ -997,6 +1037,7 @@ VOID CGridCtrl::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
 	}
 }
 
+// 누른 칸을 현재 칸으로 만든다. 이미 현재 칸이던 숫자 칸을 다시 누르면 편집을 연다.
 VOID CGridCtrl::OnLButtonDown(UINT32 flags, CPoint st_Point)
 {
 	LVHITTESTINFO	st_Hit;
@@ -1035,6 +1076,7 @@ VOID CGridCtrl::OnLButtonDown(UINT32 flags, CPoint st_Point)
 	}
 }
 
+// 클릭 처리가 끝난 뒤 목록을 편다. OnLButtonDown 이 이 메시지를 게시한다.
 LRESULT CGridCtrl::f_OnOpenChoice(WPARAM wParam, LPARAM lParam)
 {
 	const INT32 nRow = static_cast<INT32>(wParam);
@@ -1048,6 +1090,7 @@ LRESULT CGridCtrl::f_OnOpenChoice(WPARAM wParam, LPARAM lParam)
 	return 0;
 }
 
+// 두 번 누르면 바로 편집을 연다.
 VOID CGridCtrl::OnLButtonDblClk(UINT32 flags, CPoint st_Point)
 {
 	LVHITTESTINFO st_Hit;
@@ -1063,6 +1106,7 @@ VOID CGridCtrl::OnLButtonDblClk(UINT32 flags, CPoint st_Point)
 	}
 }
 
+// 크기가 바뀌면 편집을 닫고 열 너비를 다시 맞춘다.
 VOID CGridCtrl::OnSize(UINT32 type, INT32 width, INT32 height)
 {
 	CListCtrl::OnSize(type, width, height);
@@ -1071,24 +1115,28 @@ VOID CGridCtrl::OnSize(UINT32 type, INT32 width, INT32 height)
 	f_FitColumns();
 }
 
+// 포커스 표시를 위해 현재 칸을 다시 그린다.
 VOID CGridCtrl::OnSetFocus(CWnd *st_OldWnd)
 {
 	CListCtrl::OnSetFocus(st_OldWnd);
 	f_InvalidateCell(nCurRow, nCurColumn);
 }
 
+// 포커스 표시를 위해 현재 칸을 다시 그린다.
 VOID CGridCtrl::OnKillFocus(CWnd *st_NewWnd)
 {
 	CListCtrl::OnKillFocus(st_NewWnd);
 	f_InvalidateCell(nCurRow, nCurColumn);
 }
 
+// 스크롤 전에 편집을 닫는다. 편집칸이 엉뚱한 행 위에 남지 않게 한다.
 VOID CGridCtrl::OnVScroll(UINT32 code, UINT32 pos, CScrollBar *st_ScrollBar)
 {
 	f_EndEdit(1);
 	CListCtrl::OnVScroll(code, pos, st_ScrollBar);
 }
 
+// 휠 스크롤 전에 편집을 닫는다.
 BOOL CGridCtrl::OnMouseWheel(UINT32 flags, SHORT delta, CPoint st_Point)
 {
 	f_EndEdit(1);
@@ -1096,6 +1144,7 @@ BOOL CGridCtrl::OnMouseWheel(UINT32 flags, SHORT delta, CPoint st_Point)
 	return CListCtrl::OnMouseWheel(flags, delta, st_Point);
 }
 
+// 선택 행이 바뀌면 현재 행을 갱신하고 부모에게 알린다.
 VOID CGridCtrl::f_OnItemChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const NMLISTVIEW *st_Item = reinterpret_cast<NMLISTVIEW *>(st_Hdr);

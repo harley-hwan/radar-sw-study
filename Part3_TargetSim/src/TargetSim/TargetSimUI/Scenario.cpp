@@ -77,6 +77,7 @@ static const ST_PresetManeuver	s_MultiManeuver[5] =
 	{ 4, TGT_TURN_YAW,		{ _T("-1.5"), _T("15"), _T("25") } }
 };
 
+// 객체 하나의 편집 글자와 기동을 전부 비운다.
 static VOID f_Scn_ClearObject(ST_ObjectText *st_Object)
 {
 	INT32 nField;
@@ -100,6 +101,7 @@ static VOID f_Scn_ClearObject(ST_ObjectText *st_Object)
 	}
 }
 
+// 프리셋 값을 객체 편집 글자에 넣는다.
 static VOID f_Scn_SetObject(ST_ObjectText *st_Object, const ST_PresetObject *st_Preset)
 {
 	INT32 nField;
@@ -112,6 +114,7 @@ static VOID f_Scn_SetObject(ST_ObjectText *st_Object, const ST_PresetObject *st_
 	}
 }
 
+// 입력 오류의 위치와 문구를 채운다.
 static VOID f_Scn_SetIssue(ST_ScnIssue *st_Issue, EN_ScnPlace enPlace, INT32 nTarget, INT32 nManeuver, INT32 nField, const CString &st_Message)
 {
 	st_Issue->enPlace		= enPlace;
@@ -121,6 +124,7 @@ static VOID f_Scn_SetIssue(ST_ScnIssue *st_Issue, EN_ScnPlace enPlace, INT32 nTa
 	st_Issue->st_Message	= st_Message;
 }
 
+// 오류 문구 앞에 붙일 위치 이름 ("표적 2 기동 1" 처럼).
 static CString f_Scn_Where(EN_ScnPlace enPlace, INT32 nTarget, INT32 nManeuver)
 {
 	CString st_Where;
@@ -147,6 +151,7 @@ static CString f_Scn_Where(EN_ScnPlace enPlace, INT32 nTarget, INT32 nManeuver)
 	return st_Where;
 }
 
+// 값이 unit 의 정수배인지 본다.
 static INT32 f_Scn_IsGridMultiple(FLOAT64 value, FLOAT64 unit)
 {
 	const FLOAT64 ratio = value / unit;
@@ -156,6 +161,7 @@ static INT32 f_Scn_IsGridMultiple(FLOAT64 value, FLOAT64 unit)
 
 // CScenario
 
+// 편집 모델. 모든 칸을 비운 채로 시작한다.
 CScenario::CScenario()
 	: nTargetNum(0)
 {
@@ -171,16 +177,19 @@ CScenario::CScenario()
 	(VOID)memset(&st_ProbeConfig, 0, sizeof(st_ProbeConfig));
 }
 
+// 프리셋 이름.
 LPCTSTR CScenario::f_PresetName(INT32 nPreset)
 {
 	return ((nPreset >= 0) && (nPreset < SCN_PRESET_NUM)) ? s_PresetName[nPreset] : _T("");
 }
 
+// 기동 회전축 이름.
 LPCTSTR CScenario::f_TurnName(INT32 nTurnType)
 {
 	return ((nTurnType >= 0) && (nTurnType < SCN_TURN_TYPE_NUM)) ? s_TurnName[nTurnType] : _T("");
 }
 
+// 프리셋 하나를 편집 글자에 채운다.
 VOID CScenario::f_LoadPreset(INT32 nPreset)
 {
 	const ST_PresetManeuver	*st_Maneuver = nullptr;
@@ -245,6 +254,7 @@ VOID CScenario::f_LoadPreset(INT32 nPreset)
 	}
 }
 
+// 표적을 하나 늘린다. 원본 표적의 값을 물려받고 위도만 조금 옮겨 그림에서 겹쳐 보이지 않게 한다.
 INT32 CScenario::f_AddTarget(INT32 nSourceTarget, INT32 isWithManeuver)
 {
 	INT32	nNewTarget = -1;
@@ -293,6 +303,7 @@ INT32 CScenario::f_AddTarget(INT32 nSourceTarget, INT32 isWithManeuver)
 	return nNewTarget;
 }
 
+// 표적 하나를 지우고 뒤를 당긴다. 마지막 하나는 지우지 않는다.
 INT32 CScenario::f_DeleteTarget(INT32 nTarget)
 {
 	INT32 isDeleted = 0;
@@ -313,6 +324,7 @@ INT32 CScenario::f_DeleteTarget(INT32 nTarget)
 	return isDeleted;
 }
 
+// 기동을 하나 늘린다. 직전 기동의 종료에서 시작하는 10 s 짜리 Yaw 1 G 를 채워 넣는다.
 INT32 CScenario::f_AddManeuver(INT32 nTarget)
 {
 	INT32	nNewManeuver = -1;
@@ -363,6 +375,7 @@ INT32 CScenario::f_AddManeuver(INT32 nTarget)
 	return nNewManeuver;
 }
 
+// 기동 하나를 지우고 뒤를 당긴다.
 INT32 CScenario::f_DeleteManeuver(INT32 nTarget, INT32 nManeuver)
 {
 	INT32 isDeleted = 0;
@@ -392,6 +405,7 @@ INT32 CScenario::f_DeleteManeuver(INT32 nTarget, INT32 nManeuver)
 	return isDeleted;
 }
 
+// 엔진 오류 코드를 화면에 쓸 한국어 문구로 바꾼다.
 CString CScenario::f_StatusText(EN_TgtStatus enStatus, INT32 isManeuver)
 {
 	CString st_Text;
@@ -457,6 +471,7 @@ CString CScenario::f_StatusText(EN_TgtStatus enStatus, INT32 isManeuver)
 	return st_Text + _T(" [") + CString(f_Tgt_StatusStr(enStatus)) + _T("]");
 }
 
+// 칸 하나를 실수로 읽고 허용 범위를 본다. 실패하면 이유를 문구로 남긴다.
 INT32 CScenario::f_ReadNumber(const CString &st_Text, FLOAT64 minValue, FLOAT64 maxValue, LPCTSTR pt_Where, LPCTSTR pt_Name,
 	FLOAT64 *pt_Value, ST_ScnIssue *st_Issue) const
 {
@@ -503,6 +518,7 @@ INT32 CScenario::f_ReadNumber(const CString &st_Text, FLOAT64 minValue, FLOAT64 
 	return isOk;
 }
 
+// 객체 하나의 일곱 칸을 읽는다. 각도를 도에서 라디안으로 바꾸는 곳은 여기뿐이다.
 INT32 CScenario::f_ReadObject(const ST_ObjectText *st_Object, EN_ScnPlace enPlace, INT32 nTarget, FLOAT64 minSpeed,
 	ST_CoordLla *st_Lla, ST_CoordAtt *st_Att, FLOAT64 *pt_Speed, ST_ScnIssue *st_Issue) const
 {
@@ -544,6 +560,7 @@ INT32 CScenario::f_ReadObject(const ST_ObjectText *st_Object, EN_ScnPlace enPlac
 	return isOk;
 }
 
+// 편집 글자를 ST_SimConfig 로 만든다. UI 범위를 먼저 보고 Core 검증으로 마무리한다.
 INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 {
 	const FLOAT64	fieldMin[SCN_MNV_FIELD_NUM] = { -SCN_G_LIMIT, -HUGE_VAL, -HUGE_VAL };
@@ -765,6 +782,7 @@ VOID CScenario::f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus en
 
 // 시나리오 파일
 
+// 시나리오 파일에 쓸 글자에서 구분자와 줄바꿈을 지운다.
 static CStringA f_Scn_FileText(const CString &st_Text)
 {
 	CStringA st_Ascii(st_Text);
@@ -776,6 +794,7 @@ static CStringA f_Scn_FileText(const CString &st_Text)
 	return st_Ascii;
 }
 
+// 객체 한 줄을 시나리오 파일에 쓴다.
 static VOID f_Scn_WriteObject(FILE *st_File, const CHAR *pt_Key, const ST_ObjectText *st_Object)
 {
 	INT32 nField;
@@ -790,6 +809,7 @@ static VOID f_Scn_WriteObject(FILE *st_File, const CHAR *pt_Key, const ST_Object
 	(VOID)fputs("\r\n", st_File);
 }
 
+// 시나리오를 글자 파일로 저장한다. 쓰다가 실패하면 반쯤 쓴 파일을 지운다.
 INT32 CScenario::f_Save(const CString &st_Path) const
 {
 	FILE	*st_File = nullptr;
@@ -884,6 +904,7 @@ static INT32 f_Scn_Split(const CString &st_Line, CString *st_Part, INT32 nMaxPar
 	return nPart;
 }
 
+// 시나리오 파일을 읽는다. 끝까지 성공했을 때만 지금 시나리오를 바꾼다.
 INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 {
 	CScenario	*st_New = new CScenario();
@@ -1096,6 +1117,7 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 
 // CSimResult
 
+// 상태의 시각, 위치, 속도가 모두 유한한지 본다.
 static INT32 f_Res_IsStateFinite(const ST_TargetState *st_State)
 {
 	INT32 isFinite = 0;
@@ -1111,6 +1133,7 @@ static INT32 f_Res_IsStateFinite(const ST_TargetState *st_State)
 	return isFinite;
 }
 
+// 실행 결과. 버퍼는 실행할 때 잡는다.
 CSimResult::CSimResult() noexcept
 	: st_SampleBuf(nullptr)
 	, st_PointBuf(nullptr)
@@ -1128,6 +1151,7 @@ CSimResult::CSimResult() noexcept
 	(VOID)memset(&st_Sim, 0, sizeof(st_Sim));
 }
 
+// 현재 버퍼와 대기 버퍼를 모두 푼다.
 CSimResult::~CSimResult()
 {
 	free(st_SampleBuf);
@@ -1136,6 +1160,7 @@ CSimResult::~CSimResult()
 	free(st_PendingPoint);
 }
 
+// 대기 버퍼를 현재 결과로 바꾼다. 표와 그림이 옛 버퍼를 놓은 뒤에 불러야 한다.
 VOID CSimResult::f_Commit(VOID)
 {
 	if (st_PendingSample != nullptr)
@@ -1157,6 +1182,7 @@ VOID CSimResult::f_Commit(VOID)
 	}
 }
 
+// 설정으로 전 구간을 돌려 대기 버퍼에 담는다. 실패하면 지금 결과는 그대로 둔다.
 INT32 CSimResult::f_Run(const ST_SimConfig *st_Config, CString *st_Error)
 {
 	ST_SimSample	*st_NewSample = nullptr;
@@ -1260,6 +1286,7 @@ INT32 CSimResult::f_Run(const ST_SimConfig *st_Config, CString *st_Error)
 	return isOk;
 }
 
+// 표본을 플랫폼 초기 위치 기준 동-북 평면 좌표로 바꾼다. 기준 행렬은 한 번만 만든다.
 INT32 CSimResult::f_ComputePoints(const ST_SimSample *st_Sample, ST_PlotPoint *st_Point, INT32 nNewSampleNum, INT32 nNewObjectNum, CString *st_Error) const
 {
 	const ST_TargetState	*st_Origin = &st_Sample[0].st_Platform;
@@ -1314,31 +1341,37 @@ INT32 CSimResult::f_ComputePoints(const ST_SimSample *st_Sample, ST_PlotPoint *s
 	return isOk;
 }
 
+// 표본 수.
 INT32 CSimResult::f_GetSampleNum(VOID) const
 {
 	return nSampleNum;
 }
 
+// 객체 수 (플랫폼 + 표적).
 INT32 CSimResult::f_GetObjectNum(VOID) const
 {
 	return nObjectNum;
 }
 
+// 결과 표의 열 수. 스텝, 시각, 객체마다 위도 경도 고도.
 INT32 CSimResult::f_GetColumnNum(VOID) const
 {
 	return (nSampleNum > 0) ? (2 + (3 * nObjectNum)) : 0;
 }
 
+// 시간 갱신 간격.
 FLOAT64 CSimResult::f_GetStepTime(VOID) const
 {
 	return stepTime;
 }
 
+// 직전 실행에 걸린 시간.
 FLOAT64 CSimResult::f_GetRunMs(VOID) const
 {
 	return runMs;
 }
 
+// 스텝 하나의 표본. 범위 밖이면 NULL.
 const ST_SimSample *CSimResult::f_GetSample(INT32 nStep) const
 {
 	const ST_SimSample *st_Sample = nullptr;
@@ -1351,6 +1384,7 @@ const ST_SimSample *CSimResult::f_GetSample(INT32 nStep) const
 	return st_Sample;
 }
 
+// 스텝과 객체 하나의 상태. 객체 0 은 플랫폼이다.
 const ST_TargetState *CSimResult::f_GetState(INT32 nStep, INT32 nObject) const
 {
 	const ST_SimSample		*st_Sample = f_GetSample(nStep);
@@ -1364,6 +1398,7 @@ const ST_TargetState *CSimResult::f_GetState(INT32 nStep, INT32 nObject) const
 	return st_State;
 }
 
+// 스텝과 객체 하나의 그림 좌표.
 const ST_PlotPoint *CSimResult::f_GetPoint(INT32 nStep, INT32 nObject) const
 {
 	const ST_PlotPoint *st_Point = nullptr;
@@ -1376,6 +1411,7 @@ const ST_PlotPoint *CSimResult::f_GetPoint(INT32 nStep, INT32 nObject) const
 	return st_Point;
 }
 
+// 결과 표 칸 하나의 글자. 표와 CSV 가 같은 서식을 쓰도록 여기로 모았다.
 INT32 CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 bufSize) const
 {
 	const ST_SimSample		*st_Sample;
@@ -1426,6 +1462,7 @@ INT32 CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 bu
 	return nLength;
 }
 
+// 결과 전체를 CSV 로 쓴다. 한 줄이 한 시각이다.
 INT32 CSimResult::f_WriteCsv(const CString &st_Path, INT32 *pt_LineNum) const
 {
 	const INT32		nColumnNum = 2 + (3 * nObjectNum);

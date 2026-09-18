@@ -21,12 +21,14 @@ namespace Gdiplus
 BEGIN_MESSAGE_MAP(CTargetSimUIApp, CWinApp)
 END_MESSAGE_MAP()
 
+// 응용 프로그램 객체.
 CTargetSimUIApp::CTargetSimUIApp() noexcept
 {
 }
 
 CTargetSimUIApp g_TargetSimApp;
 
+// 공용 컨트롤과 GDI+ 를 올리고 주 대화상자를 띄운다. 닫히면 GDI+ 를 내린다.
 BOOL CTargetSimUIApp::InitInstance()
 {
 	INITCOMMONCONTROLSEX		st_InitCtrls;

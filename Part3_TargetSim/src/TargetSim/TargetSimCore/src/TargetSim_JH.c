@@ -6,6 +6,7 @@
 #define TGT_TIME_EPSILON			1.0e-6
 #define TGT_STEP_RATIO_TOLERANCE	1.0e-6
 
+// 기동 회전축이 명세가 정한 0 ~ 3 인지 본다.
 static EN_TgtStatus f_Tgt_CheckTurnType(EN_TurnType enTurnType)
 {
 	EN_TgtStatus enStatus;
@@ -27,6 +28,7 @@ static EN_TgtStatus f_Tgt_CheckTurnType(EN_TurnType enTurnType)
 	return enStatus;
 }
 
+// 표적 하나의 기동 개수와 속력을 본다. 속력은 각속도 계산의 분모라 0 을 허용하지 않는다.
 static EN_TgtStatus f_Tgt_CheckTarget(const ST_TargetInit *st_Target)
 {
 	EN_TgtStatus enStatus;
@@ -47,6 +49,7 @@ static EN_TgtStatus f_Tgt_CheckTarget(const ST_TargetInit *st_Target)
 	return enStatus;
 }
 
+// 표적 하나의 기동을 모두 본다. 회전축과 시각 범위를 확인하고 구간이 서로 겹치면 거부한다.
 static EN_TgtStatus f_Tgt_CheckManeuvers(const ST_TargetInit *st_Target, FLOAT64 durationTime)
 {
 	EN_TgtStatus				enStatus = TGT_OK;
@@ -92,6 +95,7 @@ static EN_TgtStatus f_Tgt_CheckManeuvers(const ST_TargetInit *st_Target, FLOAT64
 	return enStatus;
 }
 
+// 주어진 시각에 걸린 기동을 찾아 그 회전축의 각속도를 돌려준다. 걸린 기동이 없으면 세 축 모두 0 이다.
 static EN_TgtStatus f_Tgt_GetAttRate(ST_CoordAtt *st_Rate, const ST_TargetInit *st_Target, FLOAT64 simTime)
 {
 	EN_TgtStatus				enStatus;
@@ -154,6 +158,8 @@ static EN_TgtStatus f_Tgt_GetAttRate(ST_CoordAtt *st_Rate, const ST_TargetInit *
 	return enStatus;
 }
 
+// 동체 속도 (V, 0, 0) 을 자세로 한 번, 위경도로 한 번 돌려 ECEF 속도로 만든다.
+// 회전만 거치므로 속력은 그대로 보존된다.
 static EN_CoordStatus f_Tgt_GetVelEcef(ST_CoordRect *st_VelEcef, const ST_CoordAtt *st_Att, const ST_CoordLla *st_Lla, FLOAT64 headingSpeed)
 {
 	EN_CoordStatus	enStatus;
@@ -174,6 +180,7 @@ static EN_CoordStatus f_Tgt_GetVelEcef(ST_CoordRect *st_VelEcef, const ST_CoordA
 	return enStatus;
 }
 
+// 시뮬레이션 시간을 간격으로 나눈 스텝 수. 정수배가 아니거나 범위를 벗어나면 0 이다.
 static INT32 f_Tgt_GetStepNum(const ST_SimConfig *st_Config)
 {
 	INT32	nStepNum = 0;
@@ -196,6 +203,7 @@ static INT32 f_Tgt_GetStepNum(const ST_SimConfig *st_Config)
 	return nStepNum;
 }
 
+// 설정 전체를 검사한다. 먼저 걸린 항목의 오류 코드를 돌려준다.
 EN_TgtStatus f_Tgt_ValidateConfig(const ST_SimConfig *st_Config)
 {
 	EN_TgtStatus			enStatus;
@@ -241,6 +249,7 @@ EN_TgtStatus f_Tgt_ValidateConfig(const ST_SimConfig *st_Config)
 	return enStatus;
 }
 
+// 객체 하나의 t = 0 상태를 만든다. 모든 항목이 성공했을 때만 한 번에 반영한다.
 EN_TgtStatus f_Tgt_InitState(ST_TargetState *st_State, const ST_CoordLla *st_InitLla, const ST_CoordAtt *st_InitAtt, FLOAT64 headingSpeed)
 {
 	EN_TgtStatus	enStatus;
@@ -281,6 +290,7 @@ EN_TgtStatus f_Tgt_InitState(ST_TargetState *st_State, const ST_CoordLla *st_Ini
 	return enStatus;
 }
 
+// 중점법으로 한 스텝 전진한다. 반 스텝 뒤의 자세와 위치로 만든 속도를 그 스텝의 대표 속도로 쓴다.
 static EN_TgtStatus f_Tgt_Propagate(ST_TargetState *st_State, const ST_CoordAtt *st_Rate, FLOAT64 headingSpeed, FLOAT64 stepTime, FLOAT64 nextTime)
 {
 	EN_TgtStatus	enStatus;
@@ -364,6 +374,7 @@ static EN_TgtStatus f_Tgt_Propagate(ST_TargetState *st_State, const ST_CoordAtt 
 	return enStatus;
 }
 
+// 표적 하나를 한 스텝 진행한다. 기동을 조회해 각속도를 얻고 적분에 넘긴다.
 static EN_TgtStatus f_Tgt_StepTargetAt(ST_TargetState *st_State, const ST_TargetInit *st_Target, FLOAT64 stepTime, FLOAT64 curTime, FLOAT64 nextTime)
 {
 	EN_TgtStatus	enStatus;
@@ -394,6 +405,7 @@ static EN_TgtStatus f_Tgt_StepPlatformAt(ST_TargetState *st_State, const ST_Plat
 	return enStatus;
 }
 
+// 쓰지 않는 표적 칸을 0 으로 채운다. 표, CSV, 그림이 초기화되지 않은 값을 읽지 않게 한다.
 static VOID f_Tgt_ClearState(ST_TargetState *st_State)
 {
 	st_State->simTime		= 0.0;
@@ -411,6 +423,7 @@ static VOID f_Tgt_ClearState(ST_TargetState *st_State)
 	st_State->st_Att.yaw	= 0.0;
 }
 
+// 표적 하나만 단독으로 한 스텝 진행한다. 시각은 상태에 누적한다.
 EN_TgtStatus f_Tgt_StepTarget(ST_TargetState *st_State, const ST_TargetInit *st_Target, FLOAT64 stepTime)
 {
 	EN_TgtStatus enStatus;
@@ -431,6 +444,7 @@ EN_TgtStatus f_Tgt_StepTarget(ST_TargetState *st_State, const ST_TargetInit *st_
 	return enStatus;
 }
 
+// 설정을 검증하고 표본 0 을 만든다. 설정은 사본으로 보관해 이후 원본이 바뀌어도 영향이 없다.
 EN_TgtStatus f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 {
 	EN_TgtStatus			enStatus;
@@ -488,6 +502,7 @@ EN_TgtStatus f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 	return enStatus;
 }
 
+// 플랫폼과 표적 전원을 한 스텝 진행한다. 매 호출 재검증하고, 사본에서 모두 성공했을 때만 반영한다.
 EN_TgtStatus f_Tgt_StepSim(ST_SimState *st_Sim)
 {
 	EN_TgtStatus			enStatus;
@@ -560,6 +575,7 @@ EN_TgtStatus f_Tgt_StepSim(ST_SimState *st_Sim)
 	return enStatus;
 }
 
+// 엔진 상태 코드의 이름 문자열.
 const CHAR *f_Tgt_StatusStr(EN_TgtStatus status)
 {
 	const CHAR *text;
