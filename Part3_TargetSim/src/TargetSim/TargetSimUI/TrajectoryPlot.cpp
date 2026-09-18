@@ -3,7 +3,6 @@
 #include <math.h>
 #include <stdlib.h>
 
-// gdiplus.h 는 min·max 매크로를 쓰는데 framework.h 가 NOMINMAX 를 걸어 두었다.
 #include <algorithm>
 namespace Gdiplus
 {
@@ -15,9 +14,8 @@ namespace Gdiplus
 #pragma warning(pop)
 #pragma comment(lib, "gdiplus.lib")
 
-#include "TrajectoryPlot_JH.h"
-#include "UiNumber_JH.h"
-#include "UiTheme_JH.h"
+#include "TrajectoryPlot.h"
+#include "UiCommon.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -31,10 +29,10 @@ namespace Gdiplus
 #define PLOT_ALT_MIN_HEIGHT		112
 #define PLOT_ALT_MAX_HEIGHT		190
 #define PLOT_ALT_RATIO			0.30
-#define PLOT_WIDE_RATIO			1.40					// 너비가 높이의 이 배수를 넘으면 평면과 고도를 나란히 놓는다
+#define PLOT_WIDE_RATIO			1.40					// 너비/높이가 이보다 크면 평면과 고도를 나란히
 #define PLOT_ALT_SIDE_RATIO		0.38
 #define PLOT_ALT_SIDE_MIN		250
-#define PLOT_MIN_CLIENT_HEIGHT	280						// 이보다 낮으면 고도 패널을 접는다
+#define PLOT_MIN_CLIENT_HEIGHT	280						// 이보다 낮으면 고도 패널 생략
 #define PLOT_MIN_SPAN			1000.0					// [m]
 #define PLOT_SPAN_SCALE			1.18
 #define PLOT_MIN_ALT_SPAN		10.0					// [m]
@@ -49,15 +47,13 @@ namespace Gdiplus
 #define PLOT_HIT_PX				10.0
 #define PLOT_DRAG_START_PX		4
 #define PLOT_FONT_PX			12.0
-#define PLOT_LABEL_SIZE			48
-#define PLOT_LABEL_TRY_NUM		4						// 이름표 자리: 출발 반대쪽 둘, 그다음 출발 쪽 둘
-#define PLOT_LABEL_SIDE_MIN		0.3						// 출발 방향 성분이 이보다 크면 그쪽을 피한다
-#define PLOT_CAPTION_WIDTH		64.0F					// [px @96dpi] 그림 안쪽 구석의 축 이름이 차지하는 자리
+#define PLOT_LABEL_TRY_NUM		4
+#define PLOT_LABEL_SIDE_MIN		0.3
+#define PLOT_CAPTION_WIDTH		30.0F					// [px @96dpi] 구석의 축 이름 자리
 #define PLOT_CAPTION_HEIGHT		22.0F
-#define PLOT_HINT_MIN_HEIGHT	120						// [px @96dpi] 고도 패널이 이보다 낮으면 안내 글을 뺀다
 
 #define PLOT_DRAG_NONE			0
-#define PLOT_DRAG_PENDING		1						// 눌렀지만 아직 끌지 않았다. 그냥 누른 것은 위치를 바꾸지 않는다
+#define PLOT_DRAG_PENDING		1						// 눌렀지만 아직 끌지 않음
 #define PLOT_DRAG_MOVE			2
 #define PLOT_DRAG_TURN			3
 #define PLOT_DRAG_SCRUB			4
@@ -80,7 +76,6 @@ static FLOAT32 f_Plot_Real(FLOAT64 value)
 {
 	FLOAT64 limited = value;
 
-	// 정수·단정밀 변환 전에 범위를 자른다.
 	if (limited > PLOT_PIXEL_LIMIT)
 	{
 		limited = PLOT_PIXEL_LIMIT;
@@ -91,7 +86,7 @@ static FLOAT32 f_Plot_Real(FLOAT64 value)
 	}
 	else
 	{
-		// 범위 안이면 그대로 쓴다.
+		// 그대로
 	}
 
 	return static_cast<FLOAT32>(limited);
@@ -129,7 +124,7 @@ static FLOAT64 f_Plot_NiceStep(FLOAT64 span, FLOAT64 maxTickNum)
 			}
 			else
 			{
-				// 같은 자릿수의 다음 가수로 넘어간다.
+				// 다음 가수
 			}
 		}
 	}
@@ -237,7 +232,7 @@ VOID CTrajectoryPlot::f_SetResult(const CSimResult *st_NewResult)
 	}
 	else
 	{
-		// 같은 스텝을 그대로 보인다.
+		// 같은 스텝
 	}
 
 	if (GetSafeHwnd() != nullptr)
@@ -263,7 +258,7 @@ VOID CTrajectoryPlot::f_SetSelObject(INT32 nObject)
 {
 	if (nObject != nSelObject)
 	{
-		// 고른 객체의 궤적은 굵게 그려 배경 비트맵에 들어 있으므로 배경도 다시 만든다.
+		// 고른 객체의 궤적은 굵게 그려 배경에 들어 있다.
 		nSelObject	= nObject;
 		isBackValid	= 0;
 
@@ -281,7 +276,6 @@ INT32 CTrajectoryPlot::f_HasData(VOID) const
 
 BOOL CTrajectoryPlot::OnEraseBkgnd(CDC *st_Dc)
 {
-	// 배경까지 OnPaint 에서 한 번에 그려 깜빡임을 없앤다.
 	UNREFERENCED_PARAMETER(st_Dc);
 
 	return TRUE;
@@ -307,7 +301,6 @@ VOID CTrajectoryPlot::OnPaint(VOID)
 
 	if ((st_Client.Width() > 0) && (st_Client.Height() > 0) && (st_MemDc.CreateCompatibleDC(&st_Dc) != FALSE))
 	{
-		// 페인트 DC 기준으로 만들어야 컬러 비트맵이 된다.
 		if ((st_FrameBitmap.GetSafeHandle() == nullptr) || (st_FrameSize != st_Client.Size()))
 		{
 			(VOID)st_FrameBitmap.DeleteObject();
@@ -316,12 +309,11 @@ VOID CTrajectoryPlot::OnPaint(VOID)
 			isBackValid		= 0;
 		}
 
-		// 비트맵을 못 만들었으면(메모리 부족) 이번에는 그리지 않는다.
 		if (st_FrameBitmap.GetSafeHandle() != nullptr)
 		{
 			st_OldBitmap = st_MemDc.SelectObject(&st_FrameBitmap);
 
-			// 격자·궤적·이름표는 비트맵에 그려 두고, 재생 중에는 현재 표식만 다시 그린다.
+			// 격자, 궤적, 이름표는 배경 비트맵에 두고 재생 중에는 현재 표식만 다시 그린다.
 			if ((f_HasData() != 0) && (isBackValid == 0))
 			{
 				f_BuildBackground(&st_Dc, st_Client);
@@ -365,7 +357,7 @@ VOID CTrajectoryPlot::f_DrawEmpty(CDC *st_Dc, const CRect &st_Client) const
 
 	(VOID)st_Dc->SetBkMode(TRANSPARENT);
 	(VOID)st_Dc->SetTextColor(UI_COLOR_TEXT_SUB);
-	(VOID)st_Dc->DrawText(CString(_T("표시할 결과가 없습니다 — 입력을 고치면 바로 다시 그립니다")), &st_Text, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
+	(VOID)st_Dc->DrawText(CString(_T("표시할 결과가 없습니다")), &st_Text, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
 
 	if (st_OldFont != nullptr)
 	{
@@ -388,7 +380,6 @@ VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 	}
 	else if (static_cast<FLOAT64>(st_Client.Width()) >= (PLOT_WIDE_RATIO * static_cast<FLOAT64>(st_Client.Height())))
 	{
-		// 가로로 넉넉하면 나란히 놓는다. 등축척 평면은 정사각에 가까울수록 크게 그려진다.
 		altBlock = f_Plot_Round(static_cast<FLOAT64>(st_Client.Width()) * PLOT_ALT_SIDE_RATIO);
 
 		if (altBlock < f_Ui_Scale(PLOT_ALT_SIDE_MIN, dpi))
@@ -413,7 +404,7 @@ VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 		}
 		else
 		{
-			// 비율대로 쓴다.
+			// 비율대로
 		}
 
 		st_AltArea.SetRect(left, st_Client.bottom - altBlock + f_Ui_Scale(PLOT_ALT_TITLE_HEIGHT, dpi), right, bottom);
@@ -441,7 +432,7 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	INT32					nStep;
 	INT32					nObject;
 
-	// 원점(플랫폼 초기 위치)을 항상 화면에 넣는다.
+	// 원점(플랫폼 초기 위치)은 늘 들어간다.
 	for (nStep = 0; nStep < nSampleNum; nStep++)
 	{
 		for (nObject = 0; nObject < nObjectNum; nObject++)
@@ -461,7 +452,6 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 		}
 	}
 
-	// 끄는 동안에는 평면의 축척과 중심을 그대로 둔다.
 	if (isViewFrozen == 0)
 	{
 		spanEast	= fmax(maxEast - minEast, PLOT_MIN_SPAN) * PLOT_SPAN_SCALE;
@@ -469,7 +459,7 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 		width		= fmax(static_cast<FLOAT64>(st_MapArea.Width()), 1.0);
 		height		= fmax(static_cast<FLOAT64>(st_MapArea.Height()), 1.0);
 
-		// 등축척이라 선회가 원으로 보인다.
+		// 등축척
 		pixelPerMeter	= fmin(width / spanEast, height / spanNorth);
 		centerEast		= 0.5 * (minEast + maxEast);
 		centerNorth		= 0.5 * (minNorth + maxNorth);
@@ -538,7 +528,6 @@ VOID CTrajectoryPlot::f_BuildBackground(CDC *st_Dc, const CRect &st_Client)
 			{
 				f_DrawAltitude(&st_Graphics);
 			}
-
 		}
 
 		(VOID)st_MemDc.SelectObject(st_OldBitmap);
@@ -575,7 +564,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	INT32					nSample;
 	INT32					nCount;
 
-	// 격자와 눈금은 또렷하게, 궤적은 부드럽게 그린다.
+	// 격자와 눈금은 또렷하게, 궤적은 부드럽게
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
 
 	for (nLine = 0; (nLine <= PLOT_MAX_LINE_NUM) && (static_cast<FLOAT64>(nLine) <= lineEastNum); nLine++)
@@ -604,12 +593,11 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 
 	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
 
-	// 축 이름은 그림 안쪽 구석에 적어 제목·눈금과 겹치지 않게 한다.
-	f_Plot_Text(st_Graphics, &st_Bold, CString(_T("궤적 · 플랫폼 기준 동–북 평면 [km]")), static_cast<FLOAT64>(st_MapArea.left), static_cast<FLOAT64>(st_MapArea.top) - 5.0,
+	f_Plot_Text(st_Graphics, &st_Bold, CString(_T("궤적 (플랫폼 기준 동-북, km)")), static_cast<FLOAT64>(st_MapArea.left), static_cast<FLOAT64>(st_MapArea.top) - 5.0,
 		PLOT_ALIGN_NEAR, PLOT_ALIGN_FAR, UI_COLOR_TEXT);
-	f_Plot_Text(st_Graphics, &st_Font, CString(_T("동 E →")), static_cast<FLOAT64>(st_MapArea.right) - 6.0, static_cast<FLOAT64>(st_MapArea.bottom) - 4.0,
+	f_Plot_Text(st_Graphics, &st_Font, CString(_T("E")), static_cast<FLOAT64>(st_MapArea.right) - 6.0, static_cast<FLOAT64>(st_MapArea.bottom) - 4.0,
 		PLOT_ALIGN_FAR, PLOT_ALIGN_FAR, UI_COLOR_TEXT_OFF);
-	f_Plot_Text(st_Graphics, &st_Font, CString(_T("↑ 북 N")), static_cast<FLOAT64>(st_MapArea.left) + 6.0, static_cast<FLOAT64>(st_MapArea.top) + 4.0,
+	f_Plot_Text(st_Graphics, &st_Font, CString(_T("N")), static_cast<FLOAT64>(st_MapArea.left) + 6.0, static_cast<FLOAT64>(st_MapArea.top) + 4.0,
 		PLOT_ALIGN_NEAR, PLOT_ALIGN_NEAR, UI_COLOR_TEXT_OFF);
 
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
@@ -626,7 +614,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 
 			(VOID)st_TrackPen.SetLineJoin(Gdiplus::LineJoinRound);
 
-			// 같은 픽셀에 겹치는 점은 버려 선분 수를 줄인다.
+			// 같은 픽셀의 점은 버린다.
 			nCount = 0;
 
 			for (nSample = 0; nSample < nSampleNum; nSample++)
@@ -650,7 +638,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 		free(st_Line);
 	}
 
-	// 시작 위치는 속 빈 원, 옆에 이름을 붙인다.
+	// 시작점
 	for (nObject = 0; nObject < nObjectNum; nObject++)
 	{
 		const FLOAT32		radius = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) * 5.0F / 100.0F;
@@ -666,7 +654,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	(VOID)st_Graphics->ResetClip();
 }
 
-// 이름표가 범례를 대신한다. 시작점 둘레의 네 자리 가운데, 그림 안에 들고 다른 이름표나 시작점을 가리지 않는 첫 자리에 적는다.
+// 이름표는 시작점 둘레 네 자리 중 그림 안에 들고 다른 이름표, 시작점, 기수 손잡이, 축 이름과 겹치지 않는 첫 자리에 놓는다.
 VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
 {
 	const FLOAT32		scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -677,15 +665,18 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 	Gdiplus::SolidBrush	st_Plate(f_Plot_Color(UI_COLOR_CARD, 215));
 	Gdiplus::RectF		st_Placed[UI_OBJECT_NUM];
 	Gdiplus::RectF		st_Marker[UI_OBJECT_NUM];
-	Gdiplus::RectF		st_Caption[2];
+	Gdiplus::RectF		st_Caption[3];
 	Gdiplus::RectF		st_Size;
 	Gdiplus::RectF		st_Try;
 	Gdiplus::RectF		st_Best;
 	FLOAT64				x = 0.0;
 	FLOAT64				y = 0.0;
+	FLOAT64				handleX = 0.0;
+	FLOAT64				handleY = 0.0;
 	INT32				nObject;
 	INT32				nOther;
 	INT32				nTry;
+	INT32				nBlock;
 	INT32				isLeftFirst;
 	INT32				isBelowFirst;
 	INT32				isLeft;
@@ -701,20 +692,25 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 		st_Marker[nObject] = Gdiplus::RectF(f_Plot_Real(x) - reach, f_Plot_Real(y) - reach, 2.0F * reach, 2.0F * reach);
 	}
 
-	// 그림 안쪽 구석의 축 이름 자리(왼쪽 위 북, 오른쪽 아래 동)도 비워 둔다.
 	st_Caption[0] = Gdiplus::RectF(st_Map.X, st_Map.Y, PLOT_CAPTION_WIDTH * scale, PLOT_CAPTION_HEIGHT * scale);
 	st_Caption[1] = Gdiplus::RectF(st_Map.GetRight() - (PLOT_CAPTION_WIDTH * scale), st_Map.GetBottom() - (PLOT_CAPTION_HEIGHT * scale),
 					PLOT_CAPTION_WIDTH * scale, PLOT_CAPTION_HEIGHT * scale);
+	st_Caption[2] = Gdiplus::RectF(0.0F, 0.0F, 0.0F, 0.0F);
+
+	// 고른 표적의 기수 손잡이 (겹쳐 그리는 쪽)
+	if (f_GetHandlePixel(nSelObject, &handleX, &handleY) != 0)
+	{
+		st_Caption[2] = Gdiplus::RectF(f_Plot_Real(handleX) - reach, f_Plot_Real(handleY) - reach, 2.0F * reach, 2.0F * reach);
+	}
 
 	for (nObject = 0; nObject < nObjectNum; nObject++)
 	{
-		const CString st_Name = f_Plot_ObjectName(nObject);
-
-		const FLOAT64 yaw = st_Result->f_GetState(0, nObject)->st_Att.yaw;
+		const CString	st_Name = f_Plot_ObjectName(nObject);
+		const FLOAT64	yaw = st_Result->f_GetState(0, nObject)->st_Att.yaw;
 
 		(VOID)st_Graphics->MeasureString(st_Name.GetString(), -1, st_Font, Gdiplus::PointF(0.0F, 0.0F), &st_Size);
 
-		// 출발 방향의 반대쪽부터 찾아 궤적 첫머리와 기수 손잡이를 피한다. 남북 성분이 작으면 이웃끼리 위아래를 엇갈린다.
+		// 출발 방향 반대쪽부터. 남북 성분이 작으면 이웃끼리 위아래를 엇갈린다.
 		isLeftFirst = (sin(yaw) > PLOT_LABEL_SIDE_MIN) ? 1 : 0;
 
 		if (cos(yaw) > PLOT_LABEL_SIDE_MIN)
@@ -744,7 +740,15 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 				st_Size.Width, st_Size.Height);
 
 			isInside	= (st_Map.Contains(st_Try) != FALSE) ? 1 : 0;
-			isFree		= ((isInside != 0) && (st_Try.IntersectsWith(st_Caption[0]) == FALSE) && (st_Try.IntersectsWith(st_Caption[1]) == FALSE)) ? 1 : 0;
+			isFree		= isInside;
+
+			for (nBlock = 0; (nBlock < 3) && (isFree != 0); nBlock++)
+			{
+				if (st_Try.IntersectsWith(st_Caption[nBlock]) != FALSE)
+				{
+					isFree = 0;
+				}
+			}
 
 			for (nOther = 0; (nOther < nObjectNum) && (isFree != 0); nOther++)
 			{
@@ -762,7 +766,6 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 			}
 			else if ((isInside != 0) && (isKept == 0))
 			{
-				// 겹치더라도 그림 안에 드는 자리를 차선으로 잡아 둔다.
 				st_Best	= st_Try;
 				isKept	= 1;
 			}
@@ -772,13 +775,12 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 			}
 			else
 			{
-				// 더 나은 자리를 이미 잡아 두었다.
+				// 이미 잡은 자리
 			}
 		}
 
 		st_Placed[nObject] = st_Best;
 
-		// 궤적 위에서도 읽히게 옅은 바탕을 깐다.
 		(VOID)st_Graphics->FillRectangle(&st_Plate, st_Best.X + 1.0F, st_Best.Y + 1.0F, st_Best.Width - 2.0F, st_Best.Height - 2.0F);
 		f_Plot_Text(st_Graphics, st_Font, st_Name, static_cast<FLOAT64>(st_Best.X), static_cast<FLOAT64>(st_Best.Y),
 			PLOT_ALIGN_NEAR, PLOT_ALIGN_NEAR, f_Ui_ObjectColor(nObject));
@@ -810,7 +812,6 @@ VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
 
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
 
-	// 고도 눈금
 	value = ceil(altMin / altGrid) * altGrid;
 
 	for (nLine = 0; (nLine <= PLOT_MAX_LINE_NUM) && (value <= altMax); nLine++)
@@ -822,7 +823,6 @@ VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
 		value = value + altGrid;
 	}
 
-	// 시각 눈금
 	value = 0.0;
 
 	for (nLine = 0; (nLine <= PLOT_MAX_LINE_NUM) && (value <= (endTime + (1.0e-9 * timeGrid))) && (endTime > 0.0); nLine++)
@@ -835,15 +835,8 @@ VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
 	}
 
 	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_AltArea.left, st_AltArea.top, st_AltArea.Width(), st_AltArea.Height());
-	f_Plot_Text(st_Graphics, &st_Bold, CString(_T("고도 [m] – 시각 [s]")), static_cast<FLOAT64>(st_AltArea.left), static_cast<FLOAT64>(st_AltArea.top) - 5.0,
+	f_Plot_Text(st_Graphics, &st_Bold, CString(_T("고도 (m) / 시각 (s)")), static_cast<FLOAT64>(st_AltArea.left), static_cast<FLOAT64>(st_AltArea.top) - 5.0,
 		PLOT_ALIGN_NEAR, PLOT_ALIGN_FAR, UI_COLOR_TEXT);
-
-	// 낮은 패널에서는 안내 글이 고도 선을 가리므로 뺀다.
-	if (st_AltArea.Height() >= f_Ui_Scale(PLOT_HINT_MIN_HEIGHT, dpi))
-	{
-		f_Plot_Text(st_Graphics, &st_Font, CString(_T("눌러서 시각 이동")), static_cast<FLOAT64>(st_AltArea.right) - 6.0, static_cast<FLOAT64>(st_AltArea.top) + 4.0,
-			PLOT_ALIGN_FAR, PLOT_ALIGN_NEAR, UI_COLOR_TEXT_OFF);
-	}
 
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	(VOID)st_Graphics->SetClip(st_Clip);
@@ -892,13 +885,12 @@ INT32 CTrajectoryPlot::f_GetHandlePixel(INT32 nObject, FLOAT64 *pt_X, FLOAT64 *p
 	FLOAT64					y = 0.0;
 	INT32					isOk = 0;
 
-	// 기수 손잡이는 표적에만 있다. 플랫폼은 그림의 원점이라 옮기지 않는다.
+	// 기수 손잡이는 표적에만
 	if ((f_HasData() != 0) && (nObject >= 1) && (nObject < st_Result->f_GetObjectNum()))
 	{
 		st_State = st_Result->f_GetState(0, nObject);
 		f_MapToPixel(st_Result->f_GetPoint(0, nObject), &x, &y);
 
-		// 화면은 x 가 동쪽, y 가 아래쪽이다.
 		*pt_X = x + (length * sin(st_State->st_Att.yaw));
 		*pt_Y = y - (length * cos(st_State->st_Att.yaw));
 		isOk = 1;
@@ -930,7 +922,7 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 	{
 		(VOID)st_Graphics->SetClip(st_MapClip);
 
-		// 선택한 객체의 시작점을 강조하고, 표적이면 기수 손잡이를 단다.
+		// 고른 객체의 시작점 강조, 표적이면 기수 손잡이
 		if ((nSelObject >= 0) && (nSelObject < nObjectNum))
 		{
 			const FLOAT32	ringRadius = 9.0F * scale;
@@ -964,8 +956,7 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 			st_State = st_Result->f_GetState(nCurStep, nObject);
 			f_MapToPixel(st_Result->f_GetPoint(nCurStep, nObject), &x, &y);
 
-			// 진행 방향선. 정지한 객체는 방향이 없으므로 생략한다.
-			// 궤적 점과 같은 기준(플랫폼 표본 0)의 NED 로 돌려야 화살표가 그림 속 궤적 접선과 맞는다.
+			// 진행 방향 화살표. 궤적 점과 같은 기준(플랫폼 표본 0)의 NED 로 돌린다.
 			if (f_Trans_EcefVec_To_Ned(&st_VelNed, &st_State->st_VelEcef, st_Origin->st_Platform.st_Lla.lat, st_Origin->st_Platform.st_Lla.lon) == COORD_OK)
 			{
 				headingNorm = hypot(st_VelNed.x, st_VelNed.y);
@@ -1025,7 +1016,6 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 	}
 }
 
-// ---------------------------------------------------------------------------
 // 마우스
 
 INT32 CTrajectoryPlot::f_HitTest(CPoint st_Point, INT32 *pt_Object) const
@@ -1041,7 +1031,7 @@ INT32 CTrajectoryPlot::f_HitTest(CPoint st_Point, INT32 *pt_Object) const
 
 	if (f_HasData() != 0)
 	{
-		// 손잡이는 평면 안에서만 그려지므로 평면 밖으로 나간 손잡이는 잡히지 않게 한다.
+		// 손잡이는 평면 안에서만
 		if ((st_MapArea.PtInRect(st_Point) != FALSE) && (f_GetHandlePixel(nSelObject, &x, &y) != 0) &&
 			(hypot(static_cast<FLOAT64>(st_Point.x) - x, static_cast<FLOAT64>(st_Point.y) - y) <= reach))
 		{
@@ -1050,7 +1040,7 @@ INT32 CTrajectoryPlot::f_HitTest(CPoint st_Point, INT32 *pt_Object) const
 		}
 		else if (st_MapArea.PtInRect(st_Point) != FALSE)
 		{
-			// 겹친 시작점은 가장 가까운 것을 고른다.
+			// 겹친 시작점은 가장 가까운 것
 			for (nObject = 0; nObject < st_Result->f_GetObjectNum(); nObject++)
 			{
 				f_MapToPixel(st_Result->f_GetPoint(0, nObject), &x, &y);
@@ -1107,11 +1097,11 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 
 	if (st_Origin == nullptr)
 	{
-		// 결과가 없으면 할 일이 없다.
+		// 결과 없음
 	}
 	else if (dragKind == PLOT_DRAG_MOVE)
 	{
-		// 화면의 점을 플랫폼 기준 수평면의 점으로 되돌린 뒤 위경도로 바꾼다. 고도는 표의 값을 그대로 쓴다.
+		// 화면 점 → 플랫폼 기준 수평면 → 위경도. 고도는 표의 값 그대로
 		st_Ned.y = centerEast + ((static_cast<FLOAT64>(st_Point.x + st_DragOffset.x) - (static_cast<FLOAT64>(st_MapArea.left) + (0.5 * static_cast<FLOAT64>(st_MapArea.Width())))) / pixelPerMeter);
 		st_Ned.x = centerNorth - ((static_cast<FLOAT64>(st_Point.y + st_DragOffset.y) - (static_cast<FLOAT64>(st_MapArea.top) + (0.5 * static_cast<FLOAT64>(st_MapArea.Height())))) / pixelPerMeter);
 		st_Ned.z = 0.0;
@@ -1130,7 +1120,7 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 
 		if (hypot(static_cast<FLOAT64>(st_Point.x) - x, static_cast<FLOAT64>(st_Point.y) - y) >= 2.0)
 		{
-			// 북쪽이 0 도, 시계 방향이 (+). 1 도 단위로 맞춘다.
+			// 북쪽 0 도, 시계 방향 (+), 1 도 단위
 			yawDeg = floor(f_Rad_To_Deg(atan2(static_cast<FLOAT64>(st_Point.x) - x, y - static_cast<FLOAT64>(st_Point.y))) + 0.5);
 
 			if (yawDeg < 0.0)
@@ -1160,7 +1150,7 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 			}
 			else
 			{
-				// 범위 안이면 그대로 쓴다.
+				// 범위 안
 			}
 
 			f_Notify(PLOTN_SCRUB, &st_Notify);
@@ -1168,7 +1158,7 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 	}
 	else
 	{
-		// 끌고 있지 않다.
+		// 끌고 있지 않음
 	}
 }
 
@@ -1182,8 +1172,7 @@ VOID CTrajectoryPlot::OnLButtonDown(UINT32 flags, CPoint st_Point)
 
 	UNREFERENCED_PARAMETER(flags);
 
-	// 포커스를 가져와 다른 곳에서 치던 값(표의 편집칸, 시간·간격 칸)을 먼저 반영시킨다.
-	// 그 값으로 그림이 달라졌으면 새 축척으로 다시 그린 뒤에 무엇을 눌렀는지 본다.
+	// 포커스를 가져와 다른 곳에서 치던 값을 먼저 반영시키고, 그림이 달라졌으면 새로 그린 뒤 판정한다.
 	(VOID)SetFocus();
 
 	if (isBackValid == 0)
@@ -1206,12 +1195,12 @@ VOID CTrajectoryPlot::OnLButtonDown(UINT32 flags, CPoint st_Point)
 		st_Notify.nObject = nObject;
 		f_Notify(PLOTN_SELECT, &st_Notify);
 
-		// 표적만 끌 수 있다. 조금 움직이기 전까지는 그냥 누른 것으로 본다.
+		// 표적만 끌 수 있다. 조금 움직이기 전까지는 그냥 누른 것
 		if (nObject >= 1)
 		{
 			f_MapToPixel(st_Result->f_GetPoint(0, nObject), &x, &y);
 			st_DragOffset	= CPoint(f_Plot_Round(x) - st_Point.x, f_Plot_Round(y) - st_Point.y);
-			st_DownPoint		= st_Point;
+			st_DownPoint	= st_Point;
 			dragKind		= PLOT_DRAG_PENDING;
 			nDragObject		= nObject;
 			(VOID)SetCapture();
@@ -1258,7 +1247,6 @@ VOID CTrajectoryPlot::OnLButtonUp(UINT32 flags, CPoint st_Point)
 	{
 		if ((endedKind == PLOT_DRAG_MOVE) || (endedKind == PLOT_DRAG_TURN))
 		{
-			// 마지막 위치를 알린 뒤 축척 고정을 풀어 그림을 다시 맞춘다.
 			f_DragTo(st_Point);
 		}
 
@@ -1273,7 +1261,6 @@ VOID CTrajectoryPlot::OnLButtonUp(UINT32 flags, CPoint st_Point)
 
 VOID CTrajectoryPlot::OnCaptureChanged(CWnd *st_NewWnd)
 {
-	// 끄는 도중에 포커스를 빼앗기면 끌기를 그만둔다.
 	if ((st_NewWnd != this) && (dragKind != PLOT_DRAG_NONE))
 	{
 		dragKind		= PLOT_DRAG_NONE;

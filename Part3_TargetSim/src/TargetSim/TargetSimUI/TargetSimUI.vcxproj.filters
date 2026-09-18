@@ -33,22 +33,16 @@
     <ClInclude Include="TargetSimUIDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="TrajectoryPlot_JH.h">
+    <ClInclude Include="TrajectoryPlot.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UiNumber_JH.h">
+    <ClInclude Include="UiCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="UiTheme_JH.h">
+    <ClInclude Include="GridCtrl.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GridCtrl_JH.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="Scenario_JH.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="SimResult_JH.h">
+    <ClInclude Include="Scenario.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -62,19 +56,16 @@
     <ClCompile Include="TargetSimUIDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="TrajectoryPlot_JH.cpp">
+    <ClCompile Include="TrajectoryPlot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UiNumber_JH.cpp">
+    <ClCompile Include="UiCommon.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GridCtrl_JH.cpp">
+    <ClCompile Include="GridCtrl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="Scenario_JH.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="SimResult_JH.cpp">
+    <ClCompile Include="Scenario.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

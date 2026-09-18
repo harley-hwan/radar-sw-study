@@ -3,10 +3,11 @@
 #include <errno.h>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "Scenario_JH.h"
-#include "UiNumber_JH.h"
+#include "Scenario.h"
+#include "UiCommon.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -15,8 +16,10 @@
 #define SCN_FILE_MAGIC			"TargetSim scenario"
 #define SCN_FILE_VERSION		1
 #define SCN_FILE_MAX_BYTE		262144
-#define SCN_NEW_MANEUVER_SPAN	10.0					// [s] 새 기동의 기본 길이
-#define SCN_COPY_LAT_OFFSET		0.01					// [deg] 복제한 표적을 원본과 겹치지 않게 북쪽으로 민다
+#define SCN_NEW_MANEUVER_SPAN	10.0					// [s] 새 기동 기본 길이
+#define SCN_COPY_LAT_OFFSET		0.01					// [deg] 복제한 표적을 북쪽으로 조금 민다
+#define RES_CSV_BUFFER_SIZE		1048576U
+#define RES_BYTE_PER_MB			1048576.0
 
 typedef struct
 {
@@ -30,12 +33,12 @@ typedef struct
 	LPCTSTR				pt_Field[SCN_MNV_FIELD_NUM];
 } ST_PresetManeuver;
 
-static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("명세 시나리오 (과제 3)"), _T("기동 시연 — 선회·상승·Roll"), _T("다표적 접근 — 표적 6") };
+static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("명세 시나리오 (과제 3)"), _T("기동 시연 (선회, 상승, Roll)"), _T("다표적 접근 (표적 6)") };
 static const LPCTSTR	s_FieldName[SCN_OBJ_FIELD_NUM] = { _T("위도"), _T("경도"), _T("고도"), _T("속력"), _T("Roll"), _T("Pitch"), _T("Yaw") };
 static const LPCTSTR	s_ManeuverFieldName[SCN_MNV_FIELD_NUM] = { _T("G"), _T("시작"), _T("종료") };
 static const LPCTSTR	s_TurnName[SCN_TURN_TYPE_NUM] = { _T("0 없음"), _T("1 Roll"), _T("2 Yaw"), _T("3 Pitch") };
 
-// 과제 명세: 플랫폼 정지, 대함 표적 1, 대공 표적 1
+// 과제 명세: 플랫폼 정지, 대함 표적, 대공 표적
 static const ST_PresetObject	s_SpecPlatform = { { _T("32.0"), _T("126.0"), _T("0"), _T("0"), _T("0"), _T("0"), _T("0") } };
 static const ST_PresetObject	s_SpecTarget[2] =
 {
@@ -43,7 +46,7 @@ static const ST_PresetObject	s_SpecTarget[2] =
 	{ { _T("32.12"), _T("126.0"), _T("300"), _T("200"), _T("0"), _T("0"), _T("180") } }
 };
 
-// 기동 시연: 명세 표적에 선회, 상승·수평 복귀, Roll 을 차례로 건다.
+// 기동 시연: 명세 표적에 선회, 상승과 수평 복귀, Roll
 static const ST_PresetManeuver	s_DemoManeuver[6] =
 {
 	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("10"), _T("20") } },
@@ -54,7 +57,7 @@ static const ST_PresetManeuver	s_DemoManeuver[6] =
 	{ 1, TGT_TURN_ROLL,		{ _T("1.0"), _T("45"), _T("50") } }
 };
 
-// 다표적 접근: 플랫폼에서 15 km, 60 도 간격으로 놓고 플랫폼을 향하게 한다.
+// 다표적 접근: 플랫폼에서 15 km, 60 도 간격, 플랫폼을 향함
 static const ST_PresetObject	s_MultiTarget[6] =
 {
 	{ { _T("32.1353"), _T("126.0"), _T("300"), _T("250"), _T("0"), _T("0"), _T("180") } },
@@ -150,6 +153,8 @@ static INT32 f_Scn_IsGridMultiple(FLOAT64 value, FLOAT64 unit)
 
 	return (fabs(ratio - floor(ratio + 0.5)) <= SCN_GRID_TOL) ? 1 : 0;
 }
+
+// CScenario
 
 CScenario::CScenario()
 	: nTargetNum(0)
@@ -259,7 +264,6 @@ INT32 CScenario::f_AddTarget(INT32 nSourceTarget, INT32 isWithManeuver)
 
 		if (nSource >= 0)
 		{
-			// 초기값을 복사한다. 같은 자리에 겹치면 그림에서 하나로 보이므로 위도를 조금 민다.
 			if (isWithManeuver != 0)
 			{
 				st_Target[nNewTarget] = st_Target[nSource];
@@ -272,6 +276,7 @@ INT32 CScenario::f_AddTarget(INT32 nSourceTarget, INT32 isWithManeuver)
 				}
 			}
 
+			// 같은 자리면 그림에서 하나로 보인다.
 			if (f_Num_Nudge(st_Target[nNewTarget].st_FieldText[SCN_FIELD_LAT], SCN_COPY_LAT_OFFSET, 2, -SCN_LAT_LIMIT, SCN_LAT_LIMIT, &st_Moved) != 0)
 			{
 				st_Target[nNewTarget].st_FieldText[SCN_FIELD_LAT] = st_Moved;
@@ -313,17 +318,22 @@ INT32 CScenario::f_AddManeuver(INT32 nTarget)
 	INT32	nNewManeuver = -1;
 	FLOAT64	duration = 0.0;
 	FLOAT64	startTime = 0.0;
+	FLOAT64	maxEnd;
 	CString	st_Start = _T("0");
 	CString	st_End;
 
 	if ((nTarget >= 0) && (nTarget < nTargetNum) && (st_Target[nTarget].nManeuverNum < TGT_MAX_MANEUVER_NUM))
 	{
-		ST_ObjectText *st_Object = &st_Target[nTarget];
+		ST_ObjectText	*st_Object = &st_Target[nTarget];
+		ST_ManeuverText	*st_New;
 
-		// 시작은 직전 기동의 종료로 채워 맞닿은 구간을 쉽게 만든다. 바로 그림에 나타나도록 1 G Yaw 로 시작한다.
-		if (st_Object->nManeuverNum > 0)
+		nNewManeuver	= st_Object->nManeuverNum;
+		st_New			= &st_Object->st_Maneuver[nNewManeuver];
+
+		// 직전 기동의 종료에서 시작하는 10 s 짜리 Yaw 1 G. 시뮬레이션 시간이 남아 있으면 거기서 자른다.
+		if (nNewManeuver > 0)
 		{
-			st_Start = st_Object->st_Maneuver[st_Object->nManeuverNum - 1].st_FieldText[SCN_FIELD_END];
+			st_Start = st_Object->st_Maneuver[nNewManeuver - 1].st_FieldText[SCN_FIELD_END];
 		}
 
 		if (f_Num_Parse(st_DurationText, &duration) != NUM_OK)
@@ -331,27 +341,23 @@ INT32 CScenario::f_AddManeuver(INT32 nTarget)
 			duration = SCN_DURATION_MAX;
 		}
 
-		if ((f_Num_Parse(st_Start, &startTime) == NUM_OK) && (startTime >= (duration - SCN_GRID_TOL)))
-		{
-			// 직전 기동이 시뮬레이션 끝까지 차 있다. 넣으면 시작 = 종료인 빈 구간이 되어 바로 오류가 나므로 넣지 않는다.
-			nNewManeuver = SCN_ADD_NO_ROOM;
-		}
-		else
-		{
-			ST_ManeuverText *st_New = &st_Object->st_Maneuver[st_Object->nManeuverNum];
+		maxEnd = SCN_DURATION_MAX;
 
-			if (f_Num_Nudge(st_Start, SCN_NEW_MANEUVER_SPAN, 0, 0.0, duration, &st_End) == 0)
-			{
-				st_End.Empty();
-			}
-
-			st_New->enTurnType						= TGT_TURN_YAW;
-			st_New->st_FieldText[SCN_FIELD_GRAVITY]	= _T("1.0");
-			st_New->st_FieldText[SCN_FIELD_START]	= st_Start;
-			st_New->st_FieldText[SCN_FIELD_END]		= st_End;
-			nNewManeuver							= st_Object->nManeuverNum;
-			st_Object->nManeuverNum					= nNewManeuver + 1;
+		if ((f_Num_Parse(st_Start, &startTime) == NUM_OK) && (startTime < (duration - SCN_TIME_RES)))
+		{
+			maxEnd = duration;
 		}
+
+		if (f_Num_Nudge(st_Start, SCN_NEW_MANEUVER_SPAN, 0, 0.0, maxEnd, &st_End) == 0)
+		{
+			st_End.Empty();
+		}
+
+		st_New->enTurnType						= TGT_TURN_YAW;
+		st_New->st_FieldText[SCN_FIELD_GRAVITY]	= _T("1.0");
+		st_New->st_FieldText[SCN_FIELD_START]	= st_Start;
+		st_New->st_FieldText[SCN_FIELD_END]		= st_End;
+		st_Object->nManeuverNum					= nNewManeuver + 1;
 	}
 
 	return nNewManeuver;
@@ -411,11 +417,11 @@ CString CScenario::f_StatusText(EN_TgtStatus enStatus, INT32 isManeuver)
 	case TGT_ERR_TIME:
 		if (isManeuver != 0)
 		{
-			st_Text = _T("기동 시각은 0 ≤ 시작 < 종료 ≤ 시뮬레이션 시간이어야 합니다");
+			st_Text = _T("기동 시각은 0 <= 시작 < 종료 <= 시뮬레이션 시간이어야 합니다");
 		}
 		else
 		{
-			st_Text.Format(_T("시뮬레이션 시간은 시간 간격의 정수배이고 스텝 수는 1~%d 이어야 합니다"), TGT_MAX_STEP_NUM);
+			st_Text.Format(_T("시뮬레이션 시간은 간격의 정수배이고 스텝 수는 1~%d 이어야 합니다"), TGT_MAX_STEP_NUM);
 		}
 		break;
 
@@ -477,7 +483,7 @@ INT32 CScenario::f_ReadNumber(const CString &st_Text, FLOAT64 minValue, FLOAT64 
 		break;
 
 	case NUM_SYNTAX:
-		st_Rule = _T("숫자로 읽을 수 없습니다 (소수점은 '.', 예: -0.5, 1e3)");
+		st_Rule = _T("숫자로 읽을 수 없습니다 (예: -0.5, 1e3)");
 		break;
 
 	case NUM_NOT_FINITE:
@@ -573,7 +579,7 @@ INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 		}
 	}
 
-	// 1 ms 격자면 시각을 %.3f 로 정확히 쓸 수 있다.
+	// 1 ms 격자여야 시각을 %.3f 로 정확히 쓴다.
 	if ((isOk != 0) && (f_Scn_IsGridMultiple(step, SCN_TIME_RES) == 0))
 	{
 		f_Scn_SetIssue(st_Issue, SCN_AT_STEP, -1, -1, -1,
@@ -615,7 +621,7 @@ INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 
 			st_Where = f_Scn_Where(SCN_AT_MANEUVER, nTarget, nManeuver);
 
-			// 시작·종료의 순서와 겹침은 Core 가 판정하므로 여기서는 유한성만 본다.
+			// 시작, 종료의 순서와 겹침은 Core 가 판정한다.
 			for (nField = 0; (nField < SCN_MNV_FIELD_NUM) && (isOk != 0); nField++)
 			{
 				isOk = f_ReadNumber(st_Text->st_FieldText[nField], fieldMin[nField], fieldMax[nField], st_Where, s_ManeuverFieldName[nField],
@@ -630,7 +636,7 @@ INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 				}
 			}
 
-			// 스텝 격자 밖 시각은 Core 에서 다음 스텝으로 밀리거나 기동이 통째로 무시될 수 있다.
+			// 스텝 격자 밖 시각은 Core 에서 다음 스텝으로 밀린다.
 			for (nField = SCN_FIELD_START; (nField <= SCN_FIELD_END) && (isOk != 0); nField++)
 			{
 				if (f_Scn_IsGridMultiple(fieldValue[nField], step) == 0)
@@ -642,15 +648,15 @@ INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 				}
 			}
 
-			// 스텝당 회전각을 30 도 이하로 묶어 중점법 오차와 비물리 선회를 막는다.
+			// 스텝당 회전각 30 도 제한
 			if ((isOk != 0) && (st_Text->enTurnType != TGT_TURN_NONE))
 			{
 				turnPerStep = ((fabs(fieldValue[SCN_FIELD_GRAVITY]) * G_FORCE) / st_Init->headingSpeed) * step;
 
 				if (turnPerStep > SCN_TURN_STEP_MAX)
 				{
-					// 허용 |G| 는 내림해서 보여 줘야 그 값을 그대로 넣었을 때 다시 걸리지 않는다.
-					st_Message.Format(_T("%s G: 스텝당 회전각이 %.0f° 를 넘습니다 (%.3f°, 이 표적 속력·간격에서 허용 |G| ≤ %.3f)"),
+					// 허용 |G| 는 내림해서 보여 준다.
+					st_Message.Format(_T("%s G: 스텝당 회전각이 %.0f 도를 넘습니다 (%.3f 도, 이 속력과 간격에서 허용 |G| <= %.3f)"),
 						st_Where.GetString(), f_Rad_To_Deg(SCN_TURN_STEP_MAX), f_Rad_To_Deg(turnPerStep),
 						floor(((SCN_TURN_STEP_MAX * st_Init->headingSpeed) / (G_FORCE * step)) * 1000.0) / 1000.0);
 					f_Scn_SetIssue(st_Issue, SCN_AT_MANEUVER, nTarget, nManeuver, SCN_FIELD_GRAVITY, st_Message);
@@ -682,6 +688,7 @@ INT32 CScenario::f_BuildConfig(ST_SimConfig *st_Config, ST_ScnIssue *st_Issue)
 	return isOk;
 }
 
+// Core 판정을 그대로 두고, 기동을 뺀 설정과 기동을 하나씩 늘린 설정을 다시 검증해 위치만 찾는다.
 VOID CScenario::f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus enStatus, ST_ScnIssue *st_Issue)
 {
 	EN_TgtStatus	enProbe;
@@ -690,7 +697,6 @@ VOID CScenario::f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus en
 	INT32			nTarget;
 	INT32			nManeuver;
 
-	// 판정은 Core 가 하고, 기동을 뺀 설정과 기동을 하나씩 늘린 설정을 다시 검증해 위치만 찾는다.
 	st_ProbeConfig = *st_Config;
 
 	for (nTarget = 0; nTarget < TGT_MAX_TARGET_NUM; nTarget++)
@@ -737,7 +743,7 @@ VOID CScenario::f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus en
 				const ST_TargetManeuver	*st_Bad = &st_Config->st_Target[nTarget].st_Maneuver[nManeuver];
 				INT32					nField = SCN_FIELD_START;
 
-				// 종료가 시작보다 늦지 않거나 시뮬레이션 시간을 넘으면 종료 칸을, 그 밖에는(음수 시작, 겹침) 시작 칸을 가리킨다.
+				// 종료가 시작보다 늦지 않거나 시뮬레이션 시간을 넘으면 종료 칸
 				if ((enProbe == TGT_ERR_TIME) && (st_Bad->startTime >= 0.0) &&
 					((st_Bad->endTime <= st_Bad->startTime) || (st_Bad->endTime > st_Config->durationTime)))
 				{
@@ -757,14 +763,12 @@ VOID CScenario::f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus en
 	}
 }
 
-// ---------------------------------------------------------------------------
-// 파일
+// 시나리오 파일
 
 static CStringA f_Scn_FileText(const CString &st_Text)
 {
 	CStringA st_Ascii(st_Text);
 
-	// 한 줄에 쉼표로 나눠 쓰므로 구분 문자가 값에 섞이지 않게 한다.
 	(VOID)st_Ascii.Replace(',', ' ');
 	(VOID)st_Ascii.Replace('\r', ' ');
 	(VOID)st_Ascii.Replace('\n', ' ');
@@ -827,7 +831,6 @@ INT32 CScenario::f_Save(const CString &st_Path) const
 			errorCode = (errno != 0) ? errno : EIO;
 		}
 
-		// 반쯤 쓴 파일을 남기지 않는다.
 		if (errorCode != 0)
 		{
 			(VOID)_wremove(st_Path.GetString());
@@ -839,13 +842,13 @@ INT32 CScenario::f_Save(const CString &st_Path) const
 	}
 	else
 	{
-		// 열기 실패 코드를 그대로 돌려준다.
+		// 열기 실패 코드 그대로
 	}
 
 	return errorCode;
 }
 
-// 쉼표로 나눈다. CString::Tokenize 는 빈 칸을 건너뛰어 칸이 밀리므로 쓰지 않는다.
+// 쉼표로 나눈다. CString::Tokenize 는 빈 칸을 건너뛰어 칸이 밀린다.
 static INT32 f_Scn_Split(const CString &st_Line, CString *st_Part, INT32 nMaxPart)
 {
 	INT32 nPart = 0;
@@ -873,7 +876,6 @@ static INT32 f_Scn_Split(const CString &st_Line, CString *st_Part, INT32 nMaxPar
 		nPart = nPart + 1;
 	}
 
-	// 칸이 남았는데 자리가 모자라면 칸 수가 맞지 않는 것이다.
 	if (isDone == 0)
 	{
 		nPart = nMaxPart + 1;
@@ -922,7 +924,6 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 		}
 		else
 		{
-			// 한 바이트 더 읽어 보아 한도를 넘는 파일을 가려낸다.
 			nRead = fread(pt_Data, sizeof(CHAR), static_cast<UINT64>(SCN_FILE_MAX_BYTE) + 1U, st_File);
 
 			if (nRead > static_cast<UINT64>(SCN_FILE_MAX_BYTE))
@@ -949,7 +950,7 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 
 		if (st_Line.IsEmpty() || (st_Line[0] == _T('#')))
 		{
-			// 빈 줄과 주석은 건너뛴다.
+			// 빈 줄, 주석
 		}
 		else if (isHeaderSeen == 0)
 		{
@@ -1061,7 +1062,7 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 				}
 				else
 				{
-					// 모르는 키는 나중 판과의 호환을 위해 건너뛴다.
+					// 모르는 키는 건너뛴다.
 				}
 			}
 		}
@@ -1073,7 +1074,7 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 		isOk = 0;
 	}
 
-	// 끝까지 읽은 뒤에만 바꿔서, 읽다 실패하면 편집 중이던 시나리오가 그대로 남는다.
+	// 끝까지 읽은 뒤에만 바꾼다.
 	if (isOk != 0)
 	{
 		st_DurationText	= st_New->st_DurationText;
@@ -1091,4 +1092,419 @@ INT32 CScenario::f_Load(const CString &st_Path, CString *st_Error)
 	delete st_New;
 
 	return isOk;
+}
+
+// CSimResult
+
+static INT32 f_Res_IsStateFinite(const ST_TargetState *st_State)
+{
+	INT32 isFinite = 0;
+
+	if (isfinite(st_State->simTime) && isfinite(st_State->st_Lla.lat) && isfinite(st_State->st_Lla.lon) &&
+		isfinite(st_State->st_Lla.alt) && isfinite(st_State->st_PosEcef.x) && isfinite(st_State->st_PosEcef.y) &&
+		isfinite(st_State->st_PosEcef.z) && isfinite(st_State->st_VelEcef.x) && isfinite(st_State->st_VelEcef.y) &&
+		isfinite(st_State->st_VelEcef.z))
+	{
+		isFinite = 1;
+	}
+
+	return isFinite;
+}
+
+CSimResult::CSimResult() noexcept
+	: st_SampleBuf(nullptr)
+	, st_PointBuf(nullptr)
+	, nSampleNum(0)
+	, nObjectNum(0)
+	, stepTime(0.0)
+	, runMs(0.0)
+	, st_PendingSample(nullptr)
+	, st_PendingPoint(nullptr)
+	, nPendingSampleNum(0)
+	, nPendingObjectNum(0)
+	, pendingStepTime(0.0)
+	, pendingRunMs(0.0)
+{
+	(VOID)memset(&st_Sim, 0, sizeof(st_Sim));
+}
+
+CSimResult::~CSimResult()
+{
+	free(st_SampleBuf);
+	free(st_PointBuf);
+	free(st_PendingSample);
+	free(st_PendingPoint);
+}
+
+VOID CSimResult::f_Commit(VOID)
+{
+	if (st_PendingSample != nullptr)
+	{
+		free(st_SampleBuf);
+		free(st_PointBuf);
+
+		st_SampleBuf		= st_PendingSample;
+		st_PointBuf			= st_PendingPoint;
+		nSampleNum			= nPendingSampleNum;
+		nObjectNum			= nPendingObjectNum;
+		stepTime			= pendingStepTime;
+		runMs				= pendingRunMs;
+
+		st_PendingSample	= nullptr;
+		st_PendingPoint		= nullptr;
+		nPendingSampleNum	= 0;
+		nPendingObjectNum	= 0;
+	}
+}
+
+INT32 CSimResult::f_Run(const ST_SimConfig *st_Config, CString *st_Error)
+{
+	ST_SimSample	*st_NewSample = nullptr;
+	ST_PlotPoint	*st_NewPoint = nullptr;
+	EN_TgtStatus	enStatus;
+	LARGE_INTEGER	st_Frequency;
+	LARGE_INTEGER	st_Begin;
+	LARGE_INTEGER	st_End;
+	UINT64			sampleBytes;
+	UINT64			pointBytes;
+	INT32			nNewSampleNum = 0;
+	INT32			nNewObjectNum = 0;
+	INT32			nStep;
+	INT32			isOk = 1;
+
+	st_Error->Empty();
+	(VOID)::QueryPerformanceFrequency(&st_Frequency);
+	(VOID)::QueryPerformanceCounter(&st_Begin);
+
+	free(st_PendingSample);
+	free(st_PendingPoint);
+	st_PendingSample	= nullptr;
+	st_PendingPoint		= nullptr;
+
+	(VOID)memset(&st_Sim, 0, sizeof(st_Sim));
+	enStatus = f_Tgt_InitSim(&st_Sim, st_Config);
+
+	if (enStatus != TGT_OK)
+	{
+		*st_Error = CString(_T("초기화 실패: ")) + CScenario::f_StatusText(enStatus, 0);
+		isOk = 0;
+	}
+	else if ((st_Sim.nStepNum < 1) || (st_Sim.nStepNum > TGT_MAX_STEP_NUM))
+	{
+		*st_Error = CString(_T("초기화 실패: ")) + CScenario::f_StatusText(TGT_ERR_SIM_STATE, 0);
+		isOk = 0;
+	}
+	else
+	{
+		nNewSampleNum	= st_Sim.nStepNum + 1;
+		nNewObjectNum	= st_Config->nTargetNum + 1;
+		sampleBytes		= static_cast<UINT64>(nNewSampleNum) * static_cast<UINT64>(sizeof(ST_SimSample));
+		pointBytes		= static_cast<UINT64>(nNewSampleNum) * static_cast<UINT64>(nNewObjectNum) * static_cast<UINT64>(sizeof(ST_PlotPoint));
+
+		// 최악 116 MB. new 의 예외 대신 NULL 로 받는다.
+		st_NewSample	= static_cast<ST_SimSample *>(calloc(static_cast<UINT64>(nNewSampleNum), sizeof(ST_SimSample)));
+		st_NewPoint		= static_cast<ST_PlotPoint *>(calloc(static_cast<UINT64>(nNewSampleNum) * static_cast<UINT64>(nNewObjectNum), sizeof(ST_PlotPoint)));
+
+		if ((st_NewSample == nullptr) || (st_NewPoint == nullptr))
+		{
+			st_Error->Format(_T("메모리 부족: 결과 버퍼에 약 %.0f MB 가 필요합니다"), static_cast<FLOAT64>(sampleBytes + pointBytes) / RES_BYTE_PER_MB);
+			isOk = 0;
+		}
+	}
+
+	if (isOk != 0)
+	{
+		st_NewSample[0] = st_Sim.st_Sample;
+
+		for (nStep = 1; (nStep < nNewSampleNum) && (isOk != 0); nStep++)
+		{
+			enStatus = f_Tgt_StepSim(&st_Sim);
+
+			if (enStatus == TGT_OK)
+			{
+				st_NewSample[nStep] = st_Sim.st_Sample;
+			}
+			else
+			{
+				st_Error->Format(_T("스텝 %d (t = %s s) 진행 실패: "), nStep,
+					f_Num_ToText(static_cast<FLOAT64>(nStep) * st_Config->stepTime, 3).GetString());
+				*st_Error += CScenario::f_StatusText(enStatus, 0);
+				isOk = 0;
+			}
+		}
+	}
+
+	if (isOk != 0)
+	{
+		isOk = f_ComputePoints(st_NewSample, st_NewPoint, nNewSampleNum, nNewObjectNum, st_Error);
+	}
+
+	if (isOk != 0)
+	{
+		(VOID)::QueryPerformanceCounter(&st_End);
+
+		st_PendingSample	= st_NewSample;
+		st_PendingPoint		= st_NewPoint;
+		nPendingSampleNum	= nNewSampleNum;
+		nPendingObjectNum	= nNewObjectNum;
+		pendingStepTime		= st_Config->stepTime;
+		pendingRunMs		= (st_Frequency.QuadPart > 0) ?
+			((static_cast<FLOAT64>(st_End.QuadPart - st_Begin.QuadPart) * 1000.0) / static_cast<FLOAT64>(st_Frequency.QuadPart)) : 0.0;
+	}
+	else
+	{
+		free(st_NewSample);
+		free(st_NewPoint);
+	}
+
+	return isOk;
+}
+
+INT32 CSimResult::f_ComputePoints(const ST_SimSample *st_Sample, ST_PlotPoint *st_Point, INT32 nNewSampleNum, INT32 nNewObjectNum, CString *st_Error) const
+{
+	const ST_TargetState	*st_Origin = &st_Sample[0].st_Platform;
+	const ST_TargetState	*st_State;
+	ST_Matrix				st_Dcm;
+	ST_CoordRect			st_Diff;
+	ST_CoordRect			st_Ned;
+	INT32					isOk = 1;
+	INT32					nStep;
+	INT32					nObject;
+
+	// 기준 DCM 은 한 번만 만든다.
+	if ((f_Res_IsStateFinite(st_Origin) == 0) || (f_Coord_Dcm_Ned_To_Ecef(&st_Dcm, st_Origin->st_Lla.lat, st_Origin->st_Lla.lon) != COORD_OK))
+	{
+		*st_Error = _T("스텝 0 플랫폼: 결과에 유한하지 않은 값이 있거나 기준 좌표를 만들 수 없습니다");
+		isOk = 0;
+	}
+
+	for (nStep = 0; (nStep < nNewSampleNum) && (isOk != 0); nStep++)
+	{
+		for (nObject = 0; (nObject < nNewObjectNum) && (isOk != 0); nObject++)
+		{
+			st_State = (nObject == 0) ? &st_Sample[nStep].st_Platform : &st_Sample[nStep].st_Target[nObject - 1];
+
+			if (f_Res_IsStateFinite(st_State) == 0)
+			{
+				if (nObject == 0)
+				{
+					st_Error->Format(_T("스텝 %d 플랫폼: 결과에 유한하지 않은 값이 있어 버렸습니다"), nStep);
+				}
+				else
+				{
+					st_Error->Format(_T("스텝 %d 표적 %d: 결과에 유한하지 않은 값이 있어 버렸습니다"), nStep, nObject);
+				}
+
+				isOk = 0;
+			}
+			else if ((f_Coord_VecSub(&st_Diff, &st_State->st_PosEcef, &st_Origin->st_PosEcef) != COORD_OK) ||
+					 (f_Coord_RotateVecInv(&st_Ned, &st_Dcm, &st_Diff) != COORD_OK))
+			{
+				st_Error->Format(_T("스텝 %d: 그림 좌표 변환에 실패했습니다"), nStep);
+				isOk = 0;
+			}
+			else
+			{
+				st_Point[(nStep * nNewObjectNum) + nObject].east	= st_Ned.y;
+				st_Point[(nStep * nNewObjectNum) + nObject].north	= st_Ned.x;
+			}
+		}
+	}
+
+	return isOk;
+}
+
+INT32 CSimResult::f_GetSampleNum(VOID) const
+{
+	return nSampleNum;
+}
+
+INT32 CSimResult::f_GetObjectNum(VOID) const
+{
+	return nObjectNum;
+}
+
+INT32 CSimResult::f_GetColumnNum(VOID) const
+{
+	return (nSampleNum > 0) ? (2 + (3 * nObjectNum)) : 0;
+}
+
+FLOAT64 CSimResult::f_GetStepTime(VOID) const
+{
+	return stepTime;
+}
+
+FLOAT64 CSimResult::f_GetRunMs(VOID) const
+{
+	return runMs;
+}
+
+const ST_SimSample *CSimResult::f_GetSample(INT32 nStep) const
+{
+	const ST_SimSample *st_Sample = nullptr;
+
+	if ((st_SampleBuf != nullptr) && (nStep >= 0) && (nStep < nSampleNum))
+	{
+		st_Sample = &st_SampleBuf[nStep];
+	}
+
+	return st_Sample;
+}
+
+const ST_TargetState *CSimResult::f_GetState(INT32 nStep, INT32 nObject) const
+{
+	const ST_SimSample		*st_Sample = f_GetSample(nStep);
+	const ST_TargetState	*st_State = nullptr;
+
+	if ((st_Sample != nullptr) && (nObject >= 0) && (nObject < nObjectNum))
+	{
+		st_State = (nObject == 0) ? &st_Sample->st_Platform : &st_Sample->st_Target[nObject - 1];
+	}
+
+	return st_State;
+}
+
+const ST_PlotPoint *CSimResult::f_GetPoint(INT32 nStep, INT32 nObject) const
+{
+	const ST_PlotPoint *st_Point = nullptr;
+
+	if ((st_PointBuf != nullptr) && (nStep >= 0) && (nStep < nSampleNum) && (nObject >= 0) && (nObject < nObjectNum))
+	{
+		st_Point = &st_PointBuf[(nStep * nObjectNum) + nObject];
+	}
+
+	return st_Point;
+}
+
+INT32 CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 bufSize) const
+{
+	const ST_SimSample		*st_Sample;
+	const ST_TargetState	*st_State;
+	INT32					nLength = -1;
+	INT32					nObject;
+	INT32					nPart;
+
+	if ((pt_Buf != nullptr) && (bufSize > 0))
+	{
+		pt_Buf[0] = '\0';
+	}
+
+	if ((pt_Buf != nullptr) && (bufSize > 1) && (st_SampleBuf != nullptr) && (nRow >= 0) && (nRow < nSampleNum) &&
+		(nColumn >= 0) && (nColumn < (2 + (3 * nObjectNum))))
+	{
+		st_Sample = &st_SampleBuf[nRow];
+
+		if (nColumn == 0)
+		{
+			nLength = _snprintf_s(pt_Buf, static_cast<UINT64>(bufSize), _TRUNCATE, "%d", st_Sample->nStepIndex);
+		}
+		else if (nColumn == 1)
+		{
+			nLength = f_Num_FormatFixed(pt_Buf, bufSize, st_Sample->simTime, 3);
+		}
+		else
+		{
+			nObject		= (nColumn - 2) / 3;
+			nPart		= (nColumn - 2) % 3;
+			st_State	= (nObject == 0) ? &st_Sample->st_Platform : &st_Sample->st_Target[nObject - 1];
+
+			if (nPart == 0)
+			{
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.lat), 9);
+			}
+			else if (nPart == 1)
+			{
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.lon), 9);
+			}
+			else
+			{
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, st_State->st_Lla.alt, 4);
+			}
+		}
+	}
+
+	return nLength;
+}
+
+INT32 CSimResult::f_WriteCsv(const CString &st_Path, INT32 *pt_LineNum) const
+{
+	const INT32		nColumnNum = 2 + (3 * nObjectNum);
+	FILE			*st_File = nullptr;
+	CHAR			pt_Cell[RES_CELL_SIZE];
+	INT32			errorCode;
+	INT32			nLineNum = 0;
+	INT32			nObject;
+	INT32			nRow;
+	INT32			nColumn;
+
+	errorCode = _wfopen_s(&st_File, st_Path.GetString(), _T("wb"));
+
+	if ((errorCode == 0) && (st_File != nullptr))
+	{
+		(VOID)setvbuf(st_File, nullptr, _IOFBF, RES_CSV_BUFFER_SIZE);
+
+		// 가로형: 한 줄이 한 시각
+		(VOID)fputs("step,time_s", st_File);
+
+		for (nObject = 0; nObject < nObjectNum; nObject++)
+		{
+			if (nObject == 0)
+			{
+				(VOID)fputs(",platform_lat_deg,platform_lon_deg,platform_alt_m", st_File);
+			}
+			else
+			{
+				(VOID)fprintf(st_File, ",target%d_lat_deg,target%d_lon_deg,target%d_alt_m", nObject, nObject, nObject);
+			}
+		}
+
+		(VOID)fputs("\r\n", st_File);
+		nLineNum = 1;
+
+		for (nRow = 0; nRow < nSampleNum; nRow++)
+		{
+			for (nColumn = 0; nColumn < nColumnNum; nColumn++)
+			{
+				if (nColumn > 0)
+				{
+					(VOID)fputc(',', st_File);
+				}
+
+				if (f_FormatCell(nRow, nColumn, pt_Cell, RES_CELL_SIZE) > 0)
+				{
+					(VOID)fputs(pt_Cell, st_File);
+				}
+			}
+
+			(VOID)fputs("\r\n", st_File);
+			nLineNum = nLineNum + 1;
+		}
+
+		if (ferror(st_File) != 0)
+		{
+			errorCode = (errno != 0) ? errno : EIO;
+		}
+
+		if ((fclose(st_File) != 0) && (errorCode == 0))
+		{
+			errorCode = (errno != 0) ? errno : EIO;
+		}
+
+		if (errorCode != 0)
+		{
+			(VOID)_wremove(st_Path.GetString());
+		}
+	}
+	else if (errorCode == 0)
+	{
+		errorCode = EIO;
+	}
+	else
+	{
+		nLineNum = 0;
+	}
+
+	*pt_LineNum = nLineNum;
+
+	return errorCode;
 }

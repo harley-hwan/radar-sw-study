@@ -27,7 +27,6 @@
 #define IDC_MNV_HINT                    1044
 #define IDC_EDIT_HINT                   1045
 
-#define IDC_RUN                         1050
 #define IDC_RUN_STATUS                  1051
 
 #define IDC_PLOT                        1060

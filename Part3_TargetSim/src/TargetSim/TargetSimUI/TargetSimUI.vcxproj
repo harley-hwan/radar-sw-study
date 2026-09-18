@@ -110,30 +110,27 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClInclude Include="framework.h" />
-    <ClInclude Include="GridCtrl_JH.h" />
+    <ClInclude Include="GridCtrl.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="Resource.h" />
-    <ClInclude Include="Scenario_JH.h" />
-    <ClInclude Include="SimResult_JH.h" />
+    <ClInclude Include="Scenario.h" />
     <ClInclude Include="TargetSimUI.h" />
     <ClInclude Include="TargetSimUIDlg.h" />
     <ClInclude Include="targetver.h" />
-    <ClInclude Include="TrajectoryPlot_JH.h" />
-    <ClInclude Include="UiNumber_JH.h" />
-    <ClInclude Include="UiTheme_JH.h" />
+    <ClInclude Include="TrajectoryPlot.h" />
+    <ClInclude Include="UiCommon.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="GridCtrl_JH.cpp" />
+    <ClCompile Include="GridCtrl.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Scenario_JH.cpp" />
-    <ClCompile Include="SimResult_JH.cpp" />
+    <ClCompile Include="Scenario.cpp" />
     <ClCompile Include="TargetSimUI.cpp" />
     <ClCompile Include="TargetSimUIDlg.cpp" />
-    <ClCompile Include="TrajectoryPlot_JH.cpp" />
-    <ClCompile Include="UiNumber_JH.cpp" />
+    <ClCompile Include="TrajectoryPlot.cpp" />
+    <ClCompile Include="UiCommon.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TargetSimUI.rc" />

@@ -1,10 +1,10 @@
 #pragma once
 
-#include "SimResult_JH.h"
+#include "Scenario.h"
 
 // 부모에게 보내는 WM_NOTIFY 코드
-#define PLOTN_SELECT			2101U					// 객체의 시작점을 눌렀다 (nObject)
-#define PLOTN_MOVE				2102U					// 표적 시작점을 끌고 있다 (nObject, latDeg, lonDeg)
+#define PLOTN_SELECT			2101U					// 시작점을 눌렀다 (nObject)
+#define PLOTN_MOVE				2102U					// 시작점을 끌고 있다 (nObject, latDeg, lonDeg)
 #define PLOTN_TURN				2103U					// 기수 손잡이를 끌고 있다 (nObject, yawDeg)
 #define PLOTN_SCRUB				2104U					// 고도 패널에서 시각을 짚었다 (nStep)
 
@@ -24,8 +24,7 @@ namespace Gdiplus
 	class Font;
 }
 
-// 궤적 그림. 플랫폼 기준 동–북 평면과 고도–시각을 나란히(좁으면 위아래로) 그린다. 결과는 대화상자가 소유하고 여기서는 읽기만 한다.
-// 표적의 시작점을 끌면 초기 위치를, 선택한 표적의 기수 손잡이를 끌면 초기 Yaw 를 바꾸라고 부모에게 알린다.
+// 궤적 그림: 플랫폼 기준 동-북 평면 + 고도-시각. 결과는 대화상자가 소유한다.
 class CTrajectoryPlot : public CStatic
 {
 public:
@@ -70,7 +69,7 @@ private:
 	INT32				nCurStep;
 	INT32				nSelObject;
 	INT32				isBackValid;
-	INT32				isViewFrozen;					// 끄는 동안에는 축척을 고정해 표식이 손끝에서 미끄러지지 않게 한다
+	INT32				isViewFrozen;					// 끄는 동안 축척 고정
 	INT32				dragKind;
 	INT32				nDragObject;
 
@@ -86,7 +85,7 @@ private:
 	CRect				st_MapArea;
 	CRect				st_AltArea;
 	CSize				st_FrameSize;
-	CPoint				st_DragOffset;					// 누른 점과 표식 중심의 차. 끌기 시작할 때 표식이 튀지 않게 한다
+	CPoint				st_DragOffset;					// 누른 점과 표식 중심의 차
 	CPoint				st_DownPoint;
 	CBitmap				st_BackBitmap;
 	CBitmap				st_FrameBitmap;

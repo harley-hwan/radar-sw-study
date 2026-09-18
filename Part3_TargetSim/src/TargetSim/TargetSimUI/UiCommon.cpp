@@ -5,7 +5,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "UiNumber_JH.h"
+#include "UiCommon.h"
 
 EN_NumParse f_Num_Parse(const CString &st_Text, FLOAT64 *pt_Value)
 {
@@ -20,7 +20,7 @@ EN_NumParse f_Num_Parse(const CString &st_Text, FLOAT64 *pt_Value)
 	{
 		enResult = NUM_EMPTY;
 	}
-	// 숫자 문자만 받으면 inf, nan, 16진수, '32,125' 같은 표기가 여기서 걸린다.
+	// inf, nan, 16진수, '32,125' 같은 표기는 여기서 걸린다.
 	else if (st_Trim.SpanIncluding(_T("0123456789+-.eE")).GetLength() != st_Trim.GetLength())
 	{
 		enResult = NUM_SYNTAX;
@@ -61,7 +61,7 @@ INT32 f_Num_FormatFixed(CHAR *pt_Buf, INT32 bufSize, FLOAT64 value, INT32 nDecim
 
 		if ((nLength > 1) && (pt_Buf[0] == '-'))
 		{
-			// -9.3e-10 을 %.4f 로 쓰면 -0.0000 이 되므로 표와 CSV 에서 부호를 없앤다.
+			// -9.3e-10 → "-0.0000" 의 부호 제거
 			isZero = 1;
 
 			for (nIndex = 1; nIndex < nLength; nIndex++)
@@ -96,7 +96,7 @@ CString f_Num_ToText(FLOAT64 value, INT32 nDecimal)
 	return st_Text;
 }
 
-// 값을 그대로 적는 데 필요한 소수 자릿수 (0 ~ NUM_MAX_DECIMAL)
+// 값을 그대로 적는 데 필요한 소수 자릿수
 static INT32 f_Num_NeededDecimal(FLOAT64 value)
 {
 	FLOAT64	scaled = value;
@@ -131,7 +131,7 @@ INT32 f_Num_CountDecimal(const CString &st_Text)
 
 	if (st_Trim.FindOneOf(_T("eE")) >= 0)
 	{
-		// 지수 표기(1.2345e2)는 글자 수로 셀 수 없으므로 값에서 구한다.
+		// 지수 표기는 값에서 센다.
 		if (f_Num_Parse(st_Trim, &value) == NUM_OK)
 		{
 			nDecimal = f_Num_NeededDecimal(value);
@@ -163,7 +163,6 @@ INT32 f_Num_Nudge(const CString &st_Text, FLOAT64 delta, INT32 nMinDecimal, FLOA
 
 	if ((st_Out != nullptr) && (f_Num_Parse(st_Text, &value) == NUM_OK))
 	{
-		// 쓰던 자릿수를 지켜야 값을 굴리는 동안 칸 너비와 끝자리가 흔들리지 않는다.
 		nDecimal = f_Num_CountDecimal(st_Text);
 
 		if (nDecimal < nMinDecimal)
@@ -186,7 +185,7 @@ INT32 f_Num_Nudge(const CString &st_Text, FLOAT64 delta, INT32 nMinDecimal, FLOA
 			isClamped = 0;
 		}
 
-		// 범위 끝(예: 0.1, 89.9)에 닿으면 그 값을 적을 만큼은 자릿수를 늘린다. 아니면 1 → 0.1 이 "0" 으로 적힌다.
+		// 범위 끝값(0.1, 89.9 등)은 그 값을 적을 자릿수가 필요하다.
 		if ((isClamped != 0) && (nDecimal < f_Num_NeededDecimal(value)))
 		{
 			nDecimal = f_Num_NeededDecimal(value);
