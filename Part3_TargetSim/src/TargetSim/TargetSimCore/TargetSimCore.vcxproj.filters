@@ -11,30 +11,27 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\TargetSimCoreApi.h">
+    <ClInclude Include="include\Define.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\Define_JH.h">
+    <ClInclude Include="include\matrixCalcLib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\matrixCalcLib_JH.h">
+    <ClInclude Include="include\CoordinateTransform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\CoordinateTransform_JH.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="include\TargetSim_JH.h">
+    <ClInclude Include="include\TargetSim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\matrixCalcLib_JH.c">
+    <ClCompile Include="src\matrixCalcLib.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\CoordinateTransform_JH.c">
+    <ClCompile Include="src\CoordinateTransform.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\TargetSim_JH.c">
+    <ClCompile Include="src\TargetSim.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

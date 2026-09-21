@@ -469,9 +469,9 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	FLOAT64					height;
 	FLOAT64					halfEast;
 	FLOAT64					halfNorth;
-	ST_CoordLla				st_Center;
-	ST_CoordLla				st_Low;
-	ST_CoordLla				st_High;
+	STRUCT_Coord_Lla		st_Center;
+	STRUCT_Coord_Lla		st_Low;
+	STRUCT_Coord_Lla		st_High;
 	INT32					nStep;
 	INT32					nObject;
 
@@ -489,8 +489,8 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 				maxEast		= fmax(maxEast, st_Point->east);
 				minNorth	= fmin(minNorth, st_Point->north);
 				maxNorth	= fmax(maxNorth, st_Point->north);
-				lowAlt		= fmin(lowAlt, st_State->st_Lla.alt);
-				highAlt		= fmax(highAlt, st_State->st_Lla.alt);
+				lowAlt		= fmin(lowAlt, st_State->st_Lla.Alt);
+				highAlt		= fmax(highAlt, st_State->st_Lla.Alt);
 			}
 		}
 	}
@@ -513,21 +513,21 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 
 		if (f_PlotToLla(centerEast, centerNorth, &st_Center) != 0)
 		{
-			centerLat = st_Center.lat;
-			centerLon = st_Center.lon;
+			centerLat = st_Center.Lat;
+			centerLon = st_Center.Lon;
 		}
 
 		if ((f_PlotToLla(centerEast - halfEast, centerNorth, &st_Low) != 0) &&
 			(f_PlotToLla(centerEast + halfEast, centerNorth, &st_High) != 0))
 		{
-			gridLonDeg = f_Plot_NiceStepGeo(f_Rad_To_Deg(st_High.lon - st_Low.lon),
+			gridLonDeg = f_Plot_NiceStepGeo(f_Rad_To_Deg(st_High.Lon - st_Low.Lon),
 				fmax(2.0, fmin(PLOT_MAX_GRID_NUM, width / static_cast<FLOAT64>(f_Ui_Scale(PLOT_LON_LABEL_PX, dpi)))));
 		}
 
 		if ((f_PlotToLla(centerEast, centerNorth - halfNorth, &st_Low) != 0) &&
 			(f_PlotToLla(centerEast, centerNorth + halfNorth, &st_High) != 0))
 		{
-			gridLatDeg = f_Plot_NiceStepGeo(f_Rad_To_Deg(st_High.lat - st_Low.lat),
+			gridLatDeg = f_Plot_NiceStepGeo(f_Rad_To_Deg(st_High.Lat - st_Low.Lat),
 				fmax(2.0, fmin(PLOT_MAX_GRID_NUM, height / static_cast<FLOAT64>(f_Ui_Scale(PLOT_LAT_LABEL_PX, dpi)))));
 		}
 	}
@@ -560,11 +560,10 @@ VOID CTrajectoryPlot::f_MapToPixel(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, 
 }
 
 // 평면 좌표(플랫폼 기준 동-북)를 위경도로 바꾼다. 실패하면 0
-INT32 CTrajectoryPlot::f_PlotToLla(FLOAT64 east, FLOAT64 north, ST_CoordLla *st_Lla) const
+INT32 CTrajectoryPlot::f_PlotToLla(FLOAT64 east, FLOAT64 north, STRUCT_Coord_Lla *st_Lla) const
 {
 	const ST_SimSample	*st_Origin = (f_HasData() != 0) ? st_Result->f_GetSample(0) : nullptr;
-	ST_CoordRect		st_Ned;
-	ST_CoordRect		st_Ecef;
+	STRUCT_Coord_Rect	st_Ned;
 	INT32				isOk = 0;
 
 	if (st_Origin != nullptr)
@@ -573,12 +572,8 @@ INT32 CTrajectoryPlot::f_PlotToLla(FLOAT64 east, FLOAT64 north, ST_CoordLla *st_
 		st_Ned.y = east;
 		st_Ned.z = 0.0;
 
-		if ((f_Trans_Ned_To_Ecef(&st_Ecef, &st_Ned, &st_Origin->st_Platform.st_PosEcef,
-				st_Origin->st_Platform.st_Lla.lat, st_Origin->st_Platform.st_Lla.lon) == COORD_OK) &&
-			(f_Trans_Ecef_To_Lla(st_Lla, &st_Ecef) == COORD_OK))
-		{
-			isOk = 1;
-		}
+		isOk = (f_Tgt_NedToLla(st_Lla, &st_Ned,
+				&st_Origin->st_Platform.st_PosEcef, &st_Origin->st_Platform.st_Lla) == TGT_OK) ? 1 : 0;
 	}
 
 	return isOk;
@@ -588,24 +583,23 @@ INT32 CTrajectoryPlot::f_PlotToLla(FLOAT64 east, FLOAT64 north, ST_CoordLla *st_
 INT32 CTrajectoryPlot::f_LlaToPlot(FLOAT64 lat, FLOAT64 lon, ST_PlotPoint *st_Point) const
 {
 	const ST_SimSample	*st_Origin = (f_HasData() != 0) ? st_Result->f_GetSample(0) : nullptr;
-	ST_CoordLla			st_Lla;
-	ST_CoordRect		st_Ecef;
-	ST_CoordRect		st_Ned;
+	STRUCT_Coord_Lla	st_Lla;
+	STRUCT_Coord_Rect	st_Ned;
 	INT32				isOk = 0;
 
 	if (st_Origin != nullptr)
 	{
-		st_Lla.lat = lat;
-		st_Lla.lon = lon;
-		st_Lla.alt = st_Origin->st_Platform.st_Lla.alt;
+		st_Lla.Lat = lat;
+		st_Lla.Lon = lon;
+		st_Lla.Alt = st_Origin->st_Platform.st_Lla.Alt;
 
-		if ((f_Trans_Lla_To_Ecef(&st_Ecef, &st_Lla) == COORD_OK) &&
-			(f_Trans_Ecef_To_Ned(&st_Ned, &st_Ecef, &st_Origin->st_Platform.st_PosEcef,
-				st_Origin->st_Platform.st_Lla.lat, st_Origin->st_Platform.st_Lla.lon) == COORD_OK))
+		isOk = (f_Tgt_LlaToNed(&st_Ned, &st_Lla,
+				&st_Origin->st_Platform.st_PosEcef, &st_Origin->st_Platform.st_Lla) == TGT_OK) ? 1 : 0;
+
+		if (isOk != 0)
 		{
 			st_Point->east	= st_Ned.y;
 			st_Point->north	= st_Ned.x;
-			isOk			= 1;
 		}
 	}
 
@@ -675,8 +669,8 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	const INT32				nLatDecimal = f_Plot_DecimalFor(gridLatDeg);
 	Gdiplus::Point			*st_Line;
 	ST_PlotPoint			st_Point;
-	ST_CoordLla				st_Low;
-	ST_CoordLla				st_High;
+	STRUCT_Coord_Lla		st_Low;
+	STRUCT_Coord_Lla		st_High;
 	FLOAT64					x = 0.0;
 	FLOAT64					y = 0.0;
 	FLOAT64					firstLine = 0.0;
@@ -694,8 +688,8 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	if ((f_PlotToLla(centerEast - halfEast, centerNorth, &st_Low) != 0) &&
 		(f_PlotToLla(centerEast + halfEast, centerNorth, &st_High) != 0))
 	{
-		firstLine	= ceil(f_Rad_To_Deg(st_Low.lon) / gridLonDeg);
-		lineNum		= floor(f_Rad_To_Deg(st_High.lon) / gridLonDeg) - firstLine;
+		firstLine	= ceil(f_Rad_To_Deg(st_Low.Lon) / gridLonDeg);
+		lineNum		= floor(f_Rad_To_Deg(st_High.Lon) / gridLonDeg) - firstLine;
 	}
 
 	for (nLine = 0; (nLine <= PLOT_MAX_LINE_NUM) && (static_cast<FLOAT64>(nLine) <= lineNum); nLine++)
@@ -718,8 +712,8 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	if ((f_PlotToLla(centerEast, centerNorth - halfNorth, &st_Low) != 0) &&
 		(f_PlotToLla(centerEast, centerNorth + halfNorth, &st_High) != 0))
 	{
-		firstLine	= ceil(f_Rad_To_Deg(st_Low.lat) / gridLatDeg);
-		lineNum		= floor(f_Rad_To_Deg(st_High.lat) / gridLatDeg) - firstLine;
+		firstLine	= ceil(f_Rad_To_Deg(st_Low.Lat) / gridLatDeg);
+		lineNum		= floor(f_Rad_To_Deg(st_High.Lat) / gridLatDeg) - firstLine;
 	}
 
 	for (nLine = 0; (nLine <= PLOT_MAX_LINE_NUM) && (static_cast<FLOAT64>(nLine) <= lineNum); nLine++)
@@ -850,7 +844,7 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 	for (nObject = 0; nObject < nObjectNum; nObject++)
 	{
 		const CString	st_Name = f_Plot_ObjectName(nObject);
-		const FLOAT64	yaw = st_Result->f_GetState(0, nObject)->st_Att.yaw;
+		const FLOAT64	yaw = st_Result->f_GetState(0, nObject)->st_Att.Yaw;
 
 		(VOID)st_Graphics->MeasureString(st_Name.GetString(), -1, st_Font, Gdiplus::PointF(0.0F, 0.0F), &st_Size);
 
@@ -1000,7 +994,7 @@ VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
 
 			for (nSample = 0; nSample < nSampleNum; nSample++)
 			{
-				f_AltToPixel(nSample, st_Result->f_GetState(nSample, nObject)->st_Lla.alt, &x, &y);
+				f_AltToPixel(nSample, st_Result->f_GetState(nSample, nObject)->st_Lla.Alt, &x, &y);
 
 				if ((nCount == 0) || (f_Plot_Round(x) != st_Line[nCount - 1].X) || (f_Plot_Round(y) != st_Line[nCount - 1].Y))
 				{
@@ -1037,8 +1031,8 @@ INT32 CTrajectoryPlot::f_GetHandlePixel(INT32 nObject, FLOAT64 *pt_X, FLOAT64 *p
 		st_State = st_Result->f_GetState(0, nObject);
 		f_MapToPixel(st_Result->f_GetPoint(0, nObject), &x, &y);
 
-		*pt_X = x + (length * sin(st_State->st_Att.yaw));
-		*pt_Y = y - (length * cos(st_State->st_Att.yaw));
+		*pt_X = x + (length * sin(st_State->st_Att.Yaw));
+		*pt_Y = y - (length * cos(st_State->st_Att.Yaw));
 		isOk = 1;
 	}
 
@@ -1057,7 +1051,7 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 	const ST_SimSample			*st_Sample = st_Result->f_GetSample(nCurStep);
 	const ST_TargetState		*st_State;
 	const Gdiplus::Rect			st_MapClip(st_MapArea.left, st_MapArea.top, st_MapArea.Width() + 1, st_MapArea.Height() + 1);
-	ST_CoordRect				st_VelNed;
+	STRUCT_Coord_Rect			st_VelNed = { 0.0, 0.0, 0.0 };
 	FLOAT64						x = 0.0;
 	FLOAT64						y = 0.0;
 	FLOAT64						handleX = 0.0;
@@ -1104,26 +1098,25 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 			f_MapToPixel(st_Result->f_GetPoint(nCurStep, nObject), &x, &y);
 
 			// 진행 방향 화살표. 궤적 점과 같은 기준(플랫폼 표본 0)의 NED 로 돌린다.
-			if (f_Trans_EcefVec_To_Ned(&st_VelNed, &st_State->st_VelEcef, st_Origin->st_Platform.st_Lla.lat, st_Origin->st_Platform.st_Lla.lon) == COORD_OK)
+			// 속도는 자리를 옮기지 않고 방향만 돌리면 되므로 벡터용 변환을 부른다.
+			headingNorm = (f_Tgt_EcefVecToNed(&st_VelNed, &st_State->st_VelEcef, &st_Origin->st_Platform.st_Lla) == TGT_OK)
+					? hypot(st_VelNed.x, st_VelNed.y) : 0.0;
+
+			if (headingNorm >= PLOT_MIN_HEADING)
 			{
-				headingNorm = hypot(st_VelNed.x, st_VelNed.y);
+				const FLOAT64	dirX = st_VelNed.y / headingNorm;
+				const FLOAT64	dirY = -st_VelNed.x / headingNorm;
+				const FLOAT64	tipX = x + (PLOT_HEADING_PX * static_cast<FLOAT64>(scale) * dirX);
+				const FLOAT64	tipY = y + (PLOT_HEADING_PX * static_cast<FLOAT64>(scale) * dirY);
+				const FLOAT64	barb = PLOT_ARROW_PX * static_cast<FLOAT64>(scale);
 
-				if (headingNorm >= PLOT_MIN_HEADING)
-				{
-					const FLOAT64	dirX = st_VelNed.y / headingNorm;
-					const FLOAT64	dirY = -st_VelNed.x / headingNorm;
-					const FLOAT64	tipX = x + (PLOT_HEADING_PX * static_cast<FLOAT64>(scale) * dirX);
-					const FLOAT64	tipY = y + (PLOT_HEADING_PX * static_cast<FLOAT64>(scale) * dirY);
-					const FLOAT64	barb = PLOT_ARROW_PX * static_cast<FLOAT64>(scale);
-
-					(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(x), f_Plot_Real(y), f_Plot_Real(tipX), f_Plot_Real(tipY));
-					(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(tipX), f_Plot_Real(tipY),
-						f_Plot_Real(tipX + (barb * ((-dirX * cos(PLOT_ARROW_ANGLE)) + (dirY * sin(PLOT_ARROW_ANGLE))))),
-						f_Plot_Real(tipY + (barb * ((-dirY * cos(PLOT_ARROW_ANGLE)) - (dirX * sin(PLOT_ARROW_ANGLE))))));
-					(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(tipX), f_Plot_Real(tipY),
-						f_Plot_Real(tipX + (barb * ((-dirX * cos(PLOT_ARROW_ANGLE)) - (dirY * sin(PLOT_ARROW_ANGLE))))),
-						f_Plot_Real(tipY + (barb * ((-dirY * cos(PLOT_ARROW_ANGLE)) + (dirX * sin(PLOT_ARROW_ANGLE))))));
-				}
+				(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(x), f_Plot_Real(y), f_Plot_Real(tipX), f_Plot_Real(tipY));
+				(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(tipX), f_Plot_Real(tipY),
+					f_Plot_Real(tipX + (barb * ((-dirX * cos(PLOT_ARROW_ANGLE)) + (dirY * sin(PLOT_ARROW_ANGLE))))),
+					f_Plot_Real(tipY + (barb * ((-dirY * cos(PLOT_ARROW_ANGLE)) - (dirX * sin(PLOT_ARROW_ANGLE))))));
+				(VOID)st_Graphics->DrawLine(&st_Heading, f_Plot_Real(tipX), f_Plot_Real(tipY),
+					f_Plot_Real(tipX + (barb * ((-dirX * cos(PLOT_ARROW_ANGLE)) - (dirY * sin(PLOT_ARROW_ANGLE))))),
+					f_Plot_Real(tipY + (barb * ((-dirY * cos(PLOT_ARROW_ANGLE)) + (dirX * sin(PLOT_ARROW_ANGLE))))));
 			}
 
 			if (nObject == 0)
@@ -1153,7 +1146,7 @@ VOID CTrajectoryPlot::f_DrawOverlay(Gdiplus::Graphics *st_Graphics) const
 				const FLOAT32		dot = 3.5F * scale;
 				Gdiplus::SolidBrush	st_Dot(f_Plot_Color(f_Ui_ObjectColor(nObject), 255));
 
-				f_AltToPixel(nCurStep, st_Result->f_GetState(nCurStep, nObject)->st_Lla.alt, &x, &y);
+				f_AltToPixel(nCurStep, st_Result->f_GetState(nCurStep, nObject)->st_Lla.Alt, &x, &y);
 				(VOID)st_Graphics->FillEllipse(&st_Dot, f_Plot_Real(x) - dot, f_Plot_Real(y) - dot, 2.0F * dot, 2.0F * dot);
 			}
 		}
@@ -1234,9 +1227,8 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 {
 	const ST_SimSample	*st_Origin = (f_HasData() != 0) ? st_Result->f_GetSample(0) : nullptr;
 	ST_PlotNotify		st_Notify;
-	ST_CoordRect		st_Ned;
-	ST_CoordRect		st_Ecef;
-	ST_CoordLla			st_Lla;
+	STRUCT_Coord_Rect	st_Ned;
+	STRUCT_Coord_Lla	st_Lla;
 	FLOAT64				x = 0.0;
 	FLOAT64				y = 0.0;
 	FLOAT64				yawDeg;
@@ -1256,11 +1248,11 @@ VOID CTrajectoryPlot::f_DragTo(CPoint st_Point)
 		st_Ned.x = centerNorth - ((static_cast<FLOAT64>(st_Point.y + st_DragOffset.y) - (static_cast<FLOAT64>(st_MapArea.top) + (0.5 * static_cast<FLOAT64>(st_MapArea.Height())))) / pixelPerMeter);
 		st_Ned.z = 0.0;
 
-		if ((f_Trans_Ned_To_Ecef(&st_Ecef, &st_Ned, &st_Origin->st_Platform.st_PosEcef, st_Origin->st_Platform.st_Lla.lat, st_Origin->st_Platform.st_Lla.lon) == COORD_OK) &&
-			(f_Trans_Ecef_To_Lla(&st_Lla, &st_Ecef) == COORD_OK))
+		if (f_Tgt_NedToLla(&st_Lla, &st_Ned,
+				&st_Origin->st_Platform.st_PosEcef, &st_Origin->st_Platform.st_Lla) == TGT_OK)
 		{
-			st_Notify.latDeg = f_Rad_To_Deg(st_Lla.lat);
-			st_Notify.lonDeg = f_Rad_To_Deg(st_Lla.lon);
+			st_Notify.latDeg = f_Rad_To_Deg(st_Lla.Lat);
+			st_Notify.lonDeg = f_Rad_To_Deg(st_Lla.Lon);
 			f_Notify(PLOTN_MOVE, &st_Notify);
 		}
 	}

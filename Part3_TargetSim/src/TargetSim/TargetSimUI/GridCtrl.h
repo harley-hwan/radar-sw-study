@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Define_JH.h"
+#include "TargetSim.h"
 
 // 열 종류
 #define GRID_KIND_LABEL			0						// 읽기 전용 글자 (행 색 표식)

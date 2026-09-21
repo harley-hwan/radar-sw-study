@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TargetSim_JH.h"
+#include "TargetSim.h"
 
 // 색
 #define UI_COLOR_PAGE			RGB(243, 244, 246)

@@ -520,7 +520,7 @@ INT32 CScenario::f_ReadNumber(const CString &st_Text, FLOAT64 minValue, FLOAT64 
 
 // 객체 하나의 일곱 칸을 읽는다. 각도를 도에서 라디안으로 바꾸는 곳은 여기뿐이다.
 INT32 CScenario::f_ReadObject(const ST_ObjectText *st_Object, EN_ScnPlace enPlace, INT32 nTarget, FLOAT64 minSpeed,
-	ST_CoordLla *st_Lla, ST_CoordAtt *st_Att, FLOAT64 *pt_Speed, ST_ScnIssue *st_Issue) const
+	STRUCT_Coord_Lla *st_Lla, STRUCT_Coord_Attitude *st_Att, FLOAT64 *pt_Speed, ST_ScnIssue *st_Issue) const
 {
 	const FLOAT64	minValue[SCN_OBJ_FIELD_NUM] = { -SCN_LAT_LIMIT, -SCN_LON_LIMIT, SCN_ALT_MIN, minSpeed, -SCN_ROLL_LIMIT, -SCN_PITCH_LIMIT, -SCN_YAW_LIMIT };
 	const FLOAT64	maxValue[SCN_OBJ_FIELD_NUM] = { SCN_LAT_LIMIT, SCN_LON_LIMIT, SCN_ALT_MAX, SCN_SPEED_MAX, SCN_ROLL_LIMIT, SCN_PITCH_LIMIT, SCN_YAW_LIMIT };
@@ -548,13 +548,13 @@ INT32 CScenario::f_ReadObject(const ST_ObjectText *st_Object, EN_ScnPlace enPlac
 
 	if (isOk != 0)
 	{
-		st_Lla->lat		= f_Deg_To_Rad(fieldValue[SCN_FIELD_LAT]);
-		st_Lla->lon		= f_Deg_To_Rad(fieldValue[SCN_FIELD_LON]);
-		st_Lla->alt		= fieldValue[SCN_FIELD_ALT];
+		st_Lla->Lat		= f_Deg_To_Rad(fieldValue[SCN_FIELD_LAT]);
+		st_Lla->Lon		= f_Deg_To_Rad(fieldValue[SCN_FIELD_LON]);
+		st_Lla->Alt		= fieldValue[SCN_FIELD_ALT];
 		*pt_Speed		= fieldValue[SCN_FIELD_SPEED];
-		st_Att->roll	= f_Deg_To_Rad(fieldValue[SCN_FIELD_ROLL]);
-		st_Att->pitch	= f_Deg_To_Rad(fieldValue[SCN_FIELD_PITCH]);
-		st_Att->yaw		= f_Deg_To_Rad(fieldValue[SCN_FIELD_YAW]);
+		st_Att->Roll	= f_Deg_To_Rad(fieldValue[SCN_FIELD_ROLL]);
+		st_Att->Pitch	= f_Deg_To_Rad(fieldValue[SCN_FIELD_PITCH]);
+		st_Att->Yaw		= f_Deg_To_Rad(fieldValue[SCN_FIELD_YAW]);
 	}
 
 	return isOk;
@@ -1122,8 +1122,8 @@ static INT32 f_Res_IsStateFinite(const ST_TargetState *st_State)
 {
 	INT32 isFinite = 0;
 
-	if (isfinite(st_State->simTime) && isfinite(st_State->st_Lla.lat) && isfinite(st_State->st_Lla.lon) &&
-		isfinite(st_State->st_Lla.alt) && isfinite(st_State->st_PosEcef.x) && isfinite(st_State->st_PosEcef.y) &&
+	if (isfinite(st_State->simTime) && isfinite(st_State->st_Lla.Lat) && isfinite(st_State->st_Lla.Lon) &&
+		isfinite(st_State->st_Lla.Alt) && isfinite(st_State->st_PosEcef.x) && isfinite(st_State->st_PosEcef.y) &&
 		isfinite(st_State->st_PosEcef.z) && isfinite(st_State->st_VelEcef.x) && isfinite(st_State->st_VelEcef.y) &&
 		isfinite(st_State->st_VelEcef.z))
 	{
@@ -1286,22 +1286,20 @@ INT32 CSimResult::f_Run(const ST_SimConfig *st_Config, CString *st_Error)
 	return isOk;
 }
 
-// 표본을 플랫폼 초기 위치 기준 동-북 평면 좌표로 바꾼다. 기준 행렬은 한 번만 만든다.
+// 표본을 플랫폼 초기 위치 기준 동-북 평면 좌표로 바꾼다.
 INT32 CSimResult::f_ComputePoints(const ST_SimSample *st_Sample, ST_PlotPoint *st_Point, INT32 nNewSampleNum, INT32 nNewObjectNum, CString *st_Error) const
 {
 	const ST_TargetState	*st_Origin = &st_Sample[0].st_Platform;
 	const ST_TargetState	*st_State;
-	ST_Matrix				st_Dcm;
-	ST_CoordRect			st_Diff;
-	ST_CoordRect			st_Ned;
+	STRUCT_Coord_Rect		st_Ned;
 	INT32					isOk = 1;
 	INT32					nStep;
 	INT32					nObject;
 
-	// 기준 DCM 은 한 번만 만든다.
-	if ((f_Res_IsStateFinite(st_Origin) == 0) || (f_Coord_Dcm_Ned_To_Ecef(&st_Dcm, st_Origin->st_Lla.lat, st_Origin->st_Lla.lon) != COORD_OK))
+	// 기준 표본이 성한지 먼저 본다.
+	if (f_Res_IsStateFinite(st_Origin) == 0)
 	{
-		*st_Error = _T("스텝 0 플랫폼: 결과에 유한하지 않은 값이 있거나 기준 좌표를 만들 수 없습니다");
+		*st_Error = _T("스텝 0 플랫폼: 결과에 유한하지 않은 값이 있어 기준 좌표를 만들 수 없습니다");
 		isOk = 0;
 	}
 
@@ -1324,10 +1322,17 @@ INT32 CSimResult::f_ComputePoints(const ST_SimSample *st_Sample, ST_PlotPoint *s
 
 				isOk = 0;
 			}
-			else if ((f_Coord_VecSub(&st_Diff, &st_State->st_PosEcef, &st_Origin->st_PosEcef) != COORD_OK) ||
-					 (f_Coord_RotateVecInv(&st_Ned, &st_Dcm, &st_Diff) != COORD_OK))
+			else if (f_Tgt_EcefToNed(&st_Ned, &st_State->st_PosEcef, &st_Origin->st_PosEcef, &st_Origin->st_Lla) != TGT_OK)
 			{
-				st_Error->Format(_T("스텝 %d: 그림 좌표 변환에 실패했습니다"), nStep);
+				if (nObject == 0)
+				{
+					st_Error->Format(_T("스텝 %d 플랫폼: 화면 좌표로 바꾸지 못했습니다"), nStep);
+				}
+				else
+				{
+					st_Error->Format(_T("스텝 %d 표적 %d: 화면 좌표로 바꾸지 못했습니다"), nStep, nObject);
+				}
+
 				isOk = 0;
 			}
 			else
@@ -1446,15 +1451,15 @@ INT32 CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 bu
 
 			if (nPart == 0)
 			{
-				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.lat), 9);
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.Lat), 9);
 			}
 			else if (nPart == 1)
 			{
-				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.lon), 9);
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, f_Rad_To_Deg(st_State->st_Lla.Lon), 9);
 			}
 			else
 			{
-				nLength = f_Num_FormatFixed(pt_Buf, bufSize, st_State->st_Lla.alt, 4);
+				nLength = f_Num_FormatFixed(pt_Buf, bufSize, st_State->st_Lla.Alt, 4);
 			}
 		}
 	}

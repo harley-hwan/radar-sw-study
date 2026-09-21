@@ -89,16 +89,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\CoordinateTransform_JH.h" />
-    <ClInclude Include="include\Define_JH.h" />
-    <ClInclude Include="include\matrixCalcLib_JH.h" />
-    <ClInclude Include="include\TargetSim_JH.h" />
-    <ClInclude Include="include\TargetSimCoreApi.h" />
+    <ClInclude Include="include\CoordinateTransform.h" />
+    <ClInclude Include="include\Define.h" />
+    <ClInclude Include="include\matrixCalcLib.h" />
+    <ClInclude Include="include\TargetSim.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="src\CoordinateTransform_JH.c" />
-    <ClCompile Include="src\matrixCalcLib_JH.c" />
-    <ClCompile Include="src\TargetSim_JH.c" />
+    <ClCompile Include="src\CoordinateTransform.c" />
+    <ClCompile Include="src\matrixCalcLib.c" />
+    <ClCompile Include="src\TargetSim.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

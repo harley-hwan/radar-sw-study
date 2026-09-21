@@ -1,6 +1,6 @@
 #pragma once
 
-#include "TargetSim_JH.h"
+#include "TargetSim.h"
 
 // 객체 표의 열 순서
 #define SCN_OBJ_FIELD_NUM		7						// 위도, 경도, 고도, 속력, Roll, Pitch, Yaw
@@ -117,7 +117,7 @@ private:
 	INT32	f_ReadNumber(const CString &st_Text, FLOAT64 minValue, FLOAT64 maxValue, LPCTSTR pt_Where, LPCTSTR pt_Name,
 				FLOAT64 *pt_Value, ST_ScnIssue *st_Issue) const;
 	INT32	f_ReadObject(const ST_ObjectText *st_Object, EN_ScnPlace enPlace, INT32 nTarget, FLOAT64 minSpeed,
-				ST_CoordLla *st_Lla, ST_CoordAtt *st_Att, FLOAT64 *pt_Speed, ST_ScnIssue *st_Issue) const;
+				STRUCT_Coord_Lla *st_Lla, STRUCT_Coord_Attitude *st_Att, FLOAT64 *pt_Speed, ST_ScnIssue *st_Issue) const;
 	VOID	f_LocateCoreError(const ST_SimConfig *st_Config, EN_TgtStatus enStatus, ST_ScnIssue *st_Issue);
 
 	ST_SimConfig	st_ProbeConfig;						// 오류 위치 탐침용 (10 KB 라 멤버로)
