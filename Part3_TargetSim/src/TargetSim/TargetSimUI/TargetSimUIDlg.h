@@ -9,7 +9,7 @@
 #define UI_PLAY_TICK_MS			100
 #define UI_RUN_DELAY_MS			250						// 오래 걸리는 시나리오는 입력이 멎은 뒤 실행
 #define UI_FAST_RUN_MS			40.0					// 이보다 빨리 끝나면 고칠 때마다 바로 실행
-#define UI_PLAY_SPEED_NUM		6
+#define UI_PLAY_SPEED_NUM		3
 
 #define UI_SYNC_NONE			0
 #define UI_SYNC_SLIDER			1

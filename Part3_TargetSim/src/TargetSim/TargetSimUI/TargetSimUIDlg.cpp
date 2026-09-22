@@ -31,8 +31,8 @@
 #define UI_BAR_HEIGHT			14
 #define UI_CELL_SIZE			RES_CELL_SIZE
 
-static const INT32		s_PlaySpeed[UI_PLAY_SPEED_NUM] = { 1, 2, 5, 10, 50, 100 };
-static const LPCTSTR	s_PlaySpeedName[UI_PLAY_SPEED_NUM] = { _T("x1"), _T("x2"), _T("x5"), _T("x10"), _T("x50"), _T("x100") };
+static const INT32		s_PlaySpeed[UI_PLAY_SPEED_NUM] = { 1, 10, 50 };
+static const LPCTSTR	s_PlaySpeedName[UI_PLAY_SPEED_NUM] = { _T("x1"), _T("x10"), _T("x50")};
 static const LPCTSTR	s_StepChoice[UI_STEP_CHOICE_NUM] = { _T("0.001"), _T("0.005"), _T("0.01"), _T("0.02"), _T("0.05"), _T("0.1"), _T("0.2"), _T("0.5"), _T("1") };
 static LPCTSTR			s_TurnChoice[SCN_TURN_TYPE_NUM] = { _T(""), _T(""), _T(""), _T("") };
 

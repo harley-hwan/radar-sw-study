@@ -18,6 +18,10 @@
 #define SCN_FILE_MAX_BYTE		262144
 #define SCN_NEW_MANEUVER_SPAN	10.0					// [s] 새 기동 기본 길이
 #define SCN_COPY_LAT_OFFSET		0.01					// [deg] 복제한 표적을 북쪽으로 조금 민다
+#define SCN_SPEC_TARGET_NUM		2						// 명세 / 기동 시연 프리셋의 표적 수
+#define SCN_DEMO_MANEUVER_NUM	10						// 기동 시연 프리셋의 기동 줄 수
+#define SCN_MULTI_TARGET_NUM	6						// 다표적 접근 프리셋의 표적 수
+#define SCN_MULTI_MANEUVER_NUM	5						// 다표적 접근 프리셋의 기동 줄 수
 #define RES_CSV_BUFFER_SIZE		1048576U
 #define RES_BYTE_PER_MB			1048576.0
 
@@ -33,32 +37,69 @@ typedef struct
 	LPCTSTR				pt_Field[SCN_MNV_FIELD_NUM];
 } ST_PresetManeuver;
 
-static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("명세 시나리오 (과제 3)"), _T("기동 시연 (선회, 상승, Roll)"), _T("다표적 접근 (표적 6)") };
+static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("명세 시나리오 (과제 3)"), _T("기동 시연 (지그재그 기동 60 s)"), _T("다표적 접근 (표적 6)") };
 static const LPCTSTR	s_FieldName[SCN_OBJ_FIELD_NUM] = { _T("위도"), _T("경도"), _T("고도"), _T("속력"), _T("Roll"), _T("Pitch"), _T("Yaw") };
 static const LPCTSTR	s_ManeuverFieldName[SCN_MNV_FIELD_NUM] = { _T("G"), _T("시작"), _T("종료") };
 static const LPCTSTR	s_TurnName[SCN_TURN_TYPE_NUM] = { _T("0 없음"), _T("1 Roll"), _T("2 Yaw"), _T("3 Pitch") };
 
 // 과제 명세: 플랫폼 정지, 대함 표적, 대공 표적
 static const ST_PresetObject	s_SpecPlatform = { { _T("32.0"), _T("126.0"), _T("0"), _T("0"), _T("0"), _T("0"), _T("0") } };
-static const ST_PresetObject	s_SpecTarget[2] =
+static const ST_PresetObject	s_SpecTarget[SCN_SPEC_TARGET_NUM] =
 {
 	{ { _T("32.125"), _T("126.03"), _T("0"), _T("30"), _T("0"), _T("0"), _T("270") } },
 	{ { _T("32.12"), _T("126.0"), _T("300"), _T("200"), _T("0"), _T("0"), _T("180") } }
 };
 
-// 기동 시연: 명세 표적에 선회, 상승과 수평 복귀, Roll
-static const ST_PresetManeuver	s_DemoManeuver[6] =
+// 기동 시연: 명세 표적 두 개에 지그재그 기동을 얹은 60 s 시나리오.
+// 초기값과 시뮬레이션 시간, 갱신 간격은 명세 시나리오와 같고 기동표만 다르다.
+//
+// 기동 지시는 "위도 32.1 에서 좌 90 도" 처럼 좌표로 오는데 기동 구조체에는 시각 칸만
+// 있으므로, Core 를 실제로 돌려 그 좌표에 닿는 시각을 찾아 시작 / 종료로 옮겼다.
+// 회전하는 동안에도 표적이 계속 나아가므로, 회전이 끝나는 자리가 지시받은 좌표가
+// 되도록 선회 반경만큼 미리 꺾는다.
+//
+// ── 궤적 크기 ──────────────────────────────────────────────────────
+// 속력과 시뮬레이션 시간이 명세로 묶여 있어 지시받은 회전 지점을 그대로 쓸 수 없다.
+//   대함  30 m/s x 60 s =  1,800 m  <  필요  3,978 m (2.21 배 부족)
+//   대공 200 m/s x 60 s = 12,000 m  <  필요 20,735 m (1.73 배 부족)
+// 그래서 모양은 그대로 두고 출발점 기준으로 크기만 줄였다 (대함 0.5042, 대공 0.4788 배).
+//
+// ── G 값 ───────────────────────────────────────────────────────────
+// 크기를 줄이면 선회 반경도 같은 비율로 줄어야 모양이 유지되므로 G 가 커진다.
+// "정해진 시간에 정확히 목표 각도만큼 돈다" 는 조건에서 역산했다.
+//   G = (dYaw[rad] * V) / (g * T),  g = 9.80665
+//   대함  44.95 도 / 2.4 s -> |G| 1.000000  (선회 반경  92 m, 스텝당 1.87 도)
+//   대공  89.90 도 / 3.9 s -> |G| 8.205060  (선회 반경 497 m, 스텝당 2.31 도)
+//   대공 마지막 줄만 149.83 도 / 6.5 s 인데 각속도가 같아 G 는 그대로다.
+// 부호가 회전 방향이다 (+ 우선회 / - 좌선회).
+// 0.1 s 격자 위에서는 45 / 90 / 150 도를 정확히 맞출 수 없어 각각 44.9504 / 89.9007 /
+// 149.8333 도가 되지만, 부호가 번갈아 상쇄되어 누적 침로 오차는 0.1 도 수준이다.
+//
+// ── 대함 표적 (표적 1) ─────────────────────────────────────────────
+// Yaw 270(서) 으로 출발해 남서 -> 서 -> 북서 -> 서 로 한 번 비켜 가는 좌우 대칭 지그재그.
+// 가운데가 0.0015 도 파이고, t=60 s 종점 32.125000 / 126.012232 로 출발 위도에서 끝난다.
+//
+// ── 대공 표적 (표적 2) ─────────────────────────────────────────────
+// Yaw 180(남) 으로 출발해 남 -> 동 -> 남 -> 서 -> 남 -> 남서 로 왕복 훑기.
+// 마지막 줄만 90 도가 아니라 150 도라 남서향으로 끝나고, 그 회전이 끝나는 t=60.0 s 가
+// 그대로 종점이다. U 턴 가운데에 직선 남진 구간이 들어가는 것은 반원만으로는
+// 낙차가 2 x 선회 반경밖에 되지 않아서다.
+static const ST_PresetManeuver	s_DemoManeuver[SCN_DEMO_MANEUVER_NUM] =
 {
-	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("10"), _T("20") } },
-	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("35"), _T("45") } },
-	{ 1, TGT_TURN_YAW,		{ _T("2.0"), _T("5"), _T("25") } },
-	{ 1, TGT_TURN_PITCH,	{ _T("0.5"), _T("25"), _T("30") } },
-	{ 1, TGT_TURN_PITCH,	{ _T("-0.5"), _T("40"), _T("45") } },
-	{ 1, TGT_TURN_ROLL,		{ _T("1.0"), _T("45"), _T("50") } }
+	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("8.0"), _T("10.4") } },
+	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("15.8"), _T("18.2") } },
+	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("41.9"), _T("44.3") } },
+	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("49.7"), _T("52.1") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("2.8"), _T("6.7") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("13.3"), _T("17.2") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("18.6"), _T("22.5") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("36.2"), _T("40.1") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("41.5"), _T("45.4") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("53.5"), _T("60.0") } }
 };
 
 // 다표적 접근: 플랫폼에서 15 km, 60 도 간격, 플랫폼을 향함
-static const ST_PresetObject	s_MultiTarget[6] =
+static const ST_PresetObject	s_MultiTarget[SCN_MULTI_TARGET_NUM] =
 {
 	{ { _T("32.1353"), _T("126.0"), _T("300"), _T("250"), _T("0"), _T("0"), _T("180") } },
 	{ { _T("32.0676"), _T("126.1376"), _T("1000"), _T("200"), _T("0"), _T("0"), _T("240") } },
@@ -68,7 +109,7 @@ static const ST_PresetObject	s_MultiTarget[6] =
 	{ { _T("32.0676"), _T("125.8624"), _T("0"), _T("30"), _T("0"), _T("0"), _T("120") } }
 };
 
-static const ST_PresetManeuver	s_MultiManeuver[5] =
+static const ST_PresetManeuver	s_MultiManeuver[SCN_MULTI_MANEUVER_NUM] =
 {
 	{ 1, TGT_TURN_YAW,		{ _T("1.0"), _T("10"), _T("20") } },
 	{ 1, TGT_TURN_YAW,		{ _T("-1.0"), _T("20"), _T("40") } },
@@ -208,9 +249,9 @@ VOID CScenario::f_LoadPreset(INT32 nPreset)
 
 	if (nPreset == SCN_PRESET_MULTI)
 	{
-		nTargetNum		= 6;
+		nTargetNum		= SCN_MULTI_TARGET_NUM;
 		st_Maneuver		= s_MultiManeuver;
-		nManeuverNum	= 5;
+		nManeuverNum	= SCN_MULTI_MANEUVER_NUM;
 
 		for (nTarget = 0; nTarget < nTargetNum; nTarget++)
 		{
@@ -219,7 +260,7 @@ VOID CScenario::f_LoadPreset(INT32 nPreset)
 	}
 	else
 	{
-		nTargetNum = 2;
+		nTargetNum = SCN_SPEC_TARGET_NUM;
 
 		for (nTarget = 0; nTarget < nTargetNum; nTarget++)
 		{
@@ -229,7 +270,7 @@ VOID CScenario::f_LoadPreset(INT32 nPreset)
 		if (nPreset == SCN_PRESET_MANEUVER)
 		{
 			st_Maneuver		= s_DemoManeuver;
-			nManeuverNum	= 6;
+			nManeuverNum	= SCN_DEMO_MANEUVER_NUM;
 		}
 	}
 
