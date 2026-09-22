@@ -126,6 +126,12 @@ def wrap(text, font, size, width):
     if cur.strip():
         lines.append(cur)
 
+    # 마지막 줄이 문장부호 한두 글자뿐이면 앞 줄에 붙인다 (고아 문자 방지)
+    while len(lines) > 1 and lines[-1].strip() and \
+            all(ch in ".,;:)]}\u201d\u2019\u300d\u300f!?\"'" for ch in lines[-1].strip()):
+        orphan = lines.pop()
+        lines[-1] = lines[-1] + orphan
+
     return lines
 
 

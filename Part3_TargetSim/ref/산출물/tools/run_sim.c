@@ -49,14 +49,14 @@ static int run(const char *path, ST_SimConfig *cfg)
     for (n = 0; ; n++) {
         const ST_SimSample *s = &sim.st_Sample;
         fprintf(fp, "%d,%.4f", s->nStepIndex, s->simTime);
-        fprintf(fp, ",%.9f,%.9f,%.4f",
+        fprintf(fp, ",%.12f,%.12f,%.9f",
                 f_Rad_To_Deg(s->st_Platform.st_Lla.Lat),
                 f_Rad_To_Deg(s->st_Platform.st_Lla.Lon),
                 s->st_Platform.st_Lla.Alt);
         for (i = 0; i < cfg->nTargetNum; i++) {
             const ST_TargetState *g = &s->st_Target[i];
             double spd = sqrt(g->st_VelEcef.x*g->st_VelEcef.x + g->st_VelEcef.y*g->st_VelEcef.y + g->st_VelEcef.z*g->st_VelEcef.z);
-            fprintf(fp, ",%.9f,%.9f,%.4f,%.4f,%.6f,%.6f,%.6f,%.6f",
+            fprintf(fp, ",%.12f,%.12f,%.9f,%.6f,%.9f,%.9f,%.9f,%.12f",
                     f_Rad_To_Deg(g->st_Lla.Lat), f_Rad_To_Deg(g->st_Lla.Lon), g->st_Lla.Alt,
                     f_Rad_To_Deg(g->st_Att.Yaw),
                     g->st_VelEcef.x, g->st_VelEcef.y, g->st_VelEcef.z, spd);

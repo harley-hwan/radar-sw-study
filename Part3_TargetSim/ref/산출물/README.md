@@ -7,14 +7,14 @@
 
 | 파일 | 내용 |
 |---|---|
-| `Chapter3_TargetSim.pptx` | 발표자료 32장. 슬라이드 노트에 대본이 들어 있다 |
+| `Chapter3_TargetSim.pptx` | 발표자료 35장. 슬라이드 노트에 대본이 들어 있다 |
 | `Chapter3_TargetSim.pdf` | 위 파일을 PDF 로 내보낸 것 (합본을 만드는 재료) |
 | `Chapter3_발표대본.md` | 발표 대본 원본. 노트와 합본은 이 파일에서 나온다 |
 | `Chapter3_발표자료_대본합본.pdf` | A4 한 장에 슬라이드 한 장과 그 장의 대본. 발표 직전에 손에 드는 용도 |
 
 ## 폴더
 
-- `figures/` — 슬라이드에 들어간 그림 (png). `tools/make_figures.py` 가 만든다
+- `figures/` — 슬라이드에 들어간 기술 도면 22장 (png). `tools/make_figures.py` 가 만든다
 - `data/` — Core 를 돌려 받은 원본 결과 (csv / txt). 그림과 표의 숫자가 전부 여기서 나온다
 - `tools/` — 위를 만드는 스크립트
 
@@ -36,7 +36,7 @@ gcc -O2 -std=c99 -I"$SRC/include" run_convergence.c \
     -lm -o run_conv && ./run_conv > ../data/conv.txt
 
 # 2) 그림 (figures/*.png)
-python3 make_figures.py            # 번호를 주면 그것만: python3 make_figures.py 15 17
+python3 make_figures.py            # 번호를 주면 그것만: python3 make_figures.py 17 20
 
 # 3) 발표자료 (Chapter3_TargetSim.pptx)
 python3 build_deck.py
@@ -51,7 +51,17 @@ python3 build_combo.py
 ```
 
 필요한 것: `python-pptx`, `pymupdf`, `matplotlib`, `numpy`, `Pillow`.
-글꼴은 윈도우면 맑은 고딕, 리눅스면 나눔고딕을 찾아 쓴다.
+글꼴은 윈도우면 맑은 고딕, 리눅스면 나눔고딕을 찾아 쓴다. 수식은 matplotlib mathtext(STIX) 로 그린다.
+
+## 그림 작도 규칙
+
+기술보고서 그림 관례를 따랐다.
+
+- 축은 실선, 가려진 축과 보조선은 파선
+- 벡터는 굵은 실선 + 화살촉, 각은 호로 표시하고 기호를 붙인다
+- 좌표계 표기는 `C^{to}_{from}`, 위도는 `L`, 경도는 `λ`, 자세각은 `φ θ ψ`
+- 색은 뜻이 있을 때만 쓴다 (객체 구분 · 강조), 나머지는 회색조
+- 지구 도해는 정사영(`Ortho` 클래스)으로 그려 위도선·경도선의 앞뒤를 구분한다
 
 ## 스크립트
 
@@ -59,8 +69,8 @@ python3 build_combo.py
 |---|---|
 | `run_sim.c` | 명세 / 기동 시연 / 회전축 비교 세 시나리오를 돌려 CSV 로 떨군다 |
 | `run_convergence.c` | 갱신 간격을 1 s ~ 0.01 s 로 바꿔 가며 60 s 뒤 위치 오차를 잰다 |
-| `make_figures.py` | 슬라이드 그림 19장을 그린다 |
-| `build_deck.py` | 회사 템플릿 색·글꼴·배치로 pptx 32장을 만든다 |
+| `make_figures.py` | 슬라이드 그림 22장을 그린다 (구면 정사영 · DCM 행렬 · 오차 해석 포함) |
+| `build_deck.py` | 회사 템플릿 색·글꼴·배치로 pptx 35장을 만든다 |
 | `sync_notes.py` | 대본 md 를 슬라이드 노트로 밀어 넣는다 |
 | `build_combo.py` | 슬라이드 PDF + 대본 md → A4 합본 PDF |
 
