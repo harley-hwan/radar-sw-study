@@ -1943,16 +1943,608 @@ def fig22():
     print("  fig22_ui.png")
 
 
-FIGS = {1: fig01, 2: fig02, 3: fig03, 4: fig04, 5: fig05, 6: fig06, 7: fig07,
-        8: fig08, 9: fig09, 10: fig10, 11: fig11, 12: fig12, 13: fig13, 14: fig14,
-        15: fig15, 16: fig16, 17: fig17, 18: fig18, 19: fig19, 20: fig20, 21: fig21,
-        22: fig22}
+# ═══════════════════════════════════════════════════════════════════════
+# A. 표적 상태와 좌표계  (상태 벡터 + ECEF/LLA/NED/Body + 자세각)
+# ═══════════════════════════════════════════════════════════════════════
+def figA():
+    fig, ax = canvas(11.2, 4.6)
+
+    # ── 위 띠: 좌표계 ──
+    V = Ortho(lat_deg=20.0, lon_deg=24.0)
+    cx, cy, R = 13.0, 68.0, 14.0
+    LAT_P, LON_P = 36.0, 52.0
+
+    def S(v):
+        a, b = V.xy(v)
+        return cx + xr(R * a), cy + R * b
+
+    circle(ax, cx, cy, R, facecolor="#F6F8FC", edgecolor=INK2, lw=1.1, zorder=2)
+    for la in (-60, -30, 0, 30, 60):
+        pts = [Ortho.sph(la, lo) for lo in np.linspace(0, 360, 160)]
+        sphere_curve(ax, V, pts, cx, cy, R, color=INK2 if la == 0 else RULE,
+                     lw=0.9 if la == 0 else 0.6, z=3)
+    for lo in range(0, 360, 30):
+        pts = [Ortho.sph(la, lo) for la in np.linspace(-90, 90, 80)]
+        sphere_curve(ax, V, pts, cx, cy, R, color=RULE, lw=0.6, z=3)
+    for vec, name, ext in (([1, 0, 0], r"$X_e$", 1.40), ([0, 1, 0], r"$Y_e$", 1.40),
+                           ([0, 0, 1], r"$Z_e$", 1.38)):
+        a, b = V.xy(vec)
+        tip = (cx + xr(R * ext * a), cy + R * ext * b)
+        if not V.front(vec):
+            ax.plot([cx, tip[0]], [cy, tip[1]], color=INK, lw=1.1, ls=(0, (5, 3)), zorder=5)
+            arrow(ax, (cx + xr(R * a), cy + R * b), tip, color=INK, lw=1.2, ms=9)
+        else:
+            arrow(ax, (cx, cy), tip, color=INK, lw=1.3, ms=10, zorder=5)
+        ax.text(cx + xr(R * (ext + 0.20) * a), cy + R * (ext + 0.20) * b, name,
+                fontsize=10, color=INK, ha="center", va="center", zorder=8)
+    P = Ortho.sph(LAT_P, LON_P)
+    ax.plot(*zip(S([0, 0, 0]), S(P)), color=RED, lw=1.2, zorder=6)
+    px, py = S(P)
+    ax.plot([px], [py], "o", ms=5.5, color=RED, zorder=8)
+    lam = [Ortho.sph(0.0, lo) * 0.46 for lo in np.linspace(0, LON_P, 50)]
+    ax.plot([S(v)[0] for v in lam], [S(v)[1] for v in lam], color=GREEN, lw=1.4, zorder=7)
+    ax.text(*S(Ortho.sph(0.0, LON_P * 0.5) * 0.66), r"$\lambda$", fontsize=11,
+            color=GREEN, ha="center", va="center", zorder=8)
+    phi = [Ortho.sph(la, LON_P) * 0.72 for la in np.linspace(0, LAT_P, 50)]
+    ax.plot([S(v)[0] for v in phi], [S(v)[1] for v in phi], color=BLUE, lw=1.4, zorder=7)
+    ax.text(*S(Ortho.sph(LAT_P * 0.5, LON_P) * 0.90), r"$\varphi$", fontsize=11,
+            color=BLUE, ha="center", va="center", zorder=8)
+    hx, hy = S(P * 1.32)
+    arrow(ax, (px, py), (hx, hy), color=RED, lw=1.1, ms=8, ls=(0, (2, 2)))
+    ax.text(hx + xr(2.6), hy + 1.6, r"$h$", fontsize=10.5, color=RED, ha="center",
+            va="center", zorder=8)
+    label(ax, 2.0, 93.0, "ECEF · LLA", size=10.4, color=INK, bold=True)
+    caption(ax, 2.0, 50.0, r"지구중심 직교좌표와 그 각도 표현 $(\varphi,\lambda,h)$", size=8.6)
+
+    # NED / Body
+    ox, oy = 41.0, 68.0
+    eN, eE, eD = (0.42, 0.86), (0.95, -0.27), (0.0, -1.0)
+    L = 11.5
+    a_, b_ = L * 1.30, L * 1.35
+    quad = [(ox + xr(a_ * eN[0] + b_ * eE[0]), oy + a_ * eN[1] + b_ * eE[1]),
+            (ox + xr(-a_ * eN[0] + b_ * eE[0]), oy - a_ * eN[1] + b_ * eE[1]),
+            (ox + xr(-a_ * eN[0] - b_ * eE[0]), oy - a_ * eN[1] - b_ * eE[1]),
+            (ox + xr(a_ * eN[0] - b_ * eE[0]), oy + a_ * eN[1] - b_ * eE[1])]
+    ax.add_patch(Polygon(np.array(quad), closed=True, facecolor="#F6F8FC", edgecolor=RULE,
+                         lw=0.9, zorder=2))
+    for e, name, ln, dx in ((eN, r"$N$", L, 0.0), (eE, r"$E$", L, 0.0),
+                            (eD, r"$D$", L * 0.72, -2.6)):
+        arrow(ax, (ox, oy), (ox + xr(ln * e[0]), oy + ln * e[1]), color=INK, lw=1.4, ms=10)
+        ax.text(ox + xr((ln + 2.8) * e[0] + dx), oy + (ln + 2.8) * e[1], name, fontsize=10.5,
+                color=INK, ha="center", va="center", zorder=8)
+    psi = 52.0
+    c_, s_ = math.cos(math.radians(psi)), math.sin(math.radians(psi))
+    xb = (c_ * eN[0] + s_ * eE[0], c_ * eN[1] + s_ * eE[1])
+    arrow(ax, (ox, oy), (ox + xr(L * 0.88 * xb[0]), oy + L * 0.88 * xb[1]), color=RED,
+          lw=1.8, ms=10, zorder=6)
+    ax.text(ox + xr((L * 0.88 + 2.8) * xb[0]), oy + (L * 0.88 + 2.8) * xb[1], r"$x_b$",
+            fontsize=10.5, color=RED, ha="center", va="center", zorder=8)
+    arc_in_plane(ax, (ox, oy), eN, eE, 6.2, 0.0, psi, color=AMBER, lw=1.5)
+    mm = math.radians(psi * 0.5)
+    ax.text(ox + xr(8.6 * (math.cos(mm) * eN[0] + math.sin(mm) * eE[0])),
+            oy + 8.6 * (math.cos(mm) * eN[1] + math.sin(mm) * eE[1]), r"$\psi$",
+            fontsize=11.5, color=AMBER, ha="center", va="center", zorder=8)
+    label(ax, 30.0, 93.0, "NED · Body", size=10.4, color=INK, bold=True)
+    caption(ax, 30.0, 50.0, r"표적 발밑의 북 · 동 · 아래와 기수 축 $x_b$", size=8.6)
+
+    # 자세각 3종 미니 + 변환 체인
+    label(ax, 57.0, 93.0, "자세각 세 개", size=10.4, color=INK, bold=True)
+    for i, (nm, sym, shape, c, rot) in enumerate([
+            ("Roll", r"$\phi$", PLANE_FRONT, VIOLET, 0.34),
+            ("Pitch", r"$\theta$", PLANE_SIDE, AMBER, 0.26),
+            ("Yaw", r"$\psi$", PLANE_TOP, BLUE, 0.44)]):
+        x = 58.0 + i * 13.5
+        polyx(ax, x + 5.0, 78.0, shape, s=0.62, rot=rot, facecolor=c, edgecolor="none",
+              zorder=5)
+        label(ax, x + 5.0, 86.5, "%s  %s" % (nm, sym), size=9.4, color=c, bold=True,
+              ha="center")
+        caption(ax, x + 5.0, 68.0, ["날개가 기운다", "기수가 들린다", "기수가 돈다"][i],
+                size=8.2, ha="center")
+    ax.text(58.0, 59.0, r"$\mathbf{C}^{n}_{b}=\mathbf{R}_{z}(\psi)\mathbf{R}_{y}(\theta)"
+                        r"\mathbf{R}_{x}(\phi)$", fontsize=12, color=INK, va="center",
+            zorder=6)
+    caption(ax, 58.0, 52.0, "곱하는 순서는 Yaw → Pitch → Roll 로 고정한다", size=8.6)
+
+    ax.plot([2, 98], [46.0, 46.0], color=RULE, lw=0.9, zorder=3)
+
+    # ── 아래 띠: 상태 벡터 ──
+    label(ax, 2.0, 41.0, "표적 하나의 상태 벡터", size=10.6, color=INK, bold=True)
+    ax.text(2.0, 32.0, r"$\mathbf{x}(t)=\left[\;\mathbf{p}^{e\,T}\;\;"
+                       r"\mathbf{v}^{e\,T}\;\;\boldsymbol{\Theta}^{T}\;\right]^{T}"
+                       r"\in\mathbb{R}^{9}$", fontsize=14, color=INK, va="center",
+            zorder=6)
+    rows = [(r"$\mathbf{p}^{e}$", "ECEF 위치", "m", BLUE),
+            (r"$\mathbf{v}^{e}$", "ECEF 속도", "m/s", GREEN),
+            (r"$\boldsymbol{\Theta}$", "자세각 " + r"$(\phi,\theta,\psi)$", "rad", AMBER)]
+    for i, (sym, nm, unit, c) in enumerate(rows):
+        y = 22.0 - i * 6.6
+        ax.add_patch(Rectangle((2.0, y - 2.4), 0.7, 5.0, facecolor=c, edgecolor="none",
+                               zorder=4))
+        ax.text(4.2, y, sym, fontsize=11.5, color=INK, va="center", zorder=6)
+        label(ax, 9.0, y, nm, size=9.2, color=INK2)
+        label(ax, 26.0, y, unit, size=8.8, color=GREY, font=MONO)
+
+    ax.plot([33.0, 33.0], [3.0, 40.0], color=RULE, lw=0.9, zorder=3)
+    label(ax, 36.0, 41.0, "명세가 주는 입력이 초기 상태가 되는 길", size=10.6, color=INK,
+          bold=True)
+    give = [("위도 · 경도 · 고도", r"$(\varphi_0,\lambda_0,h_0)$",
+             r"$\mathbf{p}^{e}_{0}$", "좌표변환 1회", BLUE),
+            ("자세각", r"$(\phi_0,\theta_0,\psi_0)$", r"$\boldsymbol{\Theta}_{0}$",
+             "그대로", AMBER),
+            ("동체 속력 1개", r"$V$",
+             r"$\mathbf{v}^{e}_{0}=\mathbf{C}^{e}_{n}\mathbf{C}^{n}_{b}[V\,0\,0]^{T}$",
+             "회전 2회 — 이 과제의 추가 고민 항목", GREEN)]
+    for i, (k, sym, out, note, c) in enumerate(give):
+        y = 31.0 - i * 9.4
+        ax.add_patch(Rectangle((36.0, y - 3.2), 0.7, 6.6, facecolor=c, edgecolor="none",
+                               zorder=4))
+        label(ax, 38.2, y + 1.2, k, size=9.2, color=INK, bold=True)
+        ax.text(53.0, y + 1.2, sym, fontsize=10.5, color=INK2, va="center", zorder=6)
+        arrow(ax, (60.0, y + 1.2), (63.0, y + 1.2), color=c, lw=1.2, ms=9)
+        ax.text(64.5, y + 1.2, out, fontsize=10.5, color=INK, va="center", zorder=6)
+        caption(ax, 38.2, y - 2.0, note, size=8.2)
+    save(fig, "figA_state_frames.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# B. 기동 정의와 G → 각속도 · 선회 반경
+# ═══════════════════════════════════════════════════════════════════════
+def figB():
+    fig, ax = canvas(11.2, 4.6)
+
+    # ── 왼쪽 위: 기동 4필드 ──
+    label(ax, 2.0, 93.0, "기동 1건 = 값 네 개", size=11.0, color=INK, bold=True)
+    ax.plot([2, 46], [89.0, 89.0], color=INK, lw=1.0, zorder=3)
+    fields = [("enTurnType", "0 없음 / 1 Roll / 2 Yaw / 3 Pitch", VIOLET),
+              ("gravityValue", "크기는 세기, 부호는 회전 방향  [G]", AMBER),
+              ("startTime", "이 시각부터 (포함)  [s]", GREEN),
+              ("endTime", "이 시각까지 (제외)  [s]", GREEN)]
+    for i, (n, d, c) in enumerate(fields):
+        y = 83.0 - i * 6.6
+        ax.add_patch(Rectangle((2.0, y - 2.0), 0.7, 4.6, facecolor=c, edgecolor="none",
+                               zorder=4))
+        label(ax, 4.0, y, n, size=9.2, color=INK, font=MONO, bold=True)
+        label(ax, 19.0, y, d, size=8.8, color=INK2)
+    ax.text(2.0, 54.0, r"$t\in[\,t_{start},\,t_{end})$", fontsize=11.5, color=INK,
+            va="center", zorder=6)
+    caption(ax, 18.0, 54.0, "끝과 다음 시작이 같아도 겹침이 아니다", size=8.6)
+    label(ax, 2.0, 49.0, "실제로 겹치면 계산 전에 TGT_ERR_MANEUVER_OVERLAP", size=8.6,
+          color=RED)
+
+    # ── 오른쪽 위: G 유도 ──
+    ax.plot([49.0, 49.0], [46.0, 95.0], color=RULE, lw=0.9, zorder=3)
+    label(ax, 52.0, 93.0, "G 값 하나가 각속도와 선회 반경을 정한다", size=11.0, color=INK,
+          bold=True)
+    ax.plot([52, 98], [89.0, 89.0], color=INK, lw=1.0, zorder=3)
+    ax.text(53.0, 81.0, r"$a_c=\dfrac{V^{2}}{R}=V\,\omega=n\,g$", fontsize=13,
+            color=INK, va="center", zorder=6)
+    caption(ax, 53.0, 73.5, "원운동의 구심가속도를 중력가속도의 n 배로 적는다", size=8.6)
+    ax.text(53.0, 65.0, r"$\omega=\dfrac{n\,g}{V},\qquad R=\dfrac{V^{2}}{n\,g}$",
+            fontsize=14, color=BLUE, va="center", zorder=6)
+    label(ax, 53.0, 56.0, "omega = (gravityValue * G_FORCE) / headingSpeed;", size=8.6,
+          color=GREY, font=MONO)
+
+    xs = [53.0, 61.0, 79.0]
+    for x, hh in zip(xs, ["n [G]", "대함  V = 30 m/s", "대공  V = 200 m/s"]):
+        label(ax, x, 50.0, hh, size=8.8, color=INK, bold=True)
+    ax.plot([52, 98], [47.5, 47.5], color=RULE, lw=0.8, zorder=3)
+    for i, n in enumerate((1.0, 4.0, 8.0)):
+        y = 43.5 - i * 4.6
+        label(ax, xs[0], y, "%g" % n, size=8.6, color=INK, font=MONO, bold=True)
+        for j, V in enumerate((30.0, 200.0)):
+            w = math.degrees(n * 9.80665 / V)
+            Rr = V * V / (n * 9.80665)
+            label(ax, xs[1 + j], y, "%5.1f °/s      R = %s m" %
+                  (w, ("%.0f" % Rr) if Rr >= 100 else ("%.1f" % Rr)),
+                  size=8.4, color=INK2, font=MONO)
+    caption(ax, 52.0, 27.0, "같은 G 라도 빠른 표적은 덜 꺾인다 — 분모에 속력이 있기 때문이다.",
+            size=8.6)
+
+    # ── 아래: 실측 응답 ──
+    ax.plot([2, 98], [33.0, 33.0], color=RULE, lw=0.9, zorder=3)
+    label(ax, 2.0, 28.0, "기동표 6줄이 실제 응답으로 나타난 모습  (대공 표적)", size=10.0,
+          color=INK, bold=True)
+    rows = read_csv("demo.csv")
+    t = col(rows, "time")
+    yaw = col(rows, "t2_yaw") % 360.0
+    sub = fig.add_axes([0.045, 0.045, 0.415, 0.20])
+    sub.plot(t, yaw, color=RED, lw=1.7, zorder=5)
+    for a, b, g in [(2.8, 6.7, "-8.2"), (13.3, 17.2, "+8.2"), (18.6, 22.5, "+8.2"),
+                    (36.2, 40.1, "-8.2"), (41.5, 45.4, "-8.2"), (53.5, 60.0, "+8.2")]:
+        sub.axvspan(a, b, color="#FDE7E7", zorder=1)
+        sub.annotate(g, xy=((a + b) / 2.0, 335.0), ha="center", va="center", fontsize=6.4,
+                     color=RED, zorder=6)
+    sub.set_xlim(0, 60)
+    sub.set_ylim(0, 380)
+    sub.set_yticks([0, 180, 360])
+    sub.set_xlabel("시각 [s]", fontsize=8)
+    sub.set_ylabel(r"$\psi$ [°]", fontsize=8)
+    sub.grid(True, lw=0.5)
+    sub.tick_params(labelsize=7)
+    for sp in sub.spines.values():
+        sp.set_color("#9AA7BD")
+
+    label(ax, 49.0, 22.0, "색칠한 구간이 기동표에 적은 [start, end) 이고,", size=9.0,
+          color=INK2)
+    label(ax, 49.0, 17.5, "그 안에서만 기울기가 생긴다. 기울기가 곧 " + r"$\omega$" + " 다.",
+          size=9.0, color=INK2)
+    label(ax, 49.0, 11.0, "기동 지시는 \"위도 32.1 에서 좌 90도\" 처럼 좌표로 온다.",
+          size=9.0, color=GREY)
+    label(ax, 49.0, 6.5, "구조체에는 시각 칸만 있어 Core 를 돌려 그 좌표에 닿는", size=9.0,
+          color=GREY)
+    label(ax, 49.0, 2.0, "시각을 찾아 start / end 로 옮겼다.", size=9.0, color=GREY)
+    save(fig, "figB_maneuver_g.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# C. 운동학 모델과 ECEF 적분
+# ═══════════════════════════════════════════════════════════════════════
+def figC():
+    fig, ax = canvas(11.2, 4.4)
+
+    label(ax, 2.0, 93.0, "표적 운동을 지배하는 세 줄", size=11.2, color=INK, bold=True)
+    ax.plot([2, 98], [89.0, 89.0], color=INK, lw=1.0, zorder=3)
+    eqs = [(r"$\dot{\mathbf{p}}^{e}=\mathbf{v}^{e}$", "위치의 시간 변화율이 곧 속도", BLUE),
+           (r"$\mathbf{v}^{e}=\mathbf{C}^{e}_{n}(\varphi,\lambda)\,"
+            r"\mathbf{C}^{n}_{b}(\phi,\theta,\psi)\,[\,V\ \ 0\ \ 0\,]^{T}$",
+            "속도는 기수 방향 크기 V 를 두 번 돌려 만든다", GREEN),
+           (r"$\dot{\boldsymbol{\Theta}}=\boldsymbol{\omega}(t),\quad"
+            r"\omega_i=n_i\,g\,/\,V$",
+            "자세각은 기동이 걸린 구간에서만 돈다", AMBER)]
+    for i, (eq, note, c) in enumerate(eqs):
+        x = 2.0 + i * 32.6
+        ax.add_patch(Rectangle((x, 66.0), 0.7, 16.0, facecolor=c, edgecolor="none",
+                               zorder=4))
+        ax.text(x + 2.2, 77.0, eq, fontsize=12.5 if i == 1 else 13.5, color=INK,
+                va="center", zorder=6)
+        caption(ax, x + 2.2, 68.5, note, size=8.6)
+
+    ax.plot([2, 98], [61.0, 61.0], color=RULE, lw=0.9, zorder=3)
+
+    # 왼쪽: 모델 가정
+    label(ax, 2.0, 56.0, "이 모델이 전제하는 것", size=10.4, color=INK, bold=True)
+    asm = [("운동학 모델", "힘이 아니라 속도 · 각속도를 직접 준다.",
+            "중력 · 추력 · 항력을 풀지 않아 탄도 표적에는 맞지 않는다."),
+           ("속력 일정", "회전만 하므로 |v| 가 변하지 않는다.",
+            "가속이 필요하면 V 를 시간 함수로 바꿔야 한다."),
+           ("오일러각 적분", "자세각을 직접 적분한다.",
+            r"$\theta\to\pm 90°$ 에서 짐벌락 — 사원수로 바꾸면 풀린다.")]
+    for i, (k, v1, v2) in enumerate(asm):
+        y = 47.0 - i * 15.0
+        panel(ax, 2.0, y - 8.0, 44.0, 13.0, fill=PANEL, edge=RULE)
+        label(ax, 4.0, y + 1.6, k, size=9.4, color=INK, bold=True)
+        label(ax, 17.0, y + 1.6, v1, size=8.8, color=INK2)
+        ax.text(4.0, y - 3.4, v2, fontsize=8.4, color=GREY, va="center", zorder=6)
+
+    # 오른쪽: 왜 ECEF
+    ax.plot([49.0, 49.0], [3.0, 58.0], color=RULE, lw=0.9, zorder=3)
+    label(ax, 52.0, 56.0, "왜 ECEF 에서 적분하는가", size=10.4, color=INK, bold=True)
+
+    panel(ax, 52.0, 30.0, 21.5, 20.0, fill="#FDF7F7", edge="#F0D8D8")
+    label(ax, 62.75, 46.5, "LLA 에서 직접", size=9.4, color="#B03B3B", bold=True,
+          ha="center")
+    ax.text(62.75, 41.0, r"$\dot{\varphi}=\dfrac{v_N}{M(\varphi)+h}$", fontsize=11,
+            color="#8A3232", ha="center", va="center", zorder=6)
+    caption(ax, 62.75, 33.0, "분모가 위도마다 달라\n곧게 날려도 고도가 뜬다", size=8.2,
+            ha="center")
+
+    panel(ax, 76.5, 30.0, 21.5, 20.0, fill="#F4FAF7", edge="#CDE7DA")
+    label(ax, 87.25, 46.5, "ECEF 에서", size=9.4, color="#0B6B4B", bold=True, ha="center")
+    ax.text(87.25, 41.0, r"$\mathbf{p}^{e}_{k+1}=\mathbf{p}^{e}_{k}+\mathbf{v}^{e}\Delta t$",
+            fontsize=11, color="#0B6B4B", ha="center", va="center", zorder=6)
+    caption(ax, 87.25, 33.0, "미터 단위 직교좌표라\n그냥 더하면 된다", size=8.2, ha="center")
+    arrow(ax, (73.8, 40.0), (76.2, 40.0), color=INK2, lw=1.4, ms=10)
+
+    d = 200.0 * 0.1
+    drift = d * d / (2.0 * 6378137.0)
+    label(ax, 52.0, 24.0, "본 과제 조건에서 실제로 얼마인가", size=9.4, color=INK, bold=True)
+    items = [(r"$d=V\Delta t$", r"$20$ m"),
+             (r"$d^{2}/2R$", r"$%.1f\ \mu$m/스텝" % (drift * 1e6)),
+             ("600 스텝 누적", r"$%.1f$ mm" % (drift * 600.0 * 1e3)),
+             ("중점법 보정 후", "고도 불변")]
+    for i, (k, v) in enumerate(items):
+        x = 52.0 + i * 11.8
+        ax.text(x, 17.0, k, fontsize=8.6, color=INK2, va="center", zorder=6)
+        ax.text(x, 11.0, v, fontsize=10.0, color=GREEN if i == 3 else INK, va="center",
+                zorder=6)
+        if i < 3:
+            ax.plot([x + 10.6, x + 10.6], [8.0, 19.0], color=RULE, lw=0.7, zorder=2)
+    caption(ax, 52.0, 4.5, "값은 작지만, 이런 항이 남으면 간격을 줄여도 오차가 선형으로만 줄어 2차 수렴이 깨진다.",
+            size=8.4)
+    save(fig, "figC_model_ecef.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# D. 동체 속도 → ECEF 속도와 회전행렬
+# ═══════════════════════════════════════════════════════════════════════
+def figD():
+    fig, ax = canvas(11.2, 4.5)
+
+    label(ax, 2.0, 94.0, "동체 속도를 ECEF 속도로 — 회전 두 번", size=11.2, color=INK,
+          bold=True)
+    ax.plot([2, 98], [90.0, 90.0], color=INK, lw=1.0, zorder=3)
+
+    steps = [("동체 " + r"$b$", r"$[\,V\ \ 0\ \ 0\,]^{T}$", "기수 방향으로 V", RED, 2.0),
+             ("NED " + r"$n$", r"$[\,v_N\ v_E\ v_D\,]^{T}$", "자세각으로 한 번", AMBER, 25.0),
+             ("ECEF " + r"$e$", r"$[\,v_x\ v_y\ v_z\,]^{T}$", "위 · 경도로 한 번 더", GREEN, 48.0)]
+    for name, val, desc, c, x in steps:
+        panel(ax, x, 68.0, 20.0, 18.0, fill=WHITE, edge=c, lw=1.4)
+        ax.add_patch(Rectangle((x, 81.5), 20.0, 4.5, facecolor=c, edgecolor="none",
+                               zorder=3))
+        label(ax, x + 10.0, 83.7, name, size=9.6, color=WHITE, bold=True, ha="center")
+        ax.text(x + 10.0, 76.5, val, fontsize=11.5, color=INK, ha="center", va="center",
+                zorder=6)
+        caption(ax, x + 10.0, 71.0, desc, size=8.4, ha="center")
+    for x0, dcm in ((22.2, r"$\mathbf{C}^{n}_{b}$"), (45.2, r"$\mathbf{C}^{e}_{n}$")):
+        arrow(ax, (x0, 76.0), (x0 + 2.6, 76.0), color=INK, lw=1.8, ms=12)
+        ax.text(x0 + 1.3, 81.0, dcm, fontsize=11.5, color=INK, ha="center", va="center",
+                zorder=7)
+
+    panel(ax, 71.0, 68.0, 27.0, 18.0, fill="#F4FAF7", edge="#CDE7DA")
+    ax.text(84.5, 80.5, r"$\|\mathbf{v}^{e}\|=V$", fontsize=14, color="#0B6B4B",
+            ha="center", va="center", zorder=6)
+    caption(ax, 84.5, 74.0, "두 번 다 직교행렬이라 크기가 변하지 않는다.\n"
+                            "601 표본에서 속력이 입력값과 완전히 일치했다.", size=8.4,
+            ha="center")
+
+    ax.plot([2, 98], [63.0, 63.0], color=RULE, lw=0.9, zorder=3)
+
+    # 두 행렬
+    label(ax, 2.0, 58.0, "① 동체 → NED", size=10.0, color=AMBER, bold=True)
+    ax.text(17.0, 58.0, r"$\mathbf{C}^{n}_{b}(\phi,\theta,\psi)$", fontsize=11.5,
+            color=INK, va="center", zorder=6)
+    matrix(ax, 27.0, 36.0,
+           [[r"$c\psi\,c\theta$", r"$s\phi\,s\theta\,c\psi-c\phi\,s\psi$",
+             r"$c\phi\,s\theta\,c\psi+s\phi\,s\psi$"],
+            [r"$c\theta\,s\psi$", r"$s\phi\,s\theta\,s\psi+c\phi\,c\psi$",
+             r"$c\phi\,s\theta\,s\psi-s\phi\,c\psi$"],
+            [r"$-s\theta$", r"$s\phi\,c\theta$", r"$c\phi\,c\theta$"]],
+           cw=16.0, ch=7.0, size=9.2)
+    caption(ax, 2.0, 18.0, r"$\phi$ Roll   $\theta$ Pitch   $\psi$ Yaw   "
+                           r"($c=\cos,\ s=\sin$)", size=8.4)
+
+    ax.plot([53.0, 53.0], [6.0, 60.0], color=RULE, lw=0.9, zorder=3)
+    label(ax, 56.0, 58.0, "② NED → ECEF", size=10.0, color=GREEN, bold=True)
+    ax.text(72.0, 58.0, r"$\mathbf{C}^{e}_{n}(L,\lambda)$", fontsize=11.5, color=INK,
+            va="center", zorder=6)
+    matrix(ax, 77.0, 36.0,
+           [[r"$-s L\,c\lambda$", r"$-s\lambda$", r"$-c L\,c\lambda$"],
+            [r"$-s L\,s\lambda$", r"$c\lambda$", r"$-c L\,s\lambda$"],
+            [r"$c L$", r"$0$", r"$-s L$"]],
+           cw=11.5, ch=7.0, size=9.6)
+    caption(ax, 56.0, 18.0, r"$L$ 위도   $\lambda$ 경도 — 표적이 움직이면 매 스텝 다시 만든다",
+            size=8.4)
+
+    panel(ax, 2.0, 2.0, 96.0, 12.0, fill=PANEL, edge=RULE)
+    label(ax, 4.0, 10.6, "쓰는 방법이 위치와 속도에서 다르다", size=9.6, color=INK,
+          bold=True)
+    ax.text(4.0, 5.6, r"$\mathbf{p}^{e}=\mathbf{C}^{e}_{n}\mathbf{p}^{n}"
+                      r"+\mathbf{p}^{e}_{ref}$", fontsize=11, color=INK, va="center",
+            zorder=6)
+    caption(ax, 22.0, 5.6, "위치는 기준점을 더한다", size=8.6)
+    ax.text(44.0, 5.6, r"$\mathbf{v}^{e}=\mathbf{C}^{e}_{n}\mathbf{v}^{n}$",
+            fontsize=11, color=GREEN, va="center", zorder=6)
+    label(ax, 57.0, 5.6, "속도는 방향뿐이라 기준점을 0 으로 준다 — "
+                         "f_Trans_Ned_To_Ecef(..., 0.0, 0.0, 0.0, ...)", size=8.6,
+          color=RED)
+    save(fig, "figD_velocity_dcm.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# F. 검증 종합 — 세 갈래 + 수렴 차수
+# ═══════════════════════════════════════════════════════════════════════
+def figF():
+    rows = read_csv("spec.csv")
+    path = []
+    for k in (1, 2):
+        pe = lla2ecef(col(rows, "t%d_lat" % k), col(rows, "t%d_lon" % k),
+                      col(rows, "t%d_alt" % k))
+        path.append(float(np.sum(np.linalg.norm(np.diff(pe, axis=0), axis=1))))
+    dh = (col(rows, "t2_alt") - 300.0).max() * 1e6
+
+    dts, errs = [], []
+    with open(os.path.join(DATA, "conv.txt"), encoding="utf-8") as fp:
+        section = 0
+        for line in fp:
+            line = line.strip()
+            if line.startswith("#"):
+                section += 1
+                continue
+            if not line or line.startswith("dt,"):
+                continue
+            if section == 2:
+                a, b, _ = line.split(",")
+                dts.append(float(a))
+                errs.append(float(b))
+    dts, errs = np.array(dts), np.array(errs)
+    slope = float(np.polyfit(np.log(dts), np.log(errs), 1)[0])
+
+    fig, ax = canvas(11.2, 4.4)
+    label(ax, 2.0, 94.0, "세 가지 방법으로 검증했다", size=11.2, color=INK, bold=True)
+    ax.plot([2, 58], [90.0, 90.0], color=INK, lw=1.0, zorder=3)
+
+    groups = [("① 해석해와 대조", BLUE, "스케일이 틀린 경우를 잡는다",
+               [("대함 이동거리", r"$30\times 60=1800$ m", "%+.1e m" % (path[0] - 1800.0)),
+                ("대공 이동거리", r"$200\times 60=12000$ m", "%+.1e m" % (path[1] - 12000.0))]),
+              ("② 불변량 보존", GREEN, "방향이 틀린 경우를 잡는다",
+               [("고도 (수평 비행)", "300 m 유지", r"$%.1f\ \mu$m" % dh),
+                ("속력 (회전만)", "200 m/s 유지", "0  (601 표본 일치)"),
+                ("위도 · 경도 (직진)", "정서진 · 정남진", r"$0.1\ \mu$m / 0")]),
+              ("③ 수렴 차수", AMBER, "적분 방법이 틀린 경우를 잡는다",
+               [(r"$\Delta t$ 를 1/2 로", "오차 1/4 (2차)", "기울기 %.3f" % slope)])]
+    y = 85.0
+    for gname, gc, why, items in groups:
+        ax.add_patch(Rectangle((2.0, y - 4.2), 56.0, 5.6, facecolor=gc, edgecolor="none",
+                               zorder=3))
+        label(ax, 4.0, y - 1.4, gname, size=9.4, color=WHITE, bold=True)
+        label(ax, 25.0, y - 1.4, why, size=8.4, color=WHITE)
+        y -= 8.0
+        for k, (nm, exp, res) in enumerate(items):
+            if k % 2 == 0:
+                ax.add_patch(Rectangle((2.0, y - 2.7), 56.0, 5.8, facecolor="#F8FAFD",
+                                       edgecolor="none", zorder=2))
+            label(ax, 4.0, y, nm, size=8.6, color=INK, bold=True)
+            ax.text(23.0, y, exp, fontsize=8.4, color=INK2, va="center", zorder=6)
+            ax.text(44.0, y, res, fontsize=8.8, color=GREEN, va="center", zorder=6,
+                    fontweight="bold")
+            y -= 5.8
+        y -= 2.6
+
+    caption(ax, 2.0, 12.0, "이동거리는 601개 표본 사이 거리를 전부 더해 잰 값이다 — 직선거리가 아니라")
+    caption(ax, 2.0, 7.5, "실제로 지나간 길이. 12 km 를 날아 잔차가 0.0002 mm 수준이다.")
+    caption(ax, 2.0, 2.0, "고도 잔차 30.8 µm 는 제공 코드의 ECEF→LLA 반복 근사에서 오는 상수 편차다.".replace("µ", "u"))
+
+    # 수렴 그래프
+    sub = fig.add_axes([0.625, 0.175, 0.345, 0.66])
+    sub.loglog(dts, errs, "o-", color=BLUE, lw=1.9, ms=5.5, label="실측 오차", zorder=5)
+    sub.loglog(dts, errs[0] * (dts / dts[0]) ** 2, "--", color=GREY, lw=1.3,
+               label=r"기울기 2 기준선", zorder=4)
+    sub.axvline(0.1, color=AMBER, lw=1.2, ls=(0, (4, 3)), zorder=3)
+    sub.text(0.107, errs[0] * 0.45, "과제 조건\n0.1 s", fontsize=7.6, color=AMBER,
+             fontweight="bold", linespacing=1.5)
+    sub.set_xlabel(r"갱신 간격 $\Delta t$ [s]", fontsize=8.6)
+    sub.set_ylabel("60 s 뒤 위치 오차 [m]", fontsize=8.6)
+    sub.grid(True, which="both", lw=0.5)
+    sub.legend(fontsize=7.6, loc="upper left")
+    sub.set_title("Yaw 2 G 로 20 s 선회하는 표적", fontsize=9.4, color=INK, pad=6)
+    sub.xaxis.set_major_formatter(FuncFormatter(lambda v, _: "%g" % v))
+    sub.xaxis.set_minor_formatter(NullFormatter())
+    sub.set_xticks([0.01, 0.05, 0.1, 0.5, 1.0])
+    sub.yaxis.set_major_formatter(FuncFormatter(
+        lambda v, _: ("%g" % v) if v >= 0.01 else ("%.0e" % v).replace("e-0", "e-")))
+    sub.tick_params(labelsize=7.4)
+    sub.annotate("0.1 s 에서 1.36 cm", xy=(0.1, 1.357e-2), xytext=(0.13, 1.5e-3),
+                 fontsize=7.8, color=BLUE, fontweight="bold",
+                 arrowprops=dict(arrowstyle="->", color=BLUE, lw=0.9))
+    for sp in sub.spines.values():
+        sp.set_color("#9AA7BD")
+    caption(ax, 62.0, 2.0, "값 하나가 작은 것보다, 간격을 바꿨을 때 정해진 기울기로 줄어드는 것이 더 강한 증거다.",
+            size=8.4)
+    save(fig, "figF_verify.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# G. 기동 시연과 운용 화면
+# ═══════════════════════════════════════════════════════════════════════
+def figG():
+    rows = read_csv("demo.csv")
+    t = col(rows, "time")
+    e1, n1 = to_en(col(rows, "t1_lat"), col(rows, "t1_lon"), 32.0, 126.0)
+    e2, n2 = to_en(col(rows, "t2_lat"), col(rows, "t2_lon"), 32.0, 126.0)
+
+    fig, ax = canvas(11.2, 4.5)
+    label(ax, 2.0, 95.0, "기동 10줄을 얹은 60 s 궤적", size=10.6, color=INK, bold=True)
+    label(ax, 40.0, 95.0, "TargetSim — 값을 바꿔 가며 확인하는 화면", size=10.6, color=INK,
+          bold=True)
+
+    m1 = fig.add_axes([0.032, 0.135, 0.145, 0.725])
+    m1.plot(e2 / 1000.0, n2 / 1000.0, color=RED, lw=1.7, zorder=5)
+    m1.plot(e1 / 1000.0, n1 / 1000.0, color=BLUE, lw=1.7, zorder=5)
+    for e, n, c in ((e1, n1, BLUE), (e2, n2, RED)):
+        m1.plot(e[0] / 1000.0, n[0] / 1000.0, "o", ms=5.5, mfc=WHITE, mec=c, mew=1.5,
+                zorder=7)
+        m1.plot(e[-1] / 1000.0, n[-1] / 1000.0, "s", ms=4.5, color=c, zorder=7)
+    m1.plot([0], [0], "^", ms=8, color=PF, zorder=7)
+    m1.set_xlabel("동쪽 [km]", fontsize=8)
+    m1.set_ylabel("북쪽 [km]", fontsize=8)
+    m1.grid(True, lw=0.5)
+    m1.set_aspect("equal", adjustable="box")
+    m1.set_xlim(-1.6, 3.6)
+    m1.set_ylim(-0.8, 14.8)
+    m1.tick_params(labelsize=7)
+    for sp in m1.spines.values():
+        sp.set_color("#9AA7BD")
+
+    for k, (key, c, nm) in enumerate((("t1_yaw", BLUE, "표적 1  대함"),
+                                      ("t2_yaw", RED, "표적 2  대공"))):
+        sub = fig.add_axes([0.207, 0.575 - k * 0.440, 0.145, 0.285])
+        sub.plot(t, col(rows, key) % 360.0, color=c, lw=1.5)
+        sub.set_ylim(-25, 390)
+        sub.set_yticks([0, 180, 360])
+        sub.set_ylabel(r"$\psi$ [°]", fontsize=7.6)
+        sub.grid(True, lw=0.5)
+        sub.tick_params(labelsize=7)
+        sub.set_title(nm, fontsize=8.2, color=INK, pad=4)
+        if k == 1:
+            sub.set_xlabel("시각 [s]", fontsize=8)
+        else:
+            sub.set_xticklabels([])
+        for sp in sub.spines.values():
+            sp.set_color("#9AA7BD")
+
+    img = plt.imread(os.path.join(OUT, "fig22_ui.png"))
+    ui = fig.add_axes([0.375, 0.135, 0.415, 0.725])
+    ui.imshow(img)
+    ui.set_xticks([]); ui.set_yticks([])
+    for sp in ui.spines.values():
+        sp.set_color(RULE)
+        sp.set_linewidth(0.9)
+
+    for i, (k, d, c) in enumerate([
+            ("고치면 곧바로 다시 돈다",
+             "표의 칸을 고치면 0.25 s 뒤 자동으로\n다시 계산한다. 601 표본 × 3 객체가\n4.8 ms 라 기다릴 일이 없다.", BLUE),
+            ("그림에서 끌어서 배치",
+             "시작점과 기수 손잡이를 마우스로 끌면\n위도 · 경도 · Yaw 가 표에 반영된다.\n회전각과 선회 반경은 G 로부터 계산.", AMBER),
+            ("결과는 표 · CSV · 그림",
+             "시각별 LLA 를 표로 보고 슬라이더로\n되감고 CSV 로 내보낸다. 오늘 숫자가\n전부 여기서 나온 CSV 다.", GREEN)]):
+        y = 76.0 - i * 25.0
+        ax.add_patch(Rectangle((81.0, y - 14.0), 0.8, 19.0, facecolor=c, edgecolor="none",
+                               zorder=4))
+        label(ax, 83.0, y + 2.6, k, size=9.2, color=INK, bold=True)
+        label(ax, 83.0, y - 5.0, d, size=8.4, color=INK2, space=1.55)
+
+    save(fig, "figG_demo_ui.png")
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# 발표자료가 쓰는 그림 (순서대로). fig22 는 figG 의 재료라 먼저 그린다.
+# ═══════════════════════════════════════════════════════════════════════
+FIGS = {
+    1: fig02,       # 소프트웨어 구성과 인터페이스
+    2: figA,        # 표적 상태와 좌표계
+    3: figB,        # 기동 정의와 G → 각속도
+    4: fig08,       # 회전축 세 가지 응답 (실측)
+    5: fig09,       # 구조체 관계와 설계 결정
+    6: figC,        # 운동학 모델과 ECEF 적분
+    7: figD,        # 동체 속도 → ECEF 속도와 회전행렬
+    8: fig14,       # 오일러법과 중점법
+    9: fig17,       # 명세 시나리오 궤적
+    10: figF,       # 검증 종합과 수렴 차수
+    11: fig22,      # TargetSim 화면 (figG 의 재료)
+    12: figG,       # 기동 시연과 운용 화면
+}
+
+# 질의응답 예비용. 발표자료에는 넣지 않지만 질문이 깊게 들어올 때 꺼내 쓴다.
+EXTRA = {
+    101: fig01,     # 모의가 대신하는 구간과 비교표
+    102: fig03,     # 상태 벡터 상세
+    103: fig04,     # 좌표계 4종 상세
+    104: fig05,     # 오일러각 3면도 상세
+    105: fig06,     # 기동 파라미터 상세
+    106: fig07,     # G 유도 상세
+    107: fig10,     # 운동학 모델 상세
+    108: fig11,     # 왜 ECEF 상세
+    109: fig12,     # 속도 변환 상세
+    110: fig13,     # DCM 원소 상세
+    111: fig15,     # 한 스텝 알고리즘과 비용
+    112: fig16,     # 방어적 구현
+    113: fig18,     # 불변량 잔차 시계열
+    114: fig19,     # 검증표 상세
+    115: fig20,     # 수렴 그래프 상세
+    116: fig21,     # 기동 시연 상세
+}
 
 if __name__ == "__main__":
-    want = [int(a) for a in sys.argv[1:]] or sorted(FIGS)
+    args = [a for a in sys.argv[1:] if a != "--all"]
+    table_ = dict(FIGS)
+    if "--all" in sys.argv[1:]:
+        table_.update(EXTRA)
+    want = [int(a) for a in args] or sorted(table_)
     print("그림 생성 -> %s" % OUT)
     for n in want:
-        if n not in FIGS:
-            sys.exit("그림 번호 %d 없음 (1 ~ %d)" % (n, max(FIGS)))
-        FIGS[n]()
+        fn = table_.get(n) or EXTRA.get(n)
+        if fn is None:
+            sys.exit("그림 번호 %d 없음 (발표용 1~%d, 예비 101~%d)"
+                     % (n, max(FIGS), max(EXTRA)))
+        fn()
     print("끝 (%d 장)" % len(want))
