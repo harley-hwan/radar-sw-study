@@ -26,7 +26,7 @@ typedef struct
 	LPCTSTR				pt_Field[SCN_MNV_FIELD_NUM];
 } ST_PresetManeuver;
 
-static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("명세 시나리오 (과제 3)"), _T("기동 시연 (지그재그 기동 60 s)") };
+static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("기본 시나리오"), _T("응용 시나리오") };
 static const LPCTSTR	s_TurnName[SCN_TURN_TYPE_NUM] = { _T("0 없음"), _T("1 Roll"), _T("2 Yaw"), _T("3 Pitch") };
 
 // 과제 명세: 플랫폼 정지, 대함 표적, 대공 표적
