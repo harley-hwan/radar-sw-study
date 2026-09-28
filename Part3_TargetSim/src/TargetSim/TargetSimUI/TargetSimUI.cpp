@@ -31,36 +31,27 @@ CTargetSimUIApp g_TargetSimApp;
 // 공용 컨트롤과 GDI+ 를 올리고 주 대화상자를 띄운다. 닫히면 GDI+ 를 내린다.
 BOOL CTargetSimUIApp::InitInstance()
 {
-	INITCOMMONCONTROLSEX		st_InitCtrls;
+	INITCOMMONCONTROLSEX			st_InitCtrls;
 	Gdiplus::GdiplusStartupInput	st_GdiplusInput;
-	ULONG_PTR					gdiplusToken = 0U;
+	ULONG_PTR						gdiplusToken = 0U;
 
-	st_InitCtrls.dwSize = static_cast<DWORD>(sizeof(st_InitCtrls));
-	st_InitCtrls.dwICC = ICC_WIN95_CLASSES;
+	st_InitCtrls.dwSize	= static_cast<DWORD>(sizeof(st_InitCtrls));
+	st_InitCtrls.dwICC	= ICC_WIN95_CLASSES;
 	(VOID)InitCommonControlsEx(&st_InitCtrls);
 
 	(VOID)CWinApp::InitInstance();
+	(VOID)Gdiplus::GdiplusStartup(&gdiplusToken, &st_GdiplusInput, nullptr);
 
-	SetRegistryKey(_T("RadarSwStudy"));
-
-	if (Gdiplus::GdiplusStartup(&gdiplusToken, &st_GdiplusInput, nullptr) == Gdiplus::Ok)
+	// 대화상자가 GDI+ 를 내리기 전에 사라지도록 블록 안에 둔다.
 	{
-		// 대화상자 객체가 수십 KB 라 힙에 둔다.
-		CTargetSimUIDlg *st_Dlg = new CTargetSimUIDlg();
-		m_pMainWnd = st_Dlg;
+		CTargetSimUIDlg st_Dlg;
 
-		const INT_PTR dialogResult = st_Dlg->DoModal();
-
-		if (dialogResult == -1)
-		{
-			TRACE(traceAppMsg, 0, "경고: 대화 상자를 만들지 못했습니다.\n");
-		}
-
+		m_pMainWnd = &st_Dlg;
+		(VOID)st_Dlg.DoModal();
 		m_pMainWnd = nullptr;
-		delete st_Dlg;
-
-		Gdiplus::GdiplusShutdown(gdiplusToken);
 	}
+
+	Gdiplus::GdiplusShutdown(gdiplusToken);
 
 	return FALSE;
 }

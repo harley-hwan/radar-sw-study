@@ -130,7 +130,6 @@
     <ClCompile Include="TargetSimUI.cpp" />
     <ClCompile Include="TargetSimUIDlg.cpp" />
     <ClCompile Include="TrajectoryPlot.cpp" />
-    <ClCompile Include="UiCommon.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="TargetSimUI.rc" />

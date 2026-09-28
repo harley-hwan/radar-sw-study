@@ -59,9 +59,6 @@
     <ClCompile Include="TrajectoryPlot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="UiCommon.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="GridCtrl.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>

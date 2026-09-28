@@ -5,7 +5,7 @@
 #include "CoordinateTransform.h"
 
 // DLL 경계. Core 를 빌드할 때만 TARGETSIMCORE_EXPORTS 가 정의된다.
-#if defined(_WIN32) && !defined(TARGETSIMCORE_STATIC)
+#if defined(_WIN32)
 	#ifdef TARGETSIMCORE_EXPORTS
 		#define TSCORE_API	__declspec(dllexport)
 	#else
@@ -21,23 +21,6 @@ extern "C" {
 
 #define TGT_MAX_TARGET_NUM			10
 #define TGT_MAX_MANEUVER_NUM		30
-#define TGT_MAX_STEP_NUM			100000
-#define TGT_MIN_STEP_TIME			1.0e-3								// [s]
-
-typedef enum
-{
-	TGT_OK = 0,
-	TGT_ERR_NULL,
-	TGT_ERR_TARGET_NUM,
-	TGT_ERR_MANEUVER_NUM,
-	TGT_ERR_TIME,
-	TGT_ERR_SPEED,
-	TGT_ERR_TURN_TYPE,
-	TGT_ERR_MANEUVER_OVERLAP,
-	TGT_ERR_COORD,
-	TGT_ERR_SIM_STATE,
-	TGT_ERR_SIM_END
-} EN_TgtStatus;
 
 // 기동 회전축. 값은 과제 명세를 그대로 따른다.
 typedef enum
@@ -49,7 +32,7 @@ typedef enum
 } EN_TurnType;
 
 // 기동 1건. gravityValue 의 부호가 회전 방향이며 동체축 오른손 법칙을 따른다.
-// (+) 는 우측 뱅크 / 우선회 / 기수 상승.
+// (+) 는 우측 뱅크 / 우선회 / 기수 상승. 구간은 [startTime, endTime) 이다.
 typedef struct
 {
 	EN_TurnType				enTurnType;
@@ -104,7 +87,7 @@ typedef struct
 	INT32					nStepIndex;						// 0 ~ nStepNum
 	INT32					nTargetNum;
 	ST_TargetState			st_Platform;
-	ST_TargetState			st_Target[TGT_MAX_TARGET_NUM];	// 설정과 같은 인덱스, nTargetNum 이후 칸은 0
+	ST_TargetState			st_Target[TGT_MAX_TARGET_NUM];	// 설정과 같은 인덱스, 앞 nTargetNum 칸만 쓴다
 } ST_SimSample;
 
 // 시나리오 진행 상태. 설정 사본을 함께 두어 초기화 뒤 원본 설정이 바뀌어도 진행에 영향이 없다.
@@ -115,23 +98,14 @@ typedef struct
 	ST_SimConfig			st_Config;
 } ST_SimState;
 
-TSCORE_API EN_TgtStatus		f_Tgt_ValidateConfig(const ST_SimConfig *st_Config);
-TSCORE_API EN_TgtStatus		f_Tgt_InitState(ST_TargetState *st_State, const STRUCT_Coord_Lla *st_InitLla, const STRUCT_Coord_Attitude *st_InitAtt, FLOAT64 headingSpeed);
-TSCORE_API EN_TgtStatus		f_Tgt_StepTarget(ST_TargetState *st_State, const ST_TargetInit *st_Target, FLOAT64 stepTime);
-TSCORE_API EN_TgtStatus		f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config);
-TSCORE_API EN_TgtStatus		f_Tgt_StepSim(ST_SimState *st_Sim);
-TSCORE_API const CHAR *		f_Tgt_StatusStr(EN_TgtStatus status);
+TSCORE_API VOID					f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config);
+TSCORE_API VOID					f_Tgt_StepSim(ST_SimState *st_Sim);
 
 // 화면용 좌표 변환. 원본의 인자 순서 규약은 Core 안에서 흡수한다.
 // 기준점(st_Ref...)은 보통 플랫폼의 t = 0 표본이다.
-TSCORE_API EN_TgtStatus		f_Tgt_NedToLla(STRUCT_Coord_Lla *st_Out, const STRUCT_Coord_Rect *st_Ned,
-									const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
-TSCORE_API EN_TgtStatus		f_Tgt_LlaToNed(STRUCT_Coord_Rect *st_Out, const STRUCT_Coord_Lla *st_Lla,
-									const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
-TSCORE_API EN_TgtStatus		f_Tgt_EcefToNed(STRUCT_Coord_Rect *st_Out, const STRUCT_Coord_Rect *st_Ecef,
-									const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
-TSCORE_API EN_TgtStatus		f_Tgt_EcefVecToNed(STRUCT_Coord_Rect *st_Out, const STRUCT_Coord_Rect *st_Vec,
-									const STRUCT_Coord_Lla *st_RefLla);
+TSCORE_API STRUCT_Coord_Rect	f_Tgt_EcefToNed(const STRUCT_Coord_Rect *st_Ecef, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
+TSCORE_API STRUCT_Coord_Lla		f_Tgt_NedToLla(const STRUCT_Coord_Rect *st_Ned, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
+TSCORE_API STRUCT_Coord_Rect	f_Tgt_LlaToNed(const STRUCT_Coord_Lla *st_Lla, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
 
 #ifdef __cplusplus
 }

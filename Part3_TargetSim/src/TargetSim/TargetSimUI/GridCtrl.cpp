@@ -8,110 +8,19 @@
 #endif
 
 #define GRID_ID_EDIT			101
-#define GRID_ID_SPIN			102
 #define GRID_ID_COMBO			103
-#define GRID_TEXT_LIMIT			32
-#define GRID_PAD_X				8						// [px @96dpi]
-#define GRID_PAD_Y				6
-#define GRID_SWATCH_SIZE		10
-#define GRID_SPIN_WIDTH			17
-#define GRID_DROP_HEIGHT		160
-#define GRID_COARSE_FACTOR		10.0
-#define GRID_SPIN_RANGE			1000000
+#define GRID_PAD_Y				6						// [px @96dpi] 행 위아래 여백
+#define GRID_DROP_HEIGHT		160						// [px @96dpi] 목록 높이
 #define GRID_WM_OPEN_CHOICE		(WM_APP + 21)
 
-// CGridEdit
-
-BEGIN_MESSAGE_MAP(CGridEdit, CEdit)
-	ON_WM_GETDLGCODE()
-	ON_WM_KEYDOWN()
-	ON_WM_CHAR()
-	ON_WM_KILLFOCUS()
-	ON_WM_MOUSEWHEEL()
-END_MESSAGE_MAP()
-
-// 칸 위에 뜨는 편집칸.
-CGridEdit::CGridEdit() noexcept
-	: st_Owner(nullptr)
-{
-}
-
-// 키와 휠을 넘겨줄 표를 지정한다.
-VOID CGridEdit::f_SetOwner(CGridCtrl *st_NewOwner)
-{
-	st_Owner = st_NewOwner;
-}
-
-// 모든 키를 직접 받는다. 대화상자가 Enter, Tab, Esc 를 가져가지 못하게 한다.
-UINT32 CGridEdit::OnGetDlgCode(VOID)
-{
-	return DLGC_WANTALLKEYS | DLGC_HASSETSEL;
-}
-
-// Enter, Esc, Tab, 위아래 키를 표에 넘긴다.
-VOID CGridEdit::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
-{
-	if ((st_Owner != nullptr) && ((key == VK_RETURN) || (key == VK_ESCAPE) || (key == VK_TAB) || (key == VK_UP) || (key == VK_DOWN)))
-	{
-		st_Owner->f_OnEditKey(key);
-	}
-	else
-	{
-		CEdit::OnKeyDown(key, repeat, flags);
-	}
-}
-
-// 표에 넘긴 키는 기본 처리로 보내지 않는다.
-VOID CGridEdit::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
-{
-	// OnKeyDown 에서 처리한 키. 기본 처리로 넘기면 경고음이 난다.
-	if ((key != VK_RETURN) && (key != VK_TAB) && (key != VK_ESCAPE))
-	{
-		CEdit::OnChar(key, repeat, flags);
-	}
-}
-
-// 포커스를 잃으면 편집을 확정한다.
-VOID CGridEdit::OnKillFocus(CWnd *st_NewWnd)
-{
-	CEdit::OnKillFocus(st_NewWnd);
-
-	if (st_Owner != nullptr)
-	{
-		st_Owner->f_OnEditKillFocus();
-	}
-}
-
-// 휠을 값 증감으로 넘긴다.
-BOOL CGridEdit::OnMouseWheel(UINT32 flags, SHORT delta, CPoint st_Point)
-{
-	UNREFERENCED_PARAMETER(flags);
-	UNREFERENCED_PARAMETER(st_Point);
-
-	if ((st_Owner != nullptr) && (delta != 0))
-	{
-		st_Owner->f_OnEditWheel((delta > 0) ? 1 : -1);
-	}
-
-	return TRUE;
-}
-
-// CGridCtrl
-
 BEGIN_MESSAGE_MAP(CGridCtrl, CListCtrl)
-	ON_WM_GETDLGCODE()
-	ON_WM_KEYDOWN()
-	ON_WM_CHAR()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONDBLCLK()
 	ON_WM_SIZE()
-	ON_WM_SETFOCUS()
-	ON_WM_KILLFOCUS()
 	ON_WM_VSCROLL()
 	ON_WM_MOUSEWHEEL()
-	ON_NOTIFY_REFLECT(NM_CUSTOMDRAW, &CGridCtrl::f_OnCustomDraw)
 	ON_NOTIFY_REFLECT(LVN_ITEMCHANGED, &CGridCtrl::f_OnItemChanged)
-	ON_NOTIFY(UDN_DELTAPOS, GRID_ID_SPIN, &CGridCtrl::f_OnSpinDelta)
+	ON_EN_KILLFOCUS(GRID_ID_EDIT, &CGridCtrl::f_OnEditKillFocus)
 	ON_CBN_SELENDOK(GRID_ID_COMBO, &CGridCtrl::f_OnComboSelEndOk)
 	ON_CBN_CLOSEUP(GRID_ID_COMBO, &CGridCtrl::f_OnComboCloseUp)
 	ON_MESSAGE(GRID_WM_OPEN_CHOICE, &CGridCtrl::f_OnOpenChoice)
@@ -119,25 +28,13 @@ END_MESSAGE_MAP()
 
 // 칸을 바로 고치는 표.
 CGridCtrl::CGridCtrl() noexcept
-	: nColumnNum(0)
+	: st_Column(nullptr)
+	, nColumnNum(0)
 	, dpi(UI_BASE_DPI)
-	, nCurRow(-1)
-	, nCurColumn(-1)
-	, nErrorRow(-1)
-	, nErrorColumn(-1)
+	, nRowHeight(24)
 	, nEditRow(-1)
 	, nEditColumn(-1)
-	, isEnding(0)
-	, nRowHeight(24)
 {
-	INT32 nRow;
-
-	(VOID)memset(st_Column, 0, sizeof(st_Column));
-
-	for (nRow = 0; nRow < GRID_MAX_ROW; nRow++)
-	{
-		rowColor[nRow] = CLR_NONE;
-	}
 }
 
 // 열 정의와 화면 배율을 받아 표를 갖춘다.
@@ -148,246 +45,90 @@ VOID CGridCtrl::f_Setup(const ST_GridColumn *st_NewColumn, INT32 nNewColumnNum, 
 	TEXTMETRIC	st_Metric;
 	INT32		nColumn;
 
+	st_Column	= st_NewColumn;
+	nColumnNum	= nNewColumnNum;
 	dpi			= newDpi;
-	nColumnNum	= (nNewColumnNum < GRID_MAX_COLUMN) ? nNewColumnNum : GRID_MAX_COLUMN;
 
-	(VOID)SetExtendedStyle(LVS_EX_DOUBLEBUFFER);
-	(VOID)SetBkColor(UI_COLOR_CARD);
-	(VOID)SetTextBkColor(UI_COLOR_CARD);
+	(VOID)SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_GRIDLINES | LVS_EX_DOUBLEBUFFER);
 
-	// 행 높이는 작은 이미지 목록 높이로 정해진다.
+	// 행 높이는 작은 이미지 목록 높이로 정해진다. 편집칸이 들어갈 만큼 위아래 여백을 둔다.
 	st_OldFont = st_Dc.SelectObject(GetFont());
 	(VOID)st_Dc.GetTextMetrics(&st_Metric);
 	(VOID)st_Dc.SelectObject(st_OldFont);
 	nRowHeight = st_Metric.tmHeight + (2 * f_Ui_Scale(GRID_PAD_Y, dpi));
-
-	if (st_RowSizer.GetSafeHandle() == nullptr)
-	{
-		(VOID)st_RowSizer.Create(1, nRowHeight, ILC_COLOR, 1, 1);
-		(VOID)SetImageList(&st_RowSizer, LVSIL_SMALL);
-	}
+	(VOID)st_RowSizer.Create(1, nRowHeight, ILC_COLOR, 1, 1);
+	(VOID)SetImageList(&st_RowSizer, LVSIL_SMALL);
 
 	for (nColumn = 0; nColumn < nColumnNum; nColumn++)
 	{
-		st_Column[nColumn] = st_NewColumn[nColumn];
-
-		(VOID)InsertColumn(nColumn, st_Column[nColumn].pt_Title,
-			((st_Column[nColumn].kind == GRID_KIND_NUMBER) || (st_Column[nColumn].kind == GRID_KIND_VALUE)) ? LVCFMT_RIGHT : LVCFMT_LEFT, 40);
+		(VOID)InsertColumn(nColumn, st_Column[nColumn].pt_Title, (st_Column[nColumn].kind == GRID_KIND_NUMBER) ? LVCFMT_RIGHT : LVCFMT_LEFT, 40);
 	}
 
-	if (GetHeaderCtrl() != nullptr)
-	{
-		(VOID)GetHeaderCtrl()->ModifyStyle(0, HDS_NOSIZING);
-	}
-
+	// 열 너비는 f_FitColumns 가 맞춘다.
+	(VOID)GetHeaderCtrl()->ModifyStyle(0, HDS_NOSIZING);
 	f_FitColumns();
 }
 
 // 행 수를 맞춘다. 모자라면 넣고 남으면 지운다.
 VOID CGridCtrl::f_SetRowNum(INT32 nRowNum)
 {
-	INT32 nTarget = nRowNum;
 	INT32 nCount;
-
-	if (nTarget < 0)
-	{
-		nTarget = 0;
-	}
-	else if (nTarget > GRID_MAX_ROW)
-	{
-		nTarget = GRID_MAX_ROW;
-	}
-	else
-	{
-		// 그대로
-	}
 
 	f_EndEdit(0);
 
-	for (nCount = GetItemCount(); nCount < nTarget; nCount++)
+	for (nCount = GetItemCount(); nCount < nRowNum; nCount++)
 	{
 		(VOID)InsertItem(nCount, _T(""));
 	}
 
-	for (nCount = GetItemCount(); nCount > nTarget; nCount--)
+	for (nCount = GetItemCount(); nCount > nRowNum; nCount--)
 	{
 		(VOID)DeleteItem(nCount - 1);
 	}
 
-	if (nCurRow >= nTarget)
-	{
-		nCurRow = nTarget - 1;
-	}
-
-	if (nErrorRow >= nTarget)
-	{
-		nErrorRow		= -1;
-		nErrorColumn	= -1;
-	}
-
+	// 세로 스크롤 막대가 생기거나 사라지면 너비가 바뀐다.
 	f_FitColumns();
-	Invalidate(FALSE);
 }
 
-// 칸 글자를 바꾼다. 같으면 건드리지 않는다.
-VOID CGridCtrl::f_SetCellText(INT32 nRow, INT32 nColumn, const CString &st_Text)
+// 행 하나를 고른다. 선택이 바뀌면 f_OnItemChanged 가 부모에게 알린다.
+VOID CGridCtrl::f_SelectRow(INT32 nRow)
 {
-	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum))
-	{
-		if (GetItemText(nRow, nColumn) != st_Text)
-		{
-			(VOID)SetItemText(nRow, nColumn, st_Text);
-		}
-	}
+	(VOID)SetItemState(nRow, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
+	(VOID)EnsureVisible(nRow, FALSE);
 }
 
-// 칸 글자.
-CString CGridCtrl::f_GetCellText(INT32 nRow, INT32 nColumn) const
-{
-	CString st_Text;
-
-	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum))
-	{
-		st_Text = GetItemText(nRow, nColumn);
-	}
-
-	return st_Text;
-}
-
-// 행 색 표식. 그림의 궤적 색과 같은 색을 쓴다.
-VOID CGridCtrl::f_SetRowColor(INT32 nRow, COLORREF color)
-{
-	if ((nRow >= 0) && (nRow < GRID_MAX_ROW))
-	{
-		rowColor[nRow] = color;
-	}
-}
-
-// 열의 증감 폭과 허용 범위를 바꾼다.
-VOID CGridCtrl::f_SetColumnNudge(INT32 nColumn, FLOAT64 nudgeStep, INT32 nMinDecimal, FLOAT64 minValue, FLOAT64 maxValue)
-{
-	if ((nColumn >= 0) && (nColumn < nColumnNum))
-	{
-		st_Column[nColumn].nudgeStep	= nudgeStep;
-		st_Column[nColumn].nMinDecimal	= nMinDecimal;
-		st_Column[nColumn].minValue		= minValue;
-		st_Column[nColumn].maxValue		= maxValue;
-	}
-}
-
-// 붉게 표시할 칸. -1 을 주면 표시를 지운다.
-VOID CGridCtrl::f_SetErrorCell(INT32 nRow, INT32 nColumn)
-{
-	if ((nRow != nErrorRow) || (nColumn != nErrorColumn))
-	{
-		f_InvalidateCell(nErrorRow, nErrorColumn);
-		nErrorRow		= nRow;
-		nErrorColumn	= nColumn;
-		f_InvalidateCell(nErrorRow, nErrorColumn);
-	}
-}
-
-// 행이 없을 때 보여 줄 안내 글.
-VOID CGridCtrl::f_SetEmptyText(const CString &st_Text)
-{
-	st_EmptyText = st_Text;
-
-	if (GetItemCount() == 0)
-	{
-		Invalidate(FALSE);
-	}
-}
-
-// 현재 행.
+// 고른 행. 없으면 -1
 INT32 CGridCtrl::f_GetCurRow(VOID) const
 {
-	return nCurRow;
+	return GetNextItem(-1, LVNI_SELECTED);
 }
 
-// 현재 열.
-INT32 CGridCtrl::f_GetCurColumn(VOID) const
-{
-	return nCurColumn;
-}
-
-// 행 nRowNum 개가 스크롤 없이 들어가는 높이. 실제 행 사각형을 재서 구한다.
+// 행 nRowNum 개가 스크롤 없이 들어가는 높이. 행이 있으면 실제 행 높이를 잰다.
 INT32 CGridCtrl::f_GetHeightForRows(INT32 nRowNum) const
 {
-	CRect	st_Header(0, 0, 0, 0);
-	CRect	st_Item(0, 0, 0, 0);
-	INT32	headerHeight;
-	INT32	rowPitch = nRowHeight + 1;
+	CRect st_Header;
+	CRect st_Item(0, 0, 0, nRowHeight);
 
-	if (GetHeaderCtrl() != nullptr)
+	GetHeaderCtrl()->GetWindowRect(&st_Header);
+
+	if (GetItemCount() > 0)
 	{
-		GetHeaderCtrl()->GetWindowRect(&st_Header);
+		(VOID)GetItemRect(0, &st_Item, LVIR_BOUNDS);
 	}
 
-	if ((GetItemCount() > 0) && (GetItemRect(0, &st_Item, LVIR_BOUNDS) != FALSE) && (st_Item.Height() > 0))
-	{
-		rowPitch = st_Item.Height();
-	}
-
-	headerHeight = (st_Header.Height() > 0) ? st_Header.Height() : nRowHeight;
-
-	return headerHeight + (nRowNum * rowPitch) + 4;
+	return st_Header.Height() + (nRowNum * st_Item.Height()) + 4;
 }
 
-// 현재 칸을 옮긴다. isEdit 이면 편집까지 연다.
-VOID CGridCtrl::f_SetCurCell(INT32 nRow, INT32 nColumn, INT32 isEdit)
+// 칸 하나의 사각형. 0 열의 부분 항목 사각형은 행 전체라 머리글 위치로 만든다.
+CRect CGridCtrl::f_GetCellRect(INT32 nRow, INT32 nColumn) const
 {
-	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum))
-	{
-		f_EndEdit(1);
-		f_InvalidateCell(nCurRow, nCurColumn);
+	CRect st_Row;
+	CRect st_HeaderItem;
 
-		nCurColumn = nColumn;
+	(VOID)GetItemRect(nRow, &st_Row, LVIR_BOUNDS);
+	(VOID)GetHeaderCtrl()->GetItemRect(nColumn, &st_HeaderItem);
 
-		// 행이 바뀌면 f_OnItemChanged 가 nCurRow 를 고치고 부모에게 알린다.
-		(VOID)SetItemState(nRow, LVIS_SELECTED | LVIS_FOCUSED, LVIS_SELECTED | LVIS_FOCUSED);
-		(VOID)EnsureVisible(nRow, FALSE);
-		nCurRow = nRow;
-		f_InvalidateCell(nCurRow, nCurColumn);
-
-		if ((isEdit != 0) && (f_IsEditable(nColumn) != 0))
-		{
-			f_BeginEdit(nRow, nColumn, nullptr);
-		}
-	}
-}
-
-// 편집할 수 있는 열인지 본다 (숫자 칸과 목록 칸).
-INT32 CGridCtrl::f_IsEditable(INT32 nColumn) const
-{
-	INT32 isEditable = 0;
-
-	if ((nColumn >= 0) && (nColumn < nColumnNum))
-	{
-		isEditable = ((st_Column[nColumn].kind == GRID_KIND_NUMBER) || (st_Column[nColumn].kind == GRID_KIND_CHOICE)) ? 1 : 0;
-	}
-
-	return isEditable;
-}
-
-// 칸 하나의 사각형.
-INT32 CGridCtrl::f_GetCellRect(INT32 nRow, INT32 nColumn, CRect *st_Rect) const
-{
-	CRect	st_Row;
-	CRect	st_HeaderItem;
-	INT32	isOk = 0;
-
-	// 0 열의 부분 항목 사각형은 행 전체라 머리글 위치로 만든다.
-	if ((nRow >= 0) && (nRow < GetItemCount()) && (nColumn >= 0) && (nColumn < nColumnNum) && (GetHeaderCtrl() != nullptr))
-	{
-		if ((GetItemRect(nRow, &st_Row, LVIR_BOUNDS) != FALSE) &&
-			(GetHeaderCtrl()->GetItemRect(nColumn, &st_HeaderItem) != FALSE))
-		{
-			st_Rect->SetRect(st_Row.left + st_HeaderItem.left, st_Row.top, st_Row.left + st_HeaderItem.right, st_Row.bottom);
-			isOk = 1;
-		}
-	}
-
-	return isOk;
+	return CRect(st_Row.left + st_HeaderItem.left, st_Row.top, st_Row.left + st_HeaderItem.right, st_Row.bottom);
 }
 
 // 열 너비를 비율대로 클라이언트 너비에 맞춘다. 마지막 열이 나머지를 가진다.
@@ -399,510 +140,127 @@ VOID CGridCtrl::f_FitColumns(VOID)
 	INT32	width;
 	INT32	nColumn;
 
-	if ((nColumnNum > 0) && (GetSafeHwnd() != nullptr))
+	GetClientRect(&st_Client);
+
+	for (nColumn = 0; nColumn < nColumnNum; nColumn++)
 	{
-		GetClientRect(&st_Client);
-
-		for (nColumn = 0; nColumn < nColumnNum; nColumn++)
-		{
-			totalWeight = totalWeight + st_Column[nColumn].nWeight;
-		}
-
-		if ((totalWeight > 0) && (st_Client.Width() > 0))
-		{
-			SetRedraw(FALSE);
-
-			for (nColumn = 0; nColumn < nColumnNum; nColumn++)
-			{
-				// 마지막 열이 나머지를 가진다.
-				width = (nColumn == (nColumnNum - 1)) ? (st_Client.Width() - usedWidth) : ::MulDiv(st_Client.Width(), st_Column[nColumn].nWeight, totalWeight);
-
-				if (width < 8)
-				{
-					width = 8;
-				}
-
-				if (GetColumnWidth(nColumn) != width)
-				{
-					(VOID)SetColumnWidth(nColumn, width);
-				}
-
-				usedWidth = usedWidth + width;
-			}
-
-			SetRedraw(TRUE);
-			Invalidate(FALSE);
-		}
+		totalWeight = totalWeight + st_Column[nColumn].nWeight;
 	}
-}
 
-// 칸 하나만 다시 그리게 한다.
-VOID CGridCtrl::f_InvalidateCell(INT32 nRow, INT32 nColumn)
-{
-	CRect st_Rect;
-
-	if (f_GetCellRect(nRow, nColumn, &st_Rect) != 0)
+	for (nColumn = 0; nColumn < nColumnNum; nColumn++)
 	{
-		InvalidateRect(&st_Rect, FALSE);
+		width = (nColumn == (nColumnNum - 1)) ? (st_Client.Width() - usedWidth) : ::MulDiv(st_Client.Width(), st_Column[nColumn].nWeight, totalWeight);
+		(VOID)SetColumnWidth(nColumn, width);
+		usedWidth = usedWidth + width;
 	}
 }
 
 // 부모에게 WM_NOTIFY 를 보낸다.
-VOID CGridCtrl::f_Notify(UINT32 code, INT32 nRow, INT32 nColumn, INT32 isLive, HDC dcHandle, const RECT *st_Rect)
+VOID CGridCtrl::f_Notify(UINT32 code, INT32 nRow, INT32 nColumn)
 {
-	ST_GridNotify	st_Notify;
-	CWnd			*st_Parent = GetParent();
+	ST_GridNotify st_Notify;
 
-	if (st_Parent != nullptr)
-	{
-		(VOID)memset(&st_Notify, 0, sizeof(st_Notify));
-		st_Notify.st_Hdr.hwndFrom	= GetSafeHwnd();
-		st_Notify.st_Hdr.idFrom		= static_cast<UINT_PTR>(GetDlgCtrlID());
-		st_Notify.st_Hdr.code		= code;
-		st_Notify.nRow				= nRow;
-		st_Notify.nColumn			= nColumn;
-		st_Notify.isLive			= isLive;
-		st_Notify.dcHandle			= dcHandle;
+	st_Notify.st_Hdr.hwndFrom	= GetSafeHwnd();
+	st_Notify.st_Hdr.idFrom		= static_cast<UINT_PTR>(GetDlgCtrlID());
+	st_Notify.st_Hdr.code		= code;
+	st_Notify.nRow				= nRow;
+	st_Notify.nColumn			= nColumn;
 
-		if (st_Rect != nullptr)
-		{
-			st_Notify.st_Rect = *st_Rect;
-		}
-
-		(VOID)st_Parent->SendMessage(WM_NOTIFY, static_cast<WPARAM>(GetDlgCtrlID()), reinterpret_cast<LPARAM>(&st_Notify));
-	}
-}
-
-// 그리기
-
-// 커스텀 드로우 단계를 받아 칸 그리기로 넘긴다.
-VOID CGridCtrl::f_OnCustomDraw(NMHDR *st_Hdr, LRESULT *pt_Result)
-{
-	NMLVCUSTOMDRAW *st_Draw = reinterpret_cast<NMLVCUSTOMDRAW *>(st_Hdr);
-
-	switch (st_Draw->nmcd.dwDrawStage)
-	{
-	case CDDS_PREPAINT:
-		*pt_Result = CDRF_NOTIFYITEMDRAW | CDRF_NOTIFYPOSTPAINT;
-		break;
-
-	case CDDS_ITEMPREPAINT:
-		*pt_Result = CDRF_NOTIFYSUBITEMDRAW;
-		break;
-
-	case (CDDS_ITEMPREPAINT | CDDS_SUBITEM):
-		f_DrawCell(CDC::FromHandle(st_Draw->nmcd.hdc), static_cast<INT32>(st_Draw->nmcd.dwItemSpec), st_Draw->iSubItem);
-		*pt_Result = CDRF_SKIPDEFAULT;
-		break;
-
-	case CDDS_POSTPAINT:
-		if ((GetItemCount() == 0) && (!st_EmptyText.IsEmpty()))
-		{
-			CDC		*st_Dc = CDC::FromHandle(st_Draw->nmcd.hdc);
-			CFont	*st_OldFont = st_Dc->SelectObject(GetFont());
-			CRect	st_Client;
-			CRect	st_Header(0, 0, 0, 0);
-
-			GetClientRect(&st_Client);
-
-			if (GetHeaderCtrl() != nullptr)
-			{
-				GetHeaderCtrl()->GetWindowRect(&st_Header);
-			}
-
-			st_Client.top = st_Client.top + ((st_Header.Height() > 0) ? st_Header.Height() : nRowHeight);
-			(VOID)st_Dc->SetBkMode(TRANSPARENT);
-			(VOID)st_Dc->SetTextColor(UI_COLOR_TEXT_SUB);
-			(VOID)st_Dc->DrawText(st_EmptyText, &st_Client, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-			(VOID)st_Dc->SelectObject(st_OldFont);
-		}
-
-		*pt_Result = CDRF_DODEFAULT;
-		break;
-
-	default:
-		*pt_Result = CDRF_DODEFAULT;
-		break;
-	}
-}
-
-// 칸 하나를 그린다. 현재 칸, 오류 칸, 행 색 표식을 여기서 처리한다.
-VOID CGridCtrl::f_DrawCell(CDC *st_Dc, INT32 nRow, INT32 nColumn)
-{
-	const INT32	padX = f_Ui_Scale(GRID_PAD_X, dpi);
-	CRect		st_Cell;
-	CRect		st_Text;
-	CFont		*st_OldFont;
-	CString		st_Value;
-	COLORREF	background = UI_COLOR_CARD;
-	INT32		isSelected;
-	INT32		isCurrent;
-	INT32		isError;
-	INT32		kind;
-
-	if ((st_Dc != nullptr) && (f_GetCellRect(nRow, nColumn, &st_Cell) != 0))
-	{
-		kind		= st_Column[nColumn].kind;
-		isSelected	= (GetItemState(nRow, LVIS_SELECTED) != 0U) ? 1 : 0;
-		isCurrent	= ((nRow == nCurRow) && (nColumn == nCurColumn) && (f_IsEditable(nColumn) != 0)) ? 1 : 0;
-		isError		= ((nRow == nErrorRow) && (nColumn == nErrorColumn)) ? 1 : 0;
-
-		if (isError != 0)
-		{
-			background = UI_COLOR_ERROR_SOFT;
-		}
-		else if (isCurrent != 0)
-		{
-			background = UI_COLOR_CARD;
-		}
-		else if (isSelected != 0)
-		{
-			background = UI_COLOR_ACCENT_SOFT;
-		}
-		else
-		{
-			background = UI_COLOR_CARD;
-		}
-
-		st_Dc->FillSolidRect(&st_Cell, background);
-		st_Dc->FillSolidRect(st_Cell.left, st_Cell.bottom - 1, st_Cell.Width(), 1, UI_COLOR_GRID_LINE);
-
-		st_OldFont = st_Dc->SelectObject(GetFont());
-		(VOID)st_Dc->SetBkMode(TRANSPARENT);
-		st_Value	= GetItemText(nRow, nColumn);
-		st_Text		= st_Cell;
-		st_Text.DeflateRect(padX, 0);
-
-		if (kind == GRID_KIND_CUSTOM)
-		{
-			st_Text.DeflateRect(0, f_Ui_Scale(GRID_PAD_Y, dpi) - 1);
-			f_Notify(GRIDN_DRAWCELL, nRow, nColumn, 0, st_Dc->GetSafeHdc(), &st_Text);
-		}
-		else if (kind == GRID_KIND_LABEL)
-		{
-			if ((nRow < GRID_MAX_ROW) && (rowColor[nRow] != CLR_NONE))
-			{
-				const INT32	size = f_Ui_Scale(GRID_SWATCH_SIZE, dpi);
-				const INT32	top = st_Cell.top + ((st_Cell.Height() - size) / 2);
-				CBrush		st_Brush(rowColor[nRow]);
-				CPen		st_Pen(PS_SOLID, 1, rowColor[nRow]);
-				CBrush		*st_OldBrush = st_Dc->SelectObject(&st_Brush);
-				CPen		*st_OldPen = st_Dc->SelectObject(&st_Pen);
-
-				(VOID)st_Dc->RoundRect(st_Text.left, top, st_Text.left + size, top + size, 4, 4);
-				(VOID)st_Dc->SelectObject(st_OldPen);
-				(VOID)st_Dc->SelectObject(st_OldBrush);
-				st_Text.left = st_Text.left + size + padX;
-			}
-
-			(VOID)st_Dc->SetTextColor(UI_COLOR_TEXT);
-			(VOID)st_Dc->DrawText(st_Value, &st_Text, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-		}
-		else if (kind == GRID_KIND_CHOICE)
-		{
-			CRect st_Arrow = st_Text;
-
-			st_Arrow.left = st_Arrow.right - f_Ui_Scale(12, dpi);
-			st_Text.right = st_Arrow.left;
-			(VOID)st_Dc->SetTextColor(UI_COLOR_TEXT);
-			(VOID)st_Dc->DrawText(st_Value, &st_Text, DT_LEFT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-			(VOID)st_Dc->SetTextColor(UI_COLOR_TEXT_SUB);
-			(VOID)st_Dc->DrawText(CString(_T("▾")), &st_Arrow, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_NOPREFIX);
-		}
-		else
-		{
-			(VOID)st_Dc->SetTextColor((kind == GRID_KIND_VALUE) ? UI_COLOR_TEXT_SUB : ((isError != 0) ? UI_COLOR_ERROR : UI_COLOR_TEXT));
-			(VOID)st_Dc->DrawText(st_Value, &st_Text, DT_RIGHT | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS | DT_NOPREFIX);
-		}
-
-		if (isError != 0)
-		{
-			CBrush st_Frame(UI_COLOR_ERROR);
-
-			st_Dc->FrameRect(&st_Cell, &st_Frame);
-		}
-		else if (isCurrent != 0)
-		{
-			const CWnd	*st_Focus = GetFocus();
-			CBrush		st_Frame(((st_Focus == this) || (nEditRow >= 0)) ? UI_COLOR_ACCENT : UI_COLOR_TEXT_OFF);
-			CRect		st_Inner = st_Cell;
-
-			st_Dc->FrameRect(&st_Inner, &st_Frame);
-			st_Inner.DeflateRect(1, 1);
-			st_Dc->FrameRect(&st_Inner, &st_Frame);
-		}
-		else
-		{
-			// 테두리 없음
-		}
-
-		(VOID)st_Dc->SelectObject(st_OldFont);
-	}
+	(VOID)GetParent()->SendMessage(WM_NOTIFY, static_cast<WPARAM>(GetDlgCtrlID()), reinterpret_cast<LPARAM>(&st_Notify));
 }
 
 // 편집
 
-// 칸 위에 편집칸과 증감 버튼을, 목록 칸이면 콤보를 띄운다.
-VOID CGridCtrl::f_BeginEdit(INT32 nRow, INT32 nColumn, LPCTSTR pt_InitialText)
+// 칸 위에 숫자 칸이면 편집칸을, 목록 칸이면 콤보를 띄운다.
+VOID CGridCtrl::f_BeginEdit(INT32 nRow, INT32 nColumn)
 {
-	CRect	st_Cell;
-	INT32	nChoice;
-	INT32	nSelected;
-
-	if ((nEditRow < 0) && (f_IsEditable(nColumn) != 0) && (f_GetCellRect(nRow, nColumn, &st_Cell) != 0))
-	{
-		nEditRow		= nRow;
-		nEditColumn		= nColumn;
-		st_EditOriginal	= GetItemText(nRow, nColumn);
-
-		if (st_Column[nColumn].kind == GRID_KIND_NUMBER)
-		{
-			const INT32	spinWidth = f_Ui_Scale(GRID_SPIN_WIDTH, dpi);
-			const INT32	padY = f_Ui_Scale(GRID_PAD_Y, dpi);
-			CRect		st_EditRect(st_Cell.left + 3, st_Cell.top + padY, st_Cell.right - spinWidth - 3, st_Cell.bottom - padY);
-			CRect		st_SpinRect(st_Cell.right - spinWidth - 2, st_Cell.top + 2, st_Cell.right - 2, st_Cell.bottom - 2);
-
-			if (st_Edit.GetSafeHwnd() == nullptr)
-			{
-				(VOID)st_Edit.Create(WS_CHILD | ES_AUTOHSCROLL | ES_RIGHT, st_EditRect, this, GRID_ID_EDIT);
-				st_Edit.f_SetOwner(this);
-				st_Edit.SetFont(GetFont());
-				st_Edit.SetLimitText(GRID_TEXT_LIMIT);
-				(VOID)st_Spin.Create(WS_CHILD | UDS_NOTHOUSANDS, st_SpinRect, this, GRID_ID_SPIN);
-				st_Spin.SetRange32(-GRID_SPIN_RANGE, GRID_SPIN_RANGE);
-			}
-
-			st_Edit.MoveWindow(&st_EditRect);
-			st_Spin.MoveWindow(&st_SpinRect);
-			(VOID)st_Spin.SetPos32(0);
-			st_Edit.SetWindowText((pt_InitialText != nullptr) ? pt_InitialText : st_EditOriginal.GetString());
-			(VOID)st_Edit.ShowWindow(SW_SHOW);
-			(VOID)st_Spin.ShowWindow(SW_SHOW);
-			(VOID)st_Edit.SetFocus();
-
-			if (pt_InitialText != nullptr)
-			{
-				st_Edit.SetSel(st_Edit.GetWindowTextLength(), st_Edit.GetWindowTextLength());
-			}
-			else
-			{
-				st_Edit.SetSel(0, -1);
-			}
-		}
-		else
-		{
-			CRect st_ComboRect(st_Cell.left + 1, st_Cell.top, st_Cell.right - 1, st_Cell.bottom + f_Ui_Scale(GRID_DROP_HEIGHT, dpi));
-
-			if (st_Combo.GetSafeHwnd() == nullptr)
-			{
-				(VOID)st_Combo.Create(WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST, st_ComboRect, this, GRID_ID_COMBO);
-				st_Combo.SetFont(GetFont());
-			}
-
-			st_Combo.ResetContent();
-
-			for (nChoice = 0; nChoice < st_Column[nColumn].nChoiceNum; nChoice++)
-			{
-				(VOID)st_Combo.AddString(st_Column[nColumn].pt_Choice[nChoice]);
-			}
-
-			nSelected = st_Combo.FindStringExact(-1, st_EditOriginal);
-			(VOID)st_Combo.SetCurSel((nSelected >= 0) ? nSelected : 0);
-			(VOID)st_Combo.SetItemHeight(-1, static_cast<UINT32>(st_Cell.Height() - 6));
-			st_Combo.MoveWindow(&st_ComboRect);
-			(VOID)st_Combo.ShowWindow(SW_SHOW);
-			(VOID)st_Combo.SetFocus();
-			st_Combo.ShowDropDown(TRUE);
-		}
-
-		f_InvalidateCell(nRow, nColumn);
-	}
-}
-
-// 편집을 닫는다. isCommit 이면 친 값을, 아니면 편집을 열기 전 값을 쓴다.
-VOID CGridCtrl::f_EndEdit(INT32 isCommit)
-{
-	CString	st_NewText;
-	INT32	nRow;
-	INT32	nColumn;
-	INT32	hadFocus;
-
-	if ((nEditRow >= 0) && (isEnding == 0))
-	{
-		isEnding	= 1;
-		nRow		= nEditRow;
-		nColumn		= nEditColumn;
-
-		if (st_Column[nColumn].kind == GRID_KIND_NUMBER)
-		{
-			hadFocus = (::GetFocus() == st_Edit.GetSafeHwnd()) ? 1 : 0;
-
-			if (isCommit != 0)
-			{
-				st_Edit.GetWindowText(st_NewText);
-				(VOID)st_NewText.Trim();
-			}
-			else
-			{
-				st_NewText = st_EditOriginal;
-			}
-
-			// 포커스를 가진 채 숨기면 포커스가 사라진다.
-			if (hadFocus != 0)
-			{
-				(VOID)SetFocus();
-			}
-
-			(VOID)st_Edit.ShowWindow(SW_HIDE);
-			(VOID)st_Spin.ShowWindow(SW_HIDE);
-		}
-		else
-		{
-			hadFocus = (::GetFocus() == st_Combo.GetSafeHwnd()) ? 1 : 0;
-			st_NewText = GetItemText(nRow, nColumn);
-
-			if (hadFocus != 0)
-			{
-				(VOID)SetFocus();
-			}
-
-			(VOID)st_Combo.ShowWindow(SW_HIDE);
-		}
-
-		nEditRow	= -1;
-		nEditColumn	= -1;
-
-		if (GetItemText(nRow, nColumn) != st_NewText)
-		{
-			(VOID)SetItemText(nRow, nColumn, st_NewText);
-			f_Notify(GRIDN_CELLCHANGED, nRow, nColumn, 0, nullptr, nullptr);
-		}
-
-		f_InvalidateCell(nRow, nColumn);
-		isEnding = 0;
-	}
-}
-
-// 다음이나 이전 편집 칸으로 옮긴다. 행 끝에서는 다음 행으로 넘어가고 읽기 전용 칸은 건너뛴다.
-VOID CGridCtrl::f_MoveEdit(INT32 nDirection)
-{
-	const INT32	nRowNum = GetItemCount();
-	INT32		nRow = nEditRow;
-	INT32		nColumn = nEditColumn;
-	INT32		nTry;
-	INT32		isFound = 0;
+	const INT32	padY = f_Ui_Scale(GRID_PAD_Y, dpi);
+	CRect		st_Cell;
+	INT32		nChoice;
 
 	f_EndEdit(1);
 
-	// 다음 편집 칸. 행 끝에서는 다음 행으로
-	for (nTry = 0; (nTry < (nColumnNum * nRowNum)) && (isFound == 0) && (nRow >= 0); nTry++)
+	st_Cell		= f_GetCellRect(nRow, nColumn);
+	nEditRow	= nRow;
+	nEditColumn	= nColumn;
+
+	if (st_Column[nColumn].kind == GRID_KIND_NUMBER)
 	{
-		nColumn = nColumn + nDirection;
+		const CRect st_EditRect(st_Cell.left + 3, st_Cell.top + padY, st_Cell.right - 3, st_Cell.bottom - padY);
 
-		if (nColumn >= nColumnNum)
+		if (st_Edit.GetSafeHwnd() == nullptr)
 		{
-			nColumn	= 0;
-			nRow	= nRow + 1;
-		}
-		else if (nColumn < 0)
-		{
-			nColumn	= nColumnNum - 1;
-			nRow	= nRow - 1;
-		}
-		else
-		{
-			// 같은 행
+			(VOID)st_Edit.Create(WS_CHILD | ES_AUTOHSCROLL | ES_RIGHT, st_EditRect, this, GRID_ID_EDIT);
+			st_Edit.SetFont(GetFont());
 		}
 
-		if ((nRow < 0) || (nRow >= nRowNum))
-		{
-			nRow = -1;
-		}
-		else if (f_IsEditable(nColumn) != 0)
-		{
-			isFound = 1;
-		}
-		else
-		{
-			// 읽기 전용 칸은 건너뛴다.
-		}
+		st_Edit.MoveWindow(&st_EditRect);
+		st_Edit.SetWindowText(GetItemText(nRow, nColumn));
+		(VOID)st_Edit.ShowWindow(SW_SHOW);
+		(VOID)st_Edit.SetFocus();
+		st_Edit.SetSel(0, -1);
 	}
-
-	if (isFound != 0)
+	else
 	{
-		f_SetCurCell(nRow, nColumn, 1);
+		const CRect st_ComboRect(st_Cell.left + 1, st_Cell.top, st_Cell.right - 1, st_Cell.bottom + f_Ui_Scale(GRID_DROP_HEIGHT, dpi));
+
+		if (st_Combo.GetSafeHwnd() == nullptr)
+		{
+			(VOID)st_Combo.Create(WS_CHILD | WS_VSCROLL | CBS_DROPDOWNLIST, st_ComboRect, this, GRID_ID_COMBO);
+			st_Combo.SetFont(GetFont());
+		}
+
+		st_Combo.ResetContent();
+
+		for (nChoice = 0; nChoice < st_Column[nColumn].nChoiceNum; nChoice++)
+		{
+			(VOID)st_Combo.AddString(st_Column[nColumn].pt_Choice[nChoice]);
+		}
+
+		(VOID)st_Combo.SetCurSel(st_Combo.FindStringExact(-1, GetItemText(nRow, nColumn)));
+		(VOID)st_Combo.SetItemHeight(-1, static_cast<UINT32>(st_Cell.Height() - 6));
+		st_Combo.MoveWindow(&st_ComboRect);
+		(VOID)st_Combo.ShowWindow(SW_SHOW);
+		(VOID)st_Combo.SetFocus();
+		st_Combo.ShowDropDown(TRUE);
 	}
 }
 
-// 편집칸의 값을 증감한다. 편집을 닫지 않고 바로 반영해 값을 굴리는 동안 결과가 따라 움직인다.
-VOID CGridCtrl::f_Nudge(INT32 nDirection, INT32 isCoarse)
+// 편집을 닫는다. isCommit 이면 편집칸의 글자를 칸에 넣고 부모에게 알린다. 목록 칸은 고르는 즉시 반영했다.
+VOID CGridCtrl::f_EndEdit(INT32 isCommit)
 {
-	CString	st_Text;
-	CString	st_NewText;
-	FLOAT64	delta;
+	const INT32	nRow = nEditRow;
+	const INT32	nColumn = nEditColumn;
+	CWnd		*st_Editor;
+	CString		st_NewText;
 
-	if ((nEditRow >= 0) && (st_Column[nEditColumn].kind == GRID_KIND_NUMBER) && (st_Column[nEditColumn].nudgeStep > 0.0))
+	if (nRow >= 0)
 	{
-		delta = st_Column[nEditColumn].nudgeStep * static_cast<FLOAT64>(nDirection);
+		// 숨기면서 생기는 EN_KILLFOCUS, CBN_CLOSEUP 으로 다시 불려도 아무 일 없게 먼저 닫힌 상태로 둔다.
+		nEditRow	= -1;
+		nEditColumn	= -1;
+		st_Editor	= (st_Column[nColumn].kind == GRID_KIND_NUMBER) ? static_cast<CWnd *>(&st_Edit) : static_cast<CWnd *>(&st_Combo);
 
-		if (isCoarse != 0)
+		// 포커스를 가진 채 숨기면 포커스가 사라지므로 표로 옮긴다.
+		if (::GetFocus() == st_Editor->GetSafeHwnd())
 		{
-			delta = delta * GRID_COARSE_FACTOR;
+			(VOID)SetFocus();
 		}
 
-		st_Edit.GetWindowText(st_Text);
+		(VOID)st_Editor->ShowWindow(SW_HIDE);
 
-		if (f_Num_Nudge(st_Text, delta, st_Column[nEditColumn].nMinDecimal, st_Column[nEditColumn].minValue, st_Column[nEditColumn].maxValue, &st_NewText) != 0)
+		if ((isCommit != 0) && (st_Column[nColumn].kind == GRID_KIND_NUMBER))
 		{
-			st_Edit.SetWindowText(st_NewText);
-			st_Edit.SetSel(0, -1);
+			st_Edit.GetWindowText(st_NewText);
+			(VOID)st_NewText.Trim();
 
-			// 편집을 닫지 않고 바로 반영
-			if (GetItemText(nEditRow, nEditColumn) != st_NewText)
+			if (st_NewText != GetItemText(nRow, nColumn))
 			{
-				(VOID)SetItemText(nEditRow, nEditColumn, st_NewText);
-				f_Notify(GRIDN_CELLCHANGED, nEditRow, nEditColumn, 1, nullptr, nullptr);
+				(VOID)SetItemText(nRow, nColumn, st_NewText);
+				f_Notify(GRIDN_CELLCHANGED, nRow, nColumn);
 			}
 		}
 	}
-}
-
-// 편집칸에서 온 키를 확정, 되돌림, 이동, 증감으로 가른다.
-VOID CGridCtrl::f_OnEditKey(UINT32 key)
-{
-	const INT32 isCoarse = (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0;
-
-	switch (key)
-	{
-	case VK_RETURN:
-		f_EndEdit(1);
-		break;
-
-	case VK_ESCAPE:
-		f_EndEdit(0);
-		break;
-
-	case VK_TAB:
-		f_MoveEdit((::GetKeyState(VK_SHIFT) < 0) ? -1 : 1);
-		break;
-
-	case VK_UP:
-		f_Nudge(1, isCoarse);
-		break;
-
-	case VK_DOWN:
-		f_Nudge(-1, isCoarse);
-		break;
-
-	default:
-		break;
-	}
-}
-
-// 편집칸에서 온 휠을 증감으로 넘긴다.
-VOID CGridCtrl::f_OnEditWheel(INT32 nNotch)
-{
-	f_Nudge(nNotch, (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0);
 }
 
 // 편집칸이 포커스를 잃으면 확정한다.
@@ -911,186 +269,65 @@ VOID CGridCtrl::f_OnEditKillFocus(VOID)
 	f_EndEdit(1);
 }
 
-// 증감 버튼을 값 증감으로 넘긴다.
-VOID CGridCtrl::f_OnSpinDelta(NMHDR *st_Hdr, LRESULT *pt_Result)
-{
-	const NMUPDOWN *st_UpDown = reinterpret_cast<NMUPDOWN *>(st_Hdr);
-
-	if (st_UpDown->iDelta != 0)
-	{
-		f_Nudge((st_UpDown->iDelta > 0) ? 1 : -1, (::GetKeyState(VK_CONTROL) < 0) ? 1 : 0);
-	}
-
-	// 위치는 늘 0
-	*pt_Result = 1;
-}
-
-// 목록에서 고른 값을 칸에 넣고 부모에게 알린다.
+// 목록에서 고른 값을 칸에 넣고 부모에게 알린다. 콤보는 CBN_SELENDOK 을 CBN_CLOSEUP 보다 먼저 보낸다.
 VOID CGridCtrl::f_OnComboSelEndOk(VOID)
 {
-	CString	st_NewText;
-	INT32	nSelected;
+	CString st_NewText;
 
-	if ((nEditRow >= 0) && (st_Column[nEditColumn].kind == GRID_KIND_CHOICE))
+	if (nEditRow >= 0)
 	{
-		nSelected = st_Combo.GetCurSel();
+		st_Combo.GetLBText(st_Combo.GetCurSel(), st_NewText);
 
-		if (nSelected >= 0)
+		if (st_NewText != GetItemText(nEditRow, nEditColumn))
 		{
-			st_Combo.GetLBText(nSelected, st_NewText);
-
-			if (GetItemText(nEditRow, nEditColumn) != st_NewText)
-			{
-				(VOID)SetItemText(nEditRow, nEditColumn, st_NewText);
-				f_Notify(GRIDN_CELLCHANGED, nEditRow, nEditColumn, 0, nullptr, nullptr);
-			}
+			(VOID)SetItemText(nEditRow, nEditColumn, st_NewText);
+			f_Notify(GRIDN_CELLCHANGED, nEditRow, nEditColumn);
 		}
 	}
 }
 
-// 목록이 닫히면 편집을 확정한다.
+// 목록이 닫히면 편집을 끝낸다.
 VOID CGridCtrl::f_OnComboCloseUp(VOID)
 {
 	f_EndEdit(1);
 }
 
+// 클릭이 끝난 뒤 목록을 편다. OnLButtonDown 이 이 메시지를 게시한다.
+LRESULT CGridCtrl::f_OnOpenChoice(WPARAM wParam, LPARAM lParam)
+{
+	f_BeginEdit(static_cast<INT32>(wParam), static_cast<INT32>(lParam));
+
+	return 0;
+}
+
 // 입력
 
-// 방향키와 글자를 직접 받는다.
-UINT32 CGridCtrl::OnGetDlgCode(VOID)
-{
-	const MSG	*st_Msg = GetCurrentMessage();
-	UINT32		code = DLGC_WANTARROWS | DLGC_WANTCHARS;
-
-	// Enter 는 기본 버튼 대신 편집 열기
-	if ((st_Msg != nullptr) && (st_Msg->message == WM_GETDLGCODE) && (st_Msg->lParam != 0))
-	{
-		const MSG *st_Key = reinterpret_cast<const MSG *>(st_Msg->lParam);
-
-		if ((st_Key->message == WM_KEYDOWN) && (st_Key->wParam == VK_RETURN))
-		{
-			code = code | DLGC_WANTMESSAGE;
-		}
-	}
-
-	return code;
-}
-
-// 좌우 키로 편집 가능한 열을 오가고, F2, Enter, Space 로 편집을 연다.
-VOID CGridCtrl::OnKeyDown(UINT32 key, UINT32 repeat, UINT32 flags)
-{
-	INT32 nColumn;
-	INT32 isHandled = 0;
-
-	if ((key == VK_LEFT) || (key == VK_RIGHT))
-	{
-		nColumn = nCurColumn + ((key == VK_RIGHT) ? 1 : -1);
-
-		while ((nColumn >= 0) && (nColumn < nColumnNum) && (f_IsEditable(nColumn) == 0))
-		{
-			nColumn = nColumn + ((key == VK_RIGHT) ? 1 : -1);
-		}
-
-		if ((nColumn >= 0) && (nColumn < nColumnNum) && (nCurRow >= 0))
-		{
-			f_InvalidateCell(nCurRow, nCurColumn);
-			nCurColumn = nColumn;
-			f_InvalidateCell(nCurRow, nCurColumn);
-		}
-
-		isHandled = 1;
-	}
-	else if ((key == VK_F2) || (key == VK_RETURN) || (key == VK_SPACE))
-	{
-		if ((nCurRow >= 0) && (f_IsEditable(nCurColumn) != 0))
-		{
-			f_BeginEdit(nCurRow, nCurColumn, nullptr);
-		}
-
-		isHandled = 1;
-	}
-	else
-	{
-		isHandled = 0;
-	}
-
-	if (isHandled == 0)
-	{
-		CListCtrl::OnKeyDown(key, repeat, flags);
-	}
-}
-
-// 숫자를 치면 그 글자로 편집을 연다.
-VOID CGridCtrl::OnChar(UINT32 key, UINT32 repeat, UINT32 flags)
-{
-	const TCHAR	typed = static_cast<TCHAR>(key);
-	TCHAR		pt_Initial[2] = { typed, _T('\0') };
-
-	UNREFERENCED_PARAMETER(repeat);
-	UNREFERENCED_PARAMETER(flags);
-
-	// 숫자를 치면 그 글자로 편집 시작. 나머지는 리스트의 글자 검색으로 넘기지 않는다.
-	if ((nCurRow >= 0) && (nCurColumn >= 0) && (nCurColumn < nColumnNum) && (st_Column[nCurColumn].kind == GRID_KIND_NUMBER) &&
-		(((typed >= _T('0')) && (typed <= _T('9'))) || (typed == _T('-')) || (typed == _T('+')) || (typed == _T('.'))))
-	{
-		f_BeginEdit(nCurRow, nCurColumn, pt_Initial);
-	}
-}
-
-// 누른 칸을 현재 칸으로 만든다. 이미 현재 칸이던 숫자 칸을 다시 누르면 편집을 연다.
+// 누른 칸의 행을 고르고, 목록 칸이면 콤보를 띄운다. 기본 처리는 끌기 판정 때문에 클릭이 늦게 먹어 직접 다룬다.
 VOID CGridCtrl::OnLButtonDown(UINT32 flags, CPoint st_Point)
 {
-	LVHITTESTINFO	st_Hit;
-	INT32			wasCurrent;
+	LVHITTESTINFO st_Hit;
 
 	UNREFERENCED_PARAMETER(flags);
 
-	// 기본 처리는 끌기 판정 때문에 클릭이 늦게 먹어 직접 다룬다.
 	f_EndEdit(1);
 	(VOID)SetFocus();
 
 	(VOID)memset(&st_Hit, 0, sizeof(st_Hit));
 	st_Hit.pt = st_Point;
 
-	if ((SubItemHitTest(&st_Hit) >= 0) && (st_Hit.iItem >= 0) && (st_Hit.iSubItem >= 0))
+	if (SubItemHitTest(&st_Hit) >= 0)
 	{
-		wasCurrent = ((st_Hit.iItem == nCurRow) && (st_Hit.iSubItem == nCurColumn)) ? 1 : 0;
-		f_SetCurCell(st_Hit.iItem, st_Hit.iSubItem, 0);
+		f_SelectRow(st_Hit.iItem);
 
-		if (st_Hit.iSubItem < nColumnNum)
+		// 버튼을 누른 채 목록을 펴면 떼는 순간 닫히므로 클릭이 끝난 뒤에 연다.
+		if (st_Column[st_Hit.iSubItem].kind == GRID_KIND_CHOICE)
 		{
-			if (st_Column[st_Hit.iSubItem].kind == GRID_KIND_CHOICE)
-			{
-				// 버튼을 누른 채 목록을 펴면 떼는 순간 닫히므로 클릭이 끝난 뒤에 연다.
-				(VOID)PostMessage(GRID_WM_OPEN_CHOICE, static_cast<WPARAM>(st_Hit.iItem), static_cast<LPARAM>(st_Hit.iSubItem));
-			}
-			else if ((st_Column[st_Hit.iSubItem].kind == GRID_KIND_NUMBER) && (wasCurrent != 0))
-			{
-				f_BeginEdit(st_Hit.iItem, st_Hit.iSubItem, nullptr);
-			}
-			else
-			{
-				// 선택만
-			}
+			(VOID)PostMessage(GRID_WM_OPEN_CHOICE, static_cast<WPARAM>(st_Hit.iItem), static_cast<LPARAM>(st_Hit.iSubItem));
 		}
 	}
 }
 
-// 클릭 처리가 끝난 뒤 목록을 편다. OnLButtonDown 이 이 메시지를 게시한다.
-LRESULT CGridCtrl::f_OnOpenChoice(WPARAM wParam, LPARAM lParam)
-{
-	const INT32 nRow = static_cast<INT32>(wParam);
-	const INT32 nColumn = static_cast<INT32>(lParam);
-
-	if ((nRow == nCurRow) && (nColumn == nCurColumn) && (nColumn >= 0) && (nColumn < nColumnNum) && (st_Column[nColumn].kind == GRID_KIND_CHOICE))
-	{
-		f_BeginEdit(nRow, nColumn, nullptr);
-	}
-
-	return 0;
-}
-
-// 두 번 누르면 바로 편집을 연다.
+// 숫자 칸을 두 번 누르면 편집칸을 연다.
 VOID CGridCtrl::OnLButtonDblClk(UINT32 flags, CPoint st_Point)
 {
 	LVHITTESTINFO st_Hit;
@@ -1100,9 +337,9 @@ VOID CGridCtrl::OnLButtonDblClk(UINT32 flags, CPoint st_Point)
 	(VOID)memset(&st_Hit, 0, sizeof(st_Hit));
 	st_Hit.pt = st_Point;
 
-	if ((SubItemHitTest(&st_Hit) >= 0) && (st_Hit.iItem >= 0) && (st_Hit.iSubItem >= 0) && (st_Hit.iSubItem < nColumnNum))
+	if ((SubItemHitTest(&st_Hit) >= 0) && (st_Column[st_Hit.iSubItem].kind == GRID_KIND_NUMBER))
 	{
-		f_SetCurCell(st_Hit.iItem, st_Hit.iSubItem, (st_Column[st_Hit.iSubItem].kind == GRID_KIND_NUMBER) ? 1 : 0);
+		f_BeginEdit(st_Hit.iItem, st_Hit.iSubItem);
 	}
 }
 
@@ -1113,20 +350,6 @@ VOID CGridCtrl::OnSize(UINT32 type, INT32 width, INT32 height)
 
 	f_EndEdit(1);
 	f_FitColumns();
-}
-
-// 포커스 표시를 위해 현재 칸을 다시 그린다.
-VOID CGridCtrl::OnSetFocus(CWnd *st_OldWnd)
-{
-	CListCtrl::OnSetFocus(st_OldWnd);
-	f_InvalidateCell(nCurRow, nCurColumn);
-}
-
-// 포커스 표시를 위해 현재 칸을 다시 그린다.
-VOID CGridCtrl::OnKillFocus(CWnd *st_NewWnd)
-{
-	CListCtrl::OnKillFocus(st_NewWnd);
-	f_InvalidateCell(nCurRow, nCurColumn);
 }
 
 // 스크롤 전에 편집을 닫는다. 편집칸이 엉뚱한 행 위에 남지 않게 한다.
@@ -1144,20 +367,14 @@ BOOL CGridCtrl::OnMouseWheel(UINT32 flags, SHORT delta, CPoint st_Point)
 	return CListCtrl::OnMouseWheel(flags, delta, st_Point);
 }
 
-// 선택 행이 바뀌면 현재 행을 갱신하고 부모에게 알린다.
+// 행이 새로 골라지면 부모에게 알린다.
 VOID CGridCtrl::f_OnItemChanged(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
 	const NMLISTVIEW *st_Item = reinterpret_cast<NMLISTVIEW *>(st_Hdr);
 
 	if (((st_Item->uChanged & LVIF_STATE) != 0U) && ((st_Item->uNewState & LVIS_SELECTED) != 0U) && ((st_Item->uOldState & LVIS_SELECTED) == 0U))
 	{
-		if (st_Item->iItem != nCurRow)
-		{
-			nCurRow = st_Item->iItem;
-			f_Notify(GRIDN_ROWCHANGED, nCurRow, nCurColumn, 0, nullptr, nullptr);
-		}
-
-		Invalidate(FALSE);
+		f_Notify(GRIDN_ROWCHANGED, st_Item->iItem, 0);
 	}
 
 	*pt_Result = 0;
