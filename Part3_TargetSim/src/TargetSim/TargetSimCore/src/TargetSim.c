@@ -1,10 +1,18 @@
 #include "TargetSim.h"
 
-// simTime 에 걸린 기동의 각속도 반환. 기동 없으면 0.
-static STRUCT_Coord_Attitude f_Tgt_GetAttRate(const ST_TargetInit *st_Target, FLOAT64 simTime)
+// 자세 각속도. Roll, Pitch, Yaw 가 1 초에 바뀌는 양.
+typedef struct
 {
-	STRUCT_Coord_Attitude	st_Rate = { 0.0, 0.0, 0.0 };
-	const ST_TargetManeuver	*st_Active = NULL;
+	FLOAT64					Roll;							// [rad/s]
+	FLOAT64					Pitch;							// [rad/s]
+	FLOAT64					Yaw;							// [rad/s]
+} ST_AttRate;
+
+// simTime 에 걸린 기동의 각속도 반환. 기동 없으면 0.
+static ST_AttRate f_Tgt_GetAttRate(const ST_TargetInit *st_Target, FLOAT64 simTime)
+{
+	ST_AttRate				st_AttRate = { 0.0, 0.0, 0.0 };
+	const ST_TargetManeuver	*st_ActiveManeuver = NULL;
 	const ST_TargetManeuver	*st_Maneuver;
 	FLOAT64					omega;
 	INT32					nManeuver;
@@ -13,29 +21,29 @@ static STRUCT_Coord_Attitude f_Tgt_GetAttRate(const ST_TargetInit *st_Target, FL
 	{
 		st_Maneuver = &st_Target->st_Maneuver[nManeuver];
 
-		if ((st_Active == NULL) && (st_Maneuver->startTime <= simTime) && (simTime < st_Maneuver->endTime))
+		if ((st_ActiveManeuver == NULL) && (st_Maneuver->startTime <= simTime) && (simTime < st_Maneuver->endTime))
 		{
-			st_Active = st_Maneuver;
+			st_ActiveManeuver = st_Maneuver;
 		}
 	}
 
-	if (st_Active != NULL)
+	if (st_ActiveManeuver != NULL)
 	{
 		// 각속도 omega = n * g / V.
-		omega = (st_Active->gravityValue * G_FORCE) / st_Target->headingSpeed;
+		omega = (st_ActiveManeuver->gravityValue * G_FORCE) / st_Target->headingSpeed;
 
-		switch (st_Active->enTurnType)
+		switch (st_ActiveManeuver->enTurnType)
 		{
 		case TGT_TURN_ROLL:
-			st_Rate.Roll = omega;
+			st_AttRate.Roll = omega;
 			break;
 
 		case TGT_TURN_YAW:
-			st_Rate.Yaw = omega;
+			st_AttRate.Yaw = omega;
 			break;
 
 		case TGT_TURN_PITCH:
-			st_Rate.Pitch = omega;
+			st_AttRate.Pitch = omega;
 			break;
 
 		case TGT_TURN_NONE:
@@ -45,7 +53,7 @@ static STRUCT_Coord_Attitude f_Tgt_GetAttRate(const ST_TargetInit *st_Target, FL
 		}
 	}
 
-	return st_Rate;
+	return st_AttRate;
 }
 
 // 동체 속도 (V, 0, 0) -> NED -> ECEF 속도.
@@ -60,7 +68,7 @@ static STRUCT_Coord_Rect f_Tgt_GetVelEcef(const STRUCT_Coord_Attitude *st_Att, c
 	return f_Trans_Ned_To_Ecef(st_VelNed.x, st_VelNed.y, st_VelNed.z, 0.0, 0.0, 0.0, st_Lla->Lat, st_Lla->Lon);
 }
 
-// 객체 하나의 t = 0 상태 생성.
+// 플랫폼 또는 표적 하나의 시작 상태 생성.
 static VOID f_Tgt_InitState(ST_TargetState *st_State, const STRUCT_Coord_Lla *st_InitLla, const STRUCT_Coord_Attitude *st_InitAtt, FLOAT64 headingSpeed)
 {
 	st_State->simTime	= 0.0;
@@ -72,10 +80,10 @@ static VOID f_Tgt_InitState(ST_TargetState *st_State, const STRUCT_Coord_Lla *st
 	st_State->st_VelEcef	= f_Tgt_GetVelEcef(st_InitAtt, st_InitLla, headingSpeed);
 }
 
-// 중점법으로 한 스텝 전진. 반 스텝 뒤 속도를 대표 속도로 사용.
-static VOID f_Tgt_Propagate(ST_TargetState *st_State, const STRUCT_Coord_Attitude *st_Rate, FLOAT64 headingSpeed, FLOAT64 stepTime, FLOAT64 nextTime)
+// 중점법으로 한 스텝 전진. 반 스텝 뒤(중간 지점) 속도로 이동.
+static VOID f_Tgt_Propagate(ST_TargetState *st_State, const ST_AttRate *st_AttRate, FLOAT64 headingSpeed, FLOAT64 stepTime, FLOAT64 nextTime)
 {
-	ST_TargetState			st_Next;
+	ST_TargetState			st_NextState;
 	STRUCT_Coord_Attitude	st_AttMid;
 	STRUCT_Coord_Lla		st_LlaMid;
 	STRUCT_Coord_Rect		st_PosMid;
@@ -86,14 +94,14 @@ static VOID f_Tgt_Propagate(ST_TargetState *st_State, const STRUCT_Coord_Attitud
 	// 반 스텝 뒤 자세.
 	halfStep = 0.5 * stepTime;
 
-	st_AttMid.Roll	= st_State->st_Att.Roll + (st_Rate->Roll * halfStep);
-	st_AttMid.Pitch	= st_State->st_Att.Pitch + (st_Rate->Pitch * halfStep);
-	st_AttMid.Yaw	= st_State->st_Att.Yaw + (st_Rate->Yaw * halfStep);
+	st_AttMid.Roll	= st_State->st_Att.Roll + (st_AttRate->Roll * halfStep);
+	st_AttMid.Pitch	= st_State->st_Att.Pitch + (st_AttRate->Pitch * halfStep);
+	st_AttMid.Yaw	= st_State->st_Att.Yaw + (st_AttRate->Yaw * halfStep);
 
 	// 스텝 끝 자세.
-	st_Next.st_Att.Roll		= st_State->st_Att.Roll + (st_Rate->Roll * stepTime);
-	st_Next.st_Att.Pitch	= st_State->st_Att.Pitch + (st_Rate->Pitch * stepTime);
-	st_Next.st_Att.Yaw		= st_State->st_Att.Yaw + (st_Rate->Yaw * stepTime);
+	st_NextState.st_Att.Roll	= st_State->st_Att.Roll + (st_AttRate->Roll * stepTime);
+	st_NextState.st_Att.Pitch	= st_State->st_Att.Pitch + (st_AttRate->Pitch * stepTime);
+	st_NextState.st_Att.Yaw		= st_State->st_Att.Yaw + (st_AttRate->Yaw * stepTime);
 
 	// 반 스텝 뒤 위치. 스텝 시작 속도 사용.
 	st_VelStart = f_Tgt_GetVelEcef(&st_State->st_Att, &st_State->st_Lla, headingSpeed);
@@ -102,24 +110,24 @@ static VOID f_Tgt_Propagate(ST_TargetState *st_State, const STRUCT_Coord_Attitud
 	st_PosMid.y = st_State->st_PosEcef.y + (st_VelStart.y * halfStep);
 	st_PosMid.z = st_State->st_PosEcef.z + (st_VelStart.z * halfStep);
 
-	// 반 스텝 뒤 위경도, 자세로 대표 속도 계산.
+	// 반 스텝 뒤 위경도, 자세로 중간 지점 속도 계산.
 	st_LlaMid = f_Trans_Ecef_To_Lla(st_PosMid.x, st_PosMid.y, st_PosMid.z);
 	st_VelMid = f_Tgt_GetVelEcef(&st_AttMid, &st_LlaMid, headingSpeed);
 
-	// 대표 속도로 한 스텝 이동.
-	st_Next.st_PosEcef.x = st_State->st_PosEcef.x + (st_VelMid.x * stepTime);
-	st_Next.st_PosEcef.y = st_State->st_PosEcef.y + (st_VelMid.y * stepTime);
-	st_Next.st_PosEcef.z = st_State->st_PosEcef.z + (st_VelMid.z * stepTime);
+	// 중간 지점 속도로 한 스텝 이동.
+	st_NextState.st_PosEcef.x = st_State->st_PosEcef.x + (st_VelMid.x * stepTime);
+	st_NextState.st_PosEcef.y = st_State->st_PosEcef.y + (st_VelMid.y * stepTime);
+	st_NextState.st_PosEcef.z = st_State->st_PosEcef.z + (st_VelMid.z * stepTime);
 
-	// 새 위치의 LLA, 속도 계산 후 반영.
-	st_Next.st_Lla		= f_Trans_Ecef_To_Lla(st_Next.st_PosEcef.x, st_Next.st_PosEcef.y, st_Next.st_PosEcef.z);
-	st_Next.st_VelEcef	= f_Tgt_GetVelEcef(&st_Next.st_Att, &st_Next.st_Lla, headingSpeed);
-	st_Next.simTime		= nextTime;
+	// 새 위치의 LLA, 속도 계산 후 덮어씀.
+	st_NextState.st_Lla		= f_Trans_Ecef_To_Lla(st_NextState.st_PosEcef.x, st_NextState.st_PosEcef.y, st_NextState.st_PosEcef.z);
+	st_NextState.st_VelEcef	= f_Tgt_GetVelEcef(&st_NextState.st_Att, &st_NextState.st_Lla, headingSpeed);
+	st_NextState.simTime	= nextTime;
 
-	*st_State = st_Next;
+	*st_State = st_NextState;
 }
 
-// 설정 사본 보관, 표본 0 생성.
+// 설정 복사, 0 초 결과 생성.
 VOID f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 {
 	ST_SimSample	*st_Sample = &st_Sim->st_Sample;
@@ -134,7 +142,7 @@ VOID f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 	st_Sample->nStepIndex	= 0;
 	st_Sample->nTargetNum	= st_Config->nTargetNum;
 
-	// 플랫폼, 표적의 t = 0 상태.
+	// 플랫폼, 표적의 시작 상태.
 	f_Tgt_InitState(&st_Sample->st_Platform, &st_Config->st_Platform.st_InitLla, &st_Config->st_Platform.st_InitAtt, st_Config->st_Platform.headingSpeed);
 
 	for (nTarget = 0; nTarget < st_Config->nTargetNum; nTarget++)
@@ -147,26 +155,26 @@ VOID f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 // 플랫폼, 전 표적 한 스텝 진행.
 VOID f_Tgt_StepSim(ST_SimState *st_Sim)
 {
-	const ST_SimConfig			*st_Config = &st_Sim->st_Config;
-	const STRUCT_Coord_Attitude	st_NoRate = { 0.0, 0.0, 0.0 };
-	ST_SimSample				*st_Sample = &st_Sim->st_Sample;
-	STRUCT_Coord_Attitude		st_Rate;
-	FLOAT64						curTime;
-	FLOAT64						nextTime;
-	INT32						nTarget;
+	const ST_SimConfig	*st_Config = &st_Sim->st_Config;
+	const ST_AttRate	st_NoManeuverRate = { 0.0, 0.0, 0.0 };
+	ST_SimSample		*st_Sample = &st_Sim->st_Sample;
+	ST_AttRate			st_ManeuverRate;
+	FLOAT64				curTime;
+	FLOAT64				nextTime;
+	INT32				nTarget;
 
 	// 시각 = 스텝 번호 * stepTime.
 	curTime		= (FLOAT64)st_Sample->nStepIndex * st_Config->stepTime;
 	nextTime	= (FLOAT64)(st_Sample->nStepIndex + 1) * st_Config->stepTime;
 
 	// 플랫폼: 기동 없음, 각속도 0.
-	f_Tgt_Propagate(&st_Sample->st_Platform, &st_NoRate, st_Config->st_Platform.headingSpeed, st_Config->stepTime, nextTime);
+	f_Tgt_Propagate(&st_Sample->st_Platform, &st_NoManeuverRate, st_Config->st_Platform.headingSpeed, st_Config->stepTime, nextTime);
 
 	// 표적: 현재 시각의 기동 각속도로 전진.
 	for (nTarget = 0; nTarget < st_Config->nTargetNum; nTarget++)
 	{
-		st_Rate = f_Tgt_GetAttRate(&st_Config->st_Target[nTarget], curTime);
-		f_Tgt_Propagate(&st_Sample->st_Target[nTarget], &st_Rate, st_Config->st_Target[nTarget].headingSpeed, st_Config->stepTime, nextTime);
+		st_ManeuverRate = f_Tgt_GetAttRate(&st_Config->st_Target[nTarget], curTime);
+		f_Tgt_Propagate(&st_Sample->st_Target[nTarget], &st_ManeuverRate, st_Config->st_Target[nTarget].headingSpeed, st_Config->stepTime, nextTime);
 	}
 
 	st_Sample->nStepIndex	= st_Sample->nStepIndex + 1;

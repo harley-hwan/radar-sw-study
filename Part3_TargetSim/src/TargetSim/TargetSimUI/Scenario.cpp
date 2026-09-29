@@ -11,8 +11,8 @@
 
 #define SCN_NEW_MANEUVER_SPAN	10.0					// [s] 새 기동 기본 길이
 #define SCN_COPY_LAT_OFFSET		0.01					// [deg] 새 표적 북쪽 이동량
-#define SCN_SPEC_TARGET_NUM		2						// 명세 / 기동 시연 프리셋의 표적 수
-#define SCN_DEMO_MANEUVER_NUM	10						// 기동 시연 프리셋의 기동 줄 수
+#define SCN_SPEC_TARGET_NUM		2						// 기본 / 응용 시나리오 프리셋의 표적 수
+#define SCN_DEMO_MANEUVER_NUM	10						// 응용 시나리오 프리셋의 기동 줄 수
 
 typedef struct
 {
@@ -29,7 +29,7 @@ typedef struct
 static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("기본 시나리오"), _T("응용 시나리오") };
 static const LPCTSTR	s_TurnName[SCN_TURN_TYPE_NUM] = { _T("0 없음"), _T("1 Roll"), _T("2 Yaw"), _T("3 Pitch") };
 
-// 과제 명세: 플랫폼 정지, 대함 표적, 대공 표적
+// 기본 시나리오 (과제 명세): 플랫폼 정지, 대함 표적, 대공 표적
 static const ST_PresetObject	s_SpecPlatform = { { _T("32.0"), _T("126.0"), _T("0"), _T("0"), _T("0"), _T("0"), _T("0") } };
 static const ST_PresetObject	s_SpecTarget[SCN_SPEC_TARGET_NUM] =
 {
@@ -37,7 +37,7 @@ static const ST_PresetObject	s_SpecTarget[SCN_SPEC_TARGET_NUM] =
 	{ { _T("32.12"), _T("126.0"), _T("300"), _T("200"), _T("0"), _T("0"), _T("180") } }
 };
 
-// 기동 시연: 명세 초기값에 지그재그 기동표 추가. G 부호가 회전 방향 (+ 우선회, - 좌선회).
+// 응용 시나리오: 기본 시나리오에 지그재그 기동표 추가. G 부호가 회전 방향 (+ 우선회, - 좌선회).
 // 대함(표적 1): Yaw 1 G, 45 도씩 4 회. 대공(표적 2): Yaw 8.205060 G, 90 도씩 6 회 (마지막만 150 도).
 static const ST_PresetManeuver	s_DemoManeuver[SCN_DEMO_MANEUVER_NUM] =
 {
@@ -92,7 +92,7 @@ LPCTSTR CScenario::f_TurnName(INT32 nTurnType)
 	return s_TurnName[nTurnType];
 }
 
-// 프리셋 -> 편집 글자. 기동 시연은 명세 시나리오 + 기동표.
+// 프리셋 -> 편집 글자. 응용 시나리오는 기본 시나리오 + 기동표.
 VOID CScenario::f_LoadPreset(INT32 nPreset)
 {
 	INT32 nTarget;

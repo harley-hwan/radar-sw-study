@@ -76,7 +76,7 @@ VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 	DDX_Control(st_Dx, IDC_RESULT_LIST, st_ResultList);
 }
 
-// 글꼴, 색, 표 준비 후 명세 시나리오 첫 실행.
+// 글꼴, 색, 표 준비 후 기본 시나리오 첫 실행.
 BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 {
 	CClientDC	st_Dc(this);

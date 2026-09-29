@@ -31,14 +31,14 @@ typedef enum
 	TGT_TURN_PITCH	= 3
 } EN_TurnType;
 
-// 기동 1건. 구간 [startTime, endTime).
+// 기동 1건.
 // gravityValue 부호가 회전 방향. + 는 우측 뱅크 / 우선회 / 기수 상승.
 typedef struct
 {
 	EN_TurnType				enTurnType;						// 회전축 (0 없음, 1 Roll, 2 Yaw, 3 Pitch)
 	FLOAT64					gravityValue;					// [G] 세기, 부호가 회전 방향
-	FLOAT64					startTime;						// [s] 시작, 이 시각 포함
-	FLOAT64					endTime;						// [s] 종료, 이 시각 직전까지
+	FLOAT64					startTime;						// [s] 시작 시각
+	FLOAT64					endTime;						// [s] 종료 시각
 } ST_TargetManeuver;
 
 // 표적 초기 설정. 속도는 기수 방향 크기 V_heading 만 입력.
@@ -69,7 +69,7 @@ typedef struct
 	ST_TargetInit			st_Target[TGT_MAX_TARGET_NUM];
 } ST_SimConfig;
 
-// 객체 하나의 한 시각 상태. 위치, 속도는 ECEF 이고 LLA 는 출력용.
+// 플랫폼 또는 표적 하나의 한 시각 상태. 위치, 속도는 ECEF 이고 LLA 는 출력용.
 typedef struct
 {
 	FLOAT64					simTime;						// 시각 [s]
@@ -79,7 +79,7 @@ typedef struct
 	STRUCT_Coord_Attitude	st_Att;							// Roll, Pitch, Yaw [rad]
 } ST_TargetState;
 
-// 한 시각의 플랫폼, 표적 상태 (표본).
+// 한 시각의 결과. 플랫폼, 표적 상태.
 typedef struct
 {
 	FLOAT64					simTime;						// 시각 [s] = nStepIndex * stepTime
@@ -89,18 +89,18 @@ typedef struct
 	ST_TargetState			st_Target[TGT_MAX_TARGET_NUM];	// 표적 상태 (nTargetNum 개)
 } ST_SimSample;
 
-// 시뮬레이션 진행 상태. 설정 사본 포함.
+// 시뮬레이션 진행 상태. 복사해 둔 설정 포함.
 typedef struct
 {
-	INT32					nStepNum;						// 표본 수 = nStepNum + 1
-	ST_SimSample			st_Sample;						// 가장 최근 표본
+	INT32					nStepNum;						// 스텝 수 (결과는 nStepNum + 1 개)
+	ST_SimSample			st_Sample;						// 가장 최근 결과
 	ST_SimConfig			st_Config;
 } ST_SimState;
 
 TSCORE_API VOID					f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config);
 TSCORE_API VOID					f_Tgt_StepSim(ST_SimState *st_Sim);
 
-// 화면 표시용 좌표 변환. 기준점은 플랫폼 t = 0 위치.
+// 화면 표시용 좌표 변환. 기준점은 플랫폼 시작 위치.
 TSCORE_API STRUCT_Coord_Rect	f_Tgt_EcefToNed(const STRUCT_Coord_Rect *st_Ecef, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
 TSCORE_API STRUCT_Coord_Lla		f_Tgt_NedToLla(const STRUCT_Coord_Rect *st_Ned, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
 TSCORE_API STRUCT_Coord_Rect	f_Tgt_LlaToNed(const STRUCT_Coord_Lla *st_Lla, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);

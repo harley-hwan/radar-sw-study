@@ -45,7 +45,7 @@ struct ST_ObjectText
 	ST_ManeuverText		st_Maneuver[TGT_MAX_MANEUVER_NUM];
 };
 
-// 플랫폼 표본 0 기준 국지 수평 좌표 [m]
+// 플랫폼 시작 위치 기준 국지 수평 좌표 [m]
 typedef struct
 {
 	FLOAT64		east;
