@@ -24,27 +24,52 @@ namespace Gdiplus
 #define PLOT_MARGIN_RIGHT		16
 #define PLOT_TITLE_HEIGHT		26
 #define PLOT_AXIS_HEIGHT		36
-#define PLOT_ALT_TITLE_HEIGHT	22
-#define PLOT_ALT_MIN_HEIGHT		112
-#define PLOT_ALT_MAX_HEIGHT		190
-#define PLOT_ALT_RATIO			0.30
-#define PLOT_WIDE_RATIO			1.40					// 너비/높이가 이보다 크면 평면, 고도 좌우 배치
-#define PLOT_ALT_SIDE_RATIO		0.38
-#define PLOT_ALT_SIDE_MIN		250
+#define PLOT_PANEL_TITLE_HEIGHT	22
+#define PLOT_PANEL_MIN_HEIGHT	112
+#define PLOT_PANEL_MAX_HEIGHT	190
+#define PLOT_PANEL_RATIO		0.30
+#define PLOT_WIDE_RATIO			1.40					// 너비/높이가 이보다 크면 시각 그래프를 평면 오른쪽에 배치
+#define PLOT_PANEL_SIDE_RATIO	0.38
+#define PLOT_PANEL_SIDE_MIN		250
 #define PLOT_MIN_SPAN			1000.0					// [m]
 #define PLOT_SPAN_SCALE			1.18
 #define PLOT_MIN_ALT_SPAN		10.0					// [m]
+#define PLOT_MIN_SPEED_SPAN		10.0					// [m/s]
 #define PLOT_MAX_GRID_NUM		8.0
 #define PLOT_LON_LABEL_PX		78						// [px @96dpi] 경도 라벨 하나의 폭
 #define PLOT_LAT_LABEL_PX		34						// [px @96dpi] 위도 라벨 하나의 높이
+#define PLOT_TIME_LABEL_PX		22						// [px @96dpi] 시각 라벨 하나의 폭
 #define PLOT_FONT_PX			12.0F
 #define PLOT_LABEL_GAP_PX		8.0						// [px @96dpi] 시작점과 이름표 사이
 #define PLOT_LABEL_SIDE_MIN		0.3
+#define PLOT_COMPARE_DARK		60						// [%] 비교 결과 선 밝기 (같은 색을 어둡게)
 
 // COLORREF + 알파 -> GDI+ 색.
 static Gdiplus::Color f_Plot_Color(COLORREF color, INT32 alpha)
 {
 	return Gdiplus::Color(static_cast<UINT8>(alpha), GetRValue(color), GetGValue(color), GetBValue(color));
+}
+
+// 궤적 선 색. 비교 결과는 같은 색을 어둡게.
+static Gdiplus::Color f_Plot_TrackColor(INT32 nObject, INT32 isCompare)
+{
+	const COLORREF	color = f_Ui_ObjectColor(nObject);
+	const INT32		percent = (isCompare != 0) ? PLOT_COMPARE_DARK : 100;
+
+	return f_Plot_Color(RGB((GetRValue(color) * percent) / 100, (GetGValue(color) * percent) / 100, (GetBValue(color) * percent) / 100), 255);
+}
+
+// 궤적 선 모양. 꺾이는 곳은 둥글게, 비교 결과는 점선.
+static VOID f_Plot_SetTrackStyle(Gdiplus::Pen *st_Pen, INT32 isCompare)
+{
+	static const Gdiplus::REAL s_Dash[2] = { 4.0F, 3.0F };					// 선, 빈칸 길이 (선 굵기 배)
+
+	(VOID)st_Pen->SetLineJoin(Gdiplus::LineJoinRound);
+
+	if (isCompare != 0)
+	{
+		(VOID)st_Pen->SetDashPattern(s_Dash, 2);
+	}
 }
 
 // 좌표 -> 정수 픽셀 반올림.
@@ -73,7 +98,7 @@ static FLOAT64 f_Plot_NiceStepFrom(FLOAT64 span, FLOAT64 maxTickNum, const FLOAT
 	return decade * pt_Mantissa[nIndex];
 }
 
-// {1, 2, 5} x 10^k. 고도, 시각 축용.
+// {1, 2, 5} x 10^k. 시각 그래프 축용.
 static FLOAT64 f_Plot_NiceStep(FLOAT64 span, FLOAT64 maxTickNum)
 {
 	static const FLOAT64 s_Mantissa[3] = { 1.0, 2.0, 5.0 };
@@ -145,6 +170,7 @@ END_MESSAGE_MAP()
 // 궤적 그림. 결과 버퍼는 대화상자 소유, 여기서는 읽기만.
 CTrajectoryPlot::CTrajectoryPlot() noexcept
 	: st_Result(nullptr)
+	, st_Compare(nullptr)
 	, dpi(UI_BASE_DPI)
 	, pixelPerMeter(1.0)
 	, centerEast(0.0)
@@ -153,13 +179,13 @@ CTrajectoryPlot::CTrajectoryPlot() noexcept
 	, centerLon(0.0)
 	, gridLatDeg(0.01)
 	, gridLonDeg(0.01)
-	, altMin(0.0)
-	, altMax(1.0)
-	, altGrid(1.0)
 	, timeGrid(1.0)
 	, st_MapArea(0, 0, 0, 0)
-	, st_AltArea(0, 0, 0, 0)
 {
+	st_Panel[PLOT_PANEL_ALT].pt_Title		= _T("고도 (m) / 시각 (s)");
+	st_Panel[PLOT_PANEL_ALT].minSpan		= PLOT_MIN_ALT_SPAN;
+	st_Panel[PLOT_PANEL_SPEED].pt_Title		= _T("속력 (m/s) / 시각 (s)");
+	st_Panel[PLOT_PANEL_SPEED].minSpan		= PLOT_MIN_SPEED_SPAN;
 }
 
 // 화면 배율 설정.
@@ -168,10 +194,18 @@ VOID CTrajectoryPlot::f_SetDpi(INT32 newDpi)
 	dpi = newDpi;
 }
 
-// 그릴 결과 교체 후 다시 그리기. 재계산마다 호출.
-VOID CTrajectoryPlot::f_SetResult(const CSimResult *st_NewResult)
+// 그릴 결과 교체 후 다시 그리기. 재계산, 비교 켜기 / 끄기마다 호출. 비교 결과는 크기가 같을 때만 씀.
+VOID CTrajectoryPlot::f_SetResult(const CSimResult *st_NewResult, const CSimResult *st_NewCompare)
 {
-	st_Result = st_NewResult;
+	st_Result	= st_NewResult;
+	st_Compare	= nullptr;
+
+	if ((st_NewCompare != nullptr) && (st_NewCompare->f_GetSampleNum() == st_NewResult->f_GetSampleNum())
+		&& (st_NewCompare->f_GetObjectNum() == st_NewResult->f_GetObjectNum()))
+	{
+		st_Compare = st_NewCompare;
+	}
+
 	Invalidate(FALSE);
 }
 
@@ -213,53 +247,65 @@ VOID CTrajectoryPlot::OnPaint(VOID)
 
 		(VOID)st_Graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
 		f_DrawMap(&st_Graphics);
-		f_DrawAltitude(&st_Graphics);
+		f_DrawPanel(&st_Graphics, PLOT_PANEL_ALT);
+		f_DrawPanel(&st_Graphics, PLOT_PANEL_SPEED);
 	}
 
 	(VOID)st_Dc.BitBlt(0, 0, st_Client.Width(), st_Client.Height(), &st_MemDc, 0, 0, SRCCOPY);
 	(VOID)st_MemDc.SelectObject(st_OldBitmap);
 }
 
-// 평면, 고도 패널 배치. 가로가 넓으면 좌우, 좁으면 상하.
+// 평면, 시각 그래프 배치. 가로가 넓으면 평면 오른쪽에 고도, 속력을 위아래로, 좁으면 평면 아래에 좌우로.
 VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 {
-	const INT32	left = st_Client.left + f_Ui_Scale(PLOT_MARGIN_LEFT, dpi);
-	const INT32	right = st_Client.right - f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi);
+	const INT32	marginLeft = f_Ui_Scale(PLOT_MARGIN_LEFT, dpi);
+	const INT32	marginRight = f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi);
+	const INT32	axisHeight = f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi);
+	const INT32	panelTitle = f_Ui_Scale(PLOT_PANEL_TITLE_HEIGHT, dpi);
+	const INT32	left = st_Client.left + marginLeft;
+	const INT32	right = st_Client.right - marginRight;
 	const INT32	top = st_Client.top + f_Ui_Scale(PLOT_TITLE_HEIGHT, dpi);
-	const INT32	bottom = st_Client.bottom - f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi);
-	INT32		altBlock;
+	const INT32	bottom = st_Client.bottom - axisHeight;
+	INT32		block;
+	INT32		split;
 
 	if (static_cast<FLOAT64>(st_Client.Width()) >= (PLOT_WIDE_RATIO * static_cast<FLOAT64>(st_Client.Height())))
 	{
-		altBlock = f_Plot_Round(static_cast<FLOAT64>(st_Client.Width()) * PLOT_ALT_SIDE_RATIO);
+		block = f_Plot_Round(static_cast<FLOAT64>(st_Client.Width()) * PLOT_PANEL_SIDE_RATIO);
 
-		if (altBlock < f_Ui_Scale(PLOT_ALT_SIDE_MIN, dpi))
+		if (block < f_Ui_Scale(PLOT_PANEL_SIDE_MIN, dpi))
 		{
-			altBlock = f_Ui_Scale(PLOT_ALT_SIDE_MIN, dpi);
+			block = f_Ui_Scale(PLOT_PANEL_SIDE_MIN, dpi);
 		}
 
-		st_AltArea.SetRect(st_Client.right - altBlock + f_Ui_Scale(PLOT_MARGIN_LEFT, dpi), top, right, bottom);
-		st_MapArea.SetRect(left, top, st_Client.right - altBlock - f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi), bottom);
+		// 오른쪽 칸을 위아래로 나눔. 사이는 위 칸 시각 눈금과 아래 칸 제목 자리.
+		split = (top + bottom - axisHeight - panelTitle) / 2;
+		st_MapArea.SetRect(left, top, st_Client.right - block - marginRight, bottom);
+		st_Panel[PLOT_PANEL_ALT].st_Area.SetRect(st_Client.right - block + marginLeft, top, right, split);
+		st_Panel[PLOT_PANEL_SPEED].st_Area.SetRect(st_Client.right - block + marginLeft, split + axisHeight + panelTitle, right, bottom);
 	}
 	else
 	{
-		altBlock = f_Plot_Round(static_cast<FLOAT64>(st_Client.Height()) * PLOT_ALT_RATIO);
+		block = f_Plot_Round(static_cast<FLOAT64>(st_Client.Height()) * PLOT_PANEL_RATIO);
 
-		if (altBlock < f_Ui_Scale(PLOT_ALT_MIN_HEIGHT, dpi))
+		if (block < f_Ui_Scale(PLOT_PANEL_MIN_HEIGHT, dpi))
 		{
-			altBlock = f_Ui_Scale(PLOT_ALT_MIN_HEIGHT, dpi);
+			block = f_Ui_Scale(PLOT_PANEL_MIN_HEIGHT, dpi);
 		}
-		else if (altBlock > f_Ui_Scale(PLOT_ALT_MAX_HEIGHT, dpi))
+		else if (block > f_Ui_Scale(PLOT_PANEL_MAX_HEIGHT, dpi))
 		{
-			altBlock = f_Ui_Scale(PLOT_ALT_MAX_HEIGHT, dpi);
+			block = f_Ui_Scale(PLOT_PANEL_MAX_HEIGHT, dpi);
 		}
 		else
 		{
 			// 비율대로
 		}
 
-		st_AltArea.SetRect(left, st_Client.bottom - altBlock + f_Ui_Scale(PLOT_ALT_TITLE_HEIGHT, dpi), right, bottom);
-		st_MapArea.SetRect(left, top, right, st_Client.bottom - altBlock - f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi));
+		// 아래 칸을 좌우로 나눔.
+		split = (st_Client.left + st_Client.right) / 2;
+		st_MapArea.SetRect(left, top, right, st_Client.bottom - block - axisHeight);
+		st_Panel[PLOT_PANEL_ALT].st_Area.SetRect(left, st_Client.bottom - block + panelTitle, split - marginRight, bottom);
+		st_Panel[PLOT_PANEL_SPEED].st_Area.SetRect(split + marginLeft, st_Client.bottom - block + panelTitle, right, bottom);
 	}
 }
 
@@ -270,34 +316,53 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	const INT32				nObjectNum = st_Result->f_GetObjectNum();
 	const FLOAT64			width = static_cast<FLOAT64>(st_MapArea.Width());
 	const FLOAT64			height = static_cast<FLOAT64>(st_MapArea.Height());
+	const CSimResult		*st_Source[2] = { st_Result, st_Compare };
+	const INT32				nSourceNum = (st_Compare != nullptr) ? 2 : 1;
 	const ST_PlotPoint		*st_Point;
 	FLOAT64					minEast = 0.0;
 	FLOAT64					maxEast = 0.0;
 	FLOAT64					minNorth = 0.0;
 	FLOAT64					maxNorth = 0.0;
-	FLOAT64					lowAlt = HUGE_VAL;
-	FLOAT64					highAlt = -HUGE_VAL;
-	FLOAT64					spanAlt;
+	FLOAT64					lowValue[PLOT_PANEL_NUM];
+	FLOAT64					highValue[PLOT_PANEL_NUM];
+	FLOAT64					value;
+	FLOAT64					span;
 	FLOAT64					halfEast;
 	FLOAT64					halfNorth;
 	STRUCT_Coord_Lla		st_Center;
 	STRUCT_Coord_Lla		st_Low;
 	STRUCT_Coord_Lla		st_High;
+	INT32					nSource;
 	INT32					nStep;
 	INT32					nObject;
+	INT32					nPanel;
 
-	// 원점(플랫폼 초기 위치)은 항상 포함.
-	for (nStep = 0; nStep < nSampleNum; nStep++)
+	for (nPanel = 0; nPanel < PLOT_PANEL_NUM; nPanel++)
 	{
-		for (nObject = 0; nObject < nObjectNum; nObject++)
+		lowValue[nPanel]	= HUGE_VAL;
+		highValue[nPanel]	= -HUGE_VAL;
+	}
+
+	// 원점(플랫폼 초기 위치)은 항상 포함. 비교 결과가 있으면 함께 포함.
+	for (nSource = 0; nSource < nSourceNum; nSource++)
+	{
+		for (nStep = 0; nStep < nSampleNum; nStep++)
 		{
-			st_Point	= st_Result->f_GetPoint(nStep, nObject);
-			minEast		= fmin(minEast, st_Point->east);
-			maxEast		= fmax(maxEast, st_Point->east);
-			minNorth	= fmin(minNorth, st_Point->north);
-			maxNorth	= fmax(maxNorth, st_Point->north);
-			lowAlt		= fmin(lowAlt, st_Result->f_GetState(nStep, nObject)->st_Lla.Alt);
-			highAlt		= fmax(highAlt, st_Result->f_GetState(nStep, nObject)->st_Lla.Alt);
+			for (nObject = 0; nObject < nObjectNum; nObject++)
+			{
+				st_Point	= st_Source[nSource]->f_GetPoint(nStep, nObject);
+				minEast		= fmin(minEast, st_Point->east);
+				maxEast		= fmax(maxEast, st_Point->east);
+				minNorth	= fmin(minNorth, st_Point->north);
+				maxNorth	= fmax(maxNorth, st_Point->north);
+
+				for (nPanel = 0; nPanel < PLOT_PANEL_NUM; nPanel++)
+				{
+					value				= f_PanelValue(st_Source[nSource], nPanel, nStep, nObject);
+					lowValue[nPanel]	= fmin(lowValue[nPanel], value);
+					highValue[nPanel]	= fmax(highValue[nPanel], value);
+				}
+			}
 		}
 	}
 
@@ -324,19 +389,27 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	gridLatDeg	= f_Plot_NiceStepGeo(f_Rad_To_Deg(st_High.Lat - st_Low.Lat),
 					fmax(2.0, fmin(PLOT_MAX_GRID_NUM, height / static_cast<FLOAT64>(f_Ui_Scale(PLOT_LAT_LABEL_PX, dpi)))));
 
-	// 고도 축 위아래 10 % 여유. 고도 변화가 작으면 최소 폭 적용.
-	spanAlt = highAlt - lowAlt;
-
-	if (spanAlt < PLOT_MIN_ALT_SPAN)
+	// 시각 그래프 세로축 위아래 10 % 여유. 값 변화가 작으면 최소 폭 적용.
+	for (nPanel = 0; nPanel < PLOT_PANEL_NUM; nPanel++)
 	{
-		lowAlt	= lowAlt - (0.5 * (PLOT_MIN_ALT_SPAN - spanAlt));
-		spanAlt	= PLOT_MIN_ALT_SPAN;
+		ST_PlotPanel *st_Info = &st_Panel[nPanel];
+
+		span = highValue[nPanel] - lowValue[nPanel];
+
+		if (span < st_Info->minSpan)
+		{
+			lowValue[nPanel]	= lowValue[nPanel] - (0.5 * (st_Info->minSpan - span));
+			span				= st_Info->minSpan;
+		}
+
+		st_Info->valueMin	= lowValue[nPanel] - (0.10 * span);
+		st_Info->valueMax	= lowValue[nPanel] + (1.10 * span);
+		st_Info->valueGrid	= f_Plot_NiceStep(st_Info->valueMax - st_Info->valueMin, 4.0);
 	}
 
-	altMin		= lowAlt - (0.10 * spanAlt);
-	altMax		= lowAlt + (1.10 * spanAlt);
-	altGrid		= f_Plot_NiceStep(altMax - altMin, 4.0);
-	timeGrid	= f_Plot_NiceStep(st_Result->f_GetSample(nSampleNum - 1)->simTime, 10.0);
+	// 시각 눈금은 칸 폭에 라벨이 겹치지 않을 만큼.
+	timeGrid = f_Plot_NiceStep(st_Result->f_GetSample(nSampleNum - 1)->simTime,
+		fmax(2.0, fmin(10.0, static_cast<FLOAT64>(st_Panel[PLOT_PANEL_ALT].st_Area.Width()) / static_cast<FLOAT64>(f_Ui_Scale(PLOT_TIME_LABEL_PX, dpi)))));
 }
 
 // 동-북 좌표 -> 평면 픽셀.
@@ -370,14 +443,34 @@ ST_PlotPoint CTrajectoryPlot::f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const
 	return st_Point;
 }
 
-// 스텝, 고도 -> 고도 패널 픽셀.
-VOID CTrajectoryPlot::f_AltToPixel(INT32 nStep, FLOAT64 alt, FLOAT64 *pt_X, FLOAT64 *pt_Y) const
+// 시각 그래프 값: 고도 [m] 또는 속력 [m/s] (ECEF 속도 크기).
+FLOAT64 CTrajectoryPlot::f_PanelValue(const CSimResult *st_Source, INT32 nPanel, INT32 nStep, INT32 nObject) const
 {
-	const FLOAT64 ratioX = static_cast<FLOAT64>(nStep) / static_cast<FLOAT64>(st_Result->f_GetSampleNum() - 1);
-	const FLOAT64 ratioY = (alt - altMin) / (altMax - altMin);
+	const ST_TargetState	*st_State = st_Source->f_GetState(nStep, nObject);
+	FLOAT64					value;
 
-	*pt_X = static_cast<FLOAT64>(st_AltArea.left) + (ratioX * static_cast<FLOAT64>(st_AltArea.Width()));
-	*pt_Y = static_cast<FLOAT64>(st_AltArea.bottom) - (ratioY * static_cast<FLOAT64>(st_AltArea.Height()));
+	if (nPanel == PLOT_PANEL_ALT)
+	{
+		value = st_State->st_Lla.Alt;
+	}
+	else
+	{
+		value = sqrt((st_State->st_VelEcef.x * st_State->st_VelEcef.x) + (st_State->st_VelEcef.y * st_State->st_VelEcef.y)
+			+ (st_State->st_VelEcef.z * st_State->st_VelEcef.z));
+	}
+
+	return value;
+}
+
+// 스텝, 값 -> 시각 그래프 픽셀.
+VOID CTrajectoryPlot::f_PanelToPixel(INT32 nPanel, INT32 nStep, FLOAT64 value, FLOAT64 *pt_X, FLOAT64 *pt_Y) const
+{
+	const ST_PlotPanel	*st_Info = &st_Panel[nPanel];
+	const FLOAT64		ratioX = static_cast<FLOAT64>(nStep) / static_cast<FLOAT64>(st_Result->f_GetSampleNum() - 1);
+	const FLOAT64		ratioY = (value - st_Info->valueMin) / (st_Info->valueMax - st_Info->valueMin);
+
+	*pt_X = static_cast<FLOAT64>(st_Info->st_Area.left) + (ratioX * static_cast<FLOAT64>(st_Info->st_Area.Width()));
+	*pt_Y = static_cast<FLOAT64>(st_Info->st_Area.bottom) - (ratioY * static_cast<FLOAT64>(st_Info->st_Area.Height()));
 }
 
 // 동-북 평면: 위경도 격자, 궤적, 시작점 그리기.
@@ -390,11 +483,9 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	Gdiplus::Pen				st_GridPen(f_Plot_Color(UI_COLOR_GRID_LINE, 255), 1.0F);
 	Gdiplus::Pen				st_FramePen(f_Plot_Color(UI_COLOR_BORDER, 255), 1.0F);
 	const Gdiplus::Rect			st_Clip(st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
-	const INT32					nSampleNum = st_Result->f_GetSampleNum();
 	const INT32					nObjectNum = st_Result->f_GetObjectNum();
 	const FLOAT64				halfEast = (0.5 * static_cast<FLOAT64>(st_MapArea.Width())) / pixelPerMeter;
 	const FLOAT64				halfNorth = (0.5 * static_cast<FLOAT64>(st_MapArea.Height())) / pixelPerMeter;
-	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
 	ST_PlotPoint				st_Point;
 	STRUCT_Coord_Lla			st_Low;
 	STRUCT_Coord_Lla			st_High;
@@ -405,7 +496,6 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	FLOAT64						degree;
 	INT32						nLine;
 	INT32						nObject;
-	INT32						nSample;
 
 	// 격자, 눈금은 선명하게, 궤적은 부드럽게.
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
@@ -451,23 +541,21 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	f_Plot_Text(st_Graphics, &st_Font, CString(_T("Lat [deg]")), static_cast<FLOAT64>(st_MapArea.left) + 6.0, static_cast<FLOAT64>(st_MapArea.top) + 4.0,
 		Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_OFF);
 
+	if (st_Compare != nullptr)
+	{
+		f_Plot_Text(st_Graphics, &st_Font, CString(_T("점선 = 플랫폼 기준")), static_cast<FLOAT64>(st_MapArea.right), static_cast<FLOAT64>(st_MapArea.top) - 5.0,
+			Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT_SUB);
+	}
+
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	(VOID)st_Graphics->SetClip(st_Clip);
 
-	// 궤적
-	for (nObject = 0; nObject < nObjectNum; nObject++)
+	// 궤적. 비교 결과는 점선으로 위에 겹침 (평면에서는 거의 같은 자리).
+	f_DrawMapTrack(st_Graphics, st_Result, 0);
+
+	if (st_Compare != nullptr)
 	{
-		Gdiplus::Pen st_TrackPen(f_Plot_Color(f_Ui_ObjectColor(nObject), 255), 2.0F * scale);
-
-		(VOID)st_TrackPen.SetLineJoin(Gdiplus::LineJoinRound);
-
-		for (nSample = 0; nSample < nSampleNum; nSample++)
-		{
-			f_MapToPixel(st_Result->f_GetPoint(nSample, nObject), &x, &y);
-			st_Line[static_cast<UINT64>(nSample)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
-		}
-
-		(VOID)st_Graphics->DrawLines(&st_TrackPen, st_Line.data(), nSampleNum);
+		f_DrawMapTrack(st_Graphics, st_Compare, 1);
 	}
 
 	// 시작점
@@ -484,6 +572,33 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 
 	f_DrawStartLabels(st_Graphics, &st_Font);
 	(VOID)st_Graphics->ResetClip();
+}
+
+// 평면에 결과 하나의 궤적 그리기.
+VOID CTrajectoryPlot::f_DrawMapTrack(Gdiplus::Graphics *st_Graphics, const CSimResult *st_Source, INT32 isCompare) const
+{
+	const FLOAT32					scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
+	const INT32						nSampleNum = st_Source->f_GetSampleNum();
+	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
+	FLOAT64							x = 0.0;
+	FLOAT64							y = 0.0;
+	INT32							nObject;
+	INT32							nSample;
+
+	for (nObject = 0; nObject < st_Source->f_GetObjectNum(); nObject++)
+	{
+		Gdiplus::Pen st_TrackPen(f_Plot_TrackColor(nObject, isCompare), ((isCompare != 0) ? 1.4F : 2.0F) * scale);
+
+		f_Plot_SetTrackStyle(&st_TrackPen, isCompare);
+
+		for (nSample = 0; nSample < nSampleNum; nSample++)
+		{
+			f_MapToPixel(st_Source->f_GetPoint(nSample, nObject), &x, &y);
+			st_Line[static_cast<UINT64>(nSample)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
+		}
+
+		(VOID)st_Graphics->DrawLines(&st_TrackPen, st_Line.data(), nSampleNum);
+	}
 }
 
 // 시작점 이름표. 출발 방향 반대쪽에 표시.
@@ -525,41 +640,38 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 	}
 }
 
-// 고도-시각 패널 그리기.
-VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
+// 시각 그래프 칸 그리기 (고도-시각 또는 속력-시각).
+VOID CTrajectoryPlot::f_DrawPanel(Gdiplus::Graphics *st_Graphics, INT32 nPanel) const
 {
+	const ST_PlotPanel			*st_Info = &st_Panel[nPanel];
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
 	const Gdiplus::FontFamily	st_Family(L"Malgun Gothic");
 	const Gdiplus::Font			st_Font(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
 	const Gdiplus::Font			st_Bold(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	Gdiplus::Pen				st_GridPen(f_Plot_Color(UI_COLOR_GRID_LINE, 255), 1.0F);
 	Gdiplus::Pen				st_FramePen(f_Plot_Color(UI_COLOR_BORDER, 255), 1.0F);
-	const Gdiplus::Rect			st_Clip(st_AltArea.left, st_AltArea.top, st_AltArea.Width(), st_AltArea.Height());
+	const Gdiplus::Rect			st_Clip(st_Info->st_Area.left, st_Info->st_Area.top, st_Info->st_Area.Width(), st_Info->st_Area.Height());
 	const INT32					nSampleNum = st_Result->f_GetSampleNum();
-	const INT32					nObjectNum = st_Result->f_GetObjectNum();
 	const FLOAT64				endTime = st_Result->f_GetSample(nSampleNum - 1)->simTime;
-	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
 	FLOAT64						x = 0.0;
 	FLOAT64						y = 0.0;
 	FLOAT64						firstLine;
 	FLOAT64						lineNum;
 	FLOAT64						value;
 	INT32						nLine;
-	INT32						nObject;
-	INT32						nSample;
 
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
 
-	// 가로선 = 고도
-	firstLine	= ceil(altMin / altGrid);
-	lineNum		= floor(altMax / altGrid) - firstLine;
+	// 가로선 = 고도 또는 속력
+	firstLine	= ceil(st_Info->valueMin / st_Info->valueGrid);
+	lineNum		= floor(st_Info->valueMax / st_Info->valueGrid) - firstLine;
 
 	for (nLine = 0; static_cast<FLOAT64>(nLine) <= lineNum; nLine++)
 	{
-		value = (firstLine + static_cast<FLOAT64>(nLine)) * altGrid;
-		f_AltToPixel(0, value, &x, &y);
-		(VOID)st_Graphics->DrawLine(&st_GridPen, st_AltArea.left, f_Plot_Round(y), st_AltArea.right, f_Plot_Round(y));
-		f_Plot_Text(st_Graphics, &st_Font, f_Plot_Number(value, f_Plot_DecimalFor(altGrid)), static_cast<FLOAT64>(st_AltArea.left) - 6.0, y,
+		value = (firstLine + static_cast<FLOAT64>(nLine)) * st_Info->valueGrid;
+		f_PanelToPixel(nPanel, 0, value, &x, &y);
+		(VOID)st_Graphics->DrawLine(&st_GridPen, st_Info->st_Area.left, f_Plot_Round(y), st_Info->st_Area.right, f_Plot_Round(y));
+		f_Plot_Text(st_Graphics, &st_Font, f_Plot_Number(value, f_Plot_DecimalFor(st_Info->valueGrid)), static_cast<FLOAT64>(st_Info->st_Area.left) - 6.0, y,
 			Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentCenter, UI_COLOR_TEXT_SUB);
 	}
 
@@ -569,33 +681,53 @@ VOID CTrajectoryPlot::f_DrawAltitude(Gdiplus::Graphics *st_Graphics) const
 	for (nLine = 0; static_cast<FLOAT64>(nLine) <= lineNum; nLine++)
 	{
 		value	= static_cast<FLOAT64>(nLine) * timeGrid;
-		x		= static_cast<FLOAT64>(st_AltArea.left) + ((value / endTime) * static_cast<FLOAT64>(st_AltArea.Width()));
-		(VOID)st_Graphics->DrawLine(&st_GridPen, f_Plot_Round(x), st_AltArea.top, f_Plot_Round(x), st_AltArea.bottom);
-		f_Plot_Text(st_Graphics, &st_Font, f_Plot_Number(value, f_Plot_DecimalFor(timeGrid)), x, static_cast<FLOAT64>(st_AltArea.bottom) + 4.0,
+		x		= static_cast<FLOAT64>(st_Info->st_Area.left) + ((value / endTime) * static_cast<FLOAT64>(st_Info->st_Area.Width()));
+		(VOID)st_Graphics->DrawLine(&st_GridPen, f_Plot_Round(x), st_Info->st_Area.top, f_Plot_Round(x), st_Info->st_Area.bottom);
+		f_Plot_Text(st_Graphics, &st_Font, f_Plot_Number(value, f_Plot_DecimalFor(timeGrid)), x, static_cast<FLOAT64>(st_Info->st_Area.bottom) + 4.0,
 			Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_SUB);
 	}
 
-	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_AltArea.left, st_AltArea.top, st_AltArea.Width(), st_AltArea.Height());
-	f_Plot_Text(st_Graphics, &st_Bold, CString(_T("고도 (m) / 시각 (s)")), static_cast<FLOAT64>(st_AltArea.left), static_cast<FLOAT64>(st_AltArea.top) - 5.0,
+	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_Info->st_Area.left, st_Info->st_Area.top, st_Info->st_Area.Width(), st_Info->st_Area.Height());
+	f_Plot_Text(st_Graphics, &st_Bold, CString(st_Info->pt_Title), static_cast<FLOAT64>(st_Info->st_Area.left), static_cast<FLOAT64>(st_Info->st_Area.top) - 5.0,
 		Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT);
 
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	(VOID)st_Graphics->SetClip(st_Clip);
 
-	for (nObject = 0; nObject < nObjectNum; nObject++)
-	{
-		Gdiplus::Pen st_Pen(f_Plot_Color(f_Ui_ObjectColor(nObject), 255), 1.6F * scale);
+	// 값 선. 비교 결과는 점선으로 위에 겹침.
+	f_DrawPanelTrack(st_Graphics, nPanel, st_Result, 0);
 
-		(VOID)st_Pen.SetLineJoin(Gdiplus::LineJoinRound);
+	if (st_Compare != nullptr)
+	{
+		f_DrawPanelTrack(st_Graphics, nPanel, st_Compare, 1);
+	}
+
+	(VOID)st_Graphics->ResetClip();
+}
+
+// 시각 그래프 칸에 결과 하나의 값 선 그리기.
+VOID CTrajectoryPlot::f_DrawPanelTrack(Gdiplus::Graphics *st_Graphics, INT32 nPanel, const CSimResult *st_Source, INT32 isCompare) const
+{
+	const FLOAT32					scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
+	const INT32						nSampleNum = st_Source->f_GetSampleNum();
+	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
+	FLOAT64							x = 0.0;
+	FLOAT64							y = 0.0;
+	INT32							nObject;
+	INT32							nSample;
+
+	for (nObject = 0; nObject < st_Source->f_GetObjectNum(); nObject++)
+	{
+		Gdiplus::Pen st_Pen(f_Plot_TrackColor(nObject, isCompare), ((isCompare != 0) ? 1.4F : 1.6F) * scale);
+
+		f_Plot_SetTrackStyle(&st_Pen, isCompare);
 
 		for (nSample = 0; nSample < nSampleNum; nSample++)
 		{
-			f_AltToPixel(nSample, st_Result->f_GetState(nSample, nObject)->st_Lla.Alt, &x, &y);
+			f_PanelToPixel(nPanel, nSample, f_PanelValue(st_Source, nPanel, nSample, nObject), &x, &y);
 			st_Line[static_cast<UINT64>(nSample)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
 		}
 
 		(VOID)st_Graphics->DrawLines(&st_Pen, st_Line.data(), nSampleNum);
 	}
-
-	(VOID)st_Graphics->ResetClip();
 }

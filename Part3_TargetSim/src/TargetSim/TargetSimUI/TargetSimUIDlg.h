@@ -43,6 +43,8 @@ protected:
 	afx_msg VOID	f_OnManeuverAddClicked(VOID);
 	afx_msg VOID	f_OnManeuverDeleteClicked(VOID);
 	afx_msg VOID	f_OnSaveCsvClicked(VOID);
+	afx_msg VOID	f_OnResultViewChanged(VOID);
+	afx_msg VOID	f_OnResultCompareClicked(VOID);
 	afx_msg VOID	f_OnObjCellChanged(NMHDR *st_Hdr, LRESULT *pt_Result);
 	afx_msg VOID	f_OnObjRowChanged(NMHDR *st_Hdr, LRESULT *pt_Result);
 	afx_msg VOID	f_OnMnvCellChanged(NMHDR *st_Hdr, LRESULT *pt_Result);
@@ -68,11 +70,15 @@ private:
 	// 실행
 	VOID	f_RunScenario(VOID);
 	VOID	f_SetupResultList(VOID);
+	VOID	f_SetupResultView(VOID);
+	VOID	f_SetupResultColumns(VOID);
+	INT32	f_GetResultMethod(LPCTSTR pt_Name[], const CSimResult *st_Source[]) const;
 
 	CGridCtrl			st_ObjGrid;
 	CGridCtrl			st_MnvGrid;
 	CTrajectoryPlot		st_Plot;
 	CListCtrl			st_ResultList;
+	CComboBox			st_ResultView;
 	CFont				st_TitleFont;
 	CBrush				st_CardBrush;
 	CBrush				st_PageBrush;
@@ -85,9 +91,14 @@ private:
 
 	CScenario			st_Scenario;
 	CSimResult			st_Result;
+	CSimResult			st_NoMidResult;						// 같은 설정의 비중점법 결과 (비교용)
+	CSimResult			st_PlatformResult;					// 같은 설정의 플랫폼 기준 결과 (비교용)
 
 	INT32				dpi;
 	INT32				textHeight;
 	INT32				nCurObject;							// 0 = 플랫폼, k = 표적 k
-	INT32				nResultColumnNum;
+	INT32				nResultObject;						// 결과 표에 보일 객체. -1 = 전체
+	INT32				nResultObjectNum;					// 보기 목록과 열을 만들 때의 객체 수
+	INT32				isResultCompare;					// 1 이면 결과 표에 비중점법 열도 표시
+	INT32				isPlatformCompare;					// 1 이면 결과 표에 플랫폼 기준 열도 표시
 };

@@ -20,7 +20,8 @@
 
 #define SCN_PRESET_SPEC			0
 #define SCN_PRESET_MANEUVER		1
-#define SCN_PRESET_NUM			2
+#define SCN_PRESET_FULL			2
+#define SCN_PRESET_NUM			3
 
 #define SCN_TURN_TYPE_NUM		4
 
@@ -71,6 +72,7 @@ public:
 	ST_ObjectText	st_Platform;
 	ST_ObjectText	st_Target[TGT_MAX_TARGET_NUM];
 	INT32			nTargetNum = 0;
+	FLOAT64			durationTime = SCN_DURATION_TIME;		// 시뮬레이션 시간 [s]. 프리셋 값.
 };
 
 // 실행 결과 (출력). 표본, 그림 좌표 보관 및 표, CSV 출력.

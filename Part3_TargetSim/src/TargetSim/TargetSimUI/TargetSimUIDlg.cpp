@@ -11,7 +11,7 @@
 
 #define UI_INIT_WIDTH			1400					// [px @96dpi]
 #define UI_INIT_HEIGHT			880
-#define UI_MIN_WIDTH			1180
+#define UI_MIN_WIDTH			1300					// 결과 카드 머리 (보기, 비교 두 개, CSV) 가 겹치지 않는 너비
 #define UI_MIN_HEIGHT			720
 #define UI_MARGIN				12
 #define UI_GAP					10
@@ -23,6 +23,10 @@
 #define UI_RIGHT_MIN			420
 #define UI_PLOT_RATIO			0.60
 #define UI_OBJ_MIN_ROWS			3
+#define UI_VIEW_WIDTH			96						// 결과 보기 선택 너비
+#define UI_VIEW_DROP_HEIGHT		240						// 결과 보기 목록 펼친 높이 (12 줄)
+#define UI_CHECK_BOX_PAD		24						// 체크 상자 네모와 글자 앞 간격
+#define UI_RESULT_METHOD_MAX	3						// 결과 표에 나란히 보일 계산 수 (기본 + 비교 2 개)
 
 static LPCTSTR			s_TurnChoice[SCN_TURN_TYPE_NUM];
 
@@ -30,6 +34,21 @@ static LPCTSTR			s_TurnChoice[SCN_TURN_TYPE_NUM];
 static VOID f_Ui_Move(CWnd *st_Dlg, INT32 ctrlId, INT32 left, INT32 top, INT32 width, INT32 height)
 {
 	(VOID)st_Dlg->GetDlgItem(ctrlId)->SetWindowPos(nullptr, left, top, width, height, SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+// 컨트롤 글자 폭 [px].
+static INT32 f_Ui_TextWidth(CWnd *st_Ctrl)
+{
+	CClientDC	st_Dc(st_Ctrl);
+	CFont		*st_OldFont = st_Dc.SelectObject(st_Ctrl->GetFont());
+	CString		st_Text;
+	INT32		width;
+
+	st_Ctrl->GetWindowText(st_Text);
+	width = st_Dc.GetTextExtent(st_Text).cx;
+	(VOID)st_Dc.SelectObject(st_OldFont);
+
+	return width;
 }
 
 BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
@@ -45,6 +64,9 @@ BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_MNV_ADD, &CTargetSimUIDlg::f_OnManeuverAddClicked)
 	ON_BN_CLICKED(IDC_MNV_DELETE, &CTargetSimUIDlg::f_OnManeuverDeleteClicked)
 	ON_BN_CLICKED(IDC_SAVE_CSV, &CTargetSimUIDlg::f_OnSaveCsvClicked)
+	ON_CBN_SELCHANGE(IDC_RESULT_VIEW, &CTargetSimUIDlg::f_OnResultViewChanged)
+	ON_BN_CLICKED(IDC_RESULT_COMPARE, &CTargetSimUIDlg::f_OnResultCompareClicked)
+	ON_BN_CLICKED(IDC_RESULT_PLATFORM, &CTargetSimUIDlg::f_OnResultCompareClicked)
 	ON_NOTIFY(GRIDN_CELLCHANGED, IDC_OBJ_GRID, &CTargetSimUIDlg::f_OnObjCellChanged)
 	ON_NOTIFY(GRIDN_ROWCHANGED, IDC_OBJ_GRID, &CTargetSimUIDlg::f_OnObjRowChanged)
 	ON_NOTIFY(GRIDN_CELLCHANGED, IDC_MNV_GRID, &CTargetSimUIDlg::f_OnMnvCellChanged)
@@ -62,7 +84,10 @@ CTargetSimUIDlg::CTargetSimUIDlg(CWnd *st_Parent)
 	, dpi(UI_BASE_DPI)
 	, textHeight(16)
 	, nCurObject(1)
-	, nResultColumnNum(0)
+	, nResultObject(1)
+	, nResultObjectNum(0)
+	, isResultCompare(0)
+	, isPlatformCompare(0)
 {
 }
 
@@ -74,6 +99,7 @@ VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 	DDX_Control(st_Dx, IDC_MNV_GRID, st_MnvGrid);
 	DDX_Control(st_Dx, IDC_PLOT, st_Plot);
 	DDX_Control(st_Dx, IDC_RESULT_LIST, st_ResultList);
+	DDX_Control(st_Dx, IDC_RESULT_VIEW, st_ResultView);
 }
 
 // 글꼴, 색, 표 준비 후 기본 시나리오 첫 실행.
@@ -205,6 +231,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	const INT32	buttonHeight = textHeight + f_Ui_Scale(12, dpi);
 	const INT32	hintHeight = textHeight + f_Ui_Scale(4, dpi);
 	CRect		st_Client;
+	CRect		st_View;
 	INT32		leftWidth;
 	INT32		contentTop;
 	INT32		contentBottom;
@@ -212,6 +239,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	INT32		rightWidth;
 	INT32		gridHeight;
 	INT32		nShownRow;
+	INT32		checkWidth;
 	INT32		x;
 	INT32		y;
 
@@ -290,11 +318,21 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	st_CardPlot.SetRect(rightLeft, contentTop, rightLeft + rightWidth, contentTop + static_cast<INT32>(static_cast<FLOAT64>(contentBottom - contentTop) * UI_PLOT_RATIO));
 	f_Ui_Move(this, IDC_PLOT, st_CardPlot.left + pad, st_CardPlot.top + pad, st_CardPlot.Width() - (2 * pad), st_CardPlot.Height() - (2 * pad));
 
-	// 결과 카드
+	// 결과 카드 (제목 바로 뒤에 보기 선택, 비중점법 비교, 플랫폼 기준 비교)
 	st_CardResult.SetRect(rightLeft, st_CardPlot.bottom + gap, rightLeft + rightWidth, contentBottom);
 	y = st_CardResult.top + pad;
 	f_Ui_Move(this, IDC_SAVE_CSV, st_CardResult.right - pad - f_Ui_Scale(110, dpi), y, f_Ui_Scale(110, dpi), buttonHeight);
-	f_Ui_Move(this, IDC_RESULT_TITLE, st_CardResult.left + pad, y, st_CardResult.Width() - (2 * pad) - f_Ui_Scale(110, dpi) - tight, buttonHeight);
+	x = st_CardResult.left + pad + f_Ui_TextWidth(GetDlgItem(IDC_RESULT_TITLE)) + tight;
+	f_Ui_Move(this, IDC_RESULT_TITLE, st_CardResult.left + pad, y, x - (st_CardResult.left + pad), buttonHeight);
+	// 콤보 높이 = 닫힌 높이 + 펼친 목록 높이
+	st_ResultView.GetWindowRect(&st_View);
+	f_Ui_Move(this, IDC_RESULT_VIEW, x + tight, y + ((buttonHeight - st_View.Height()) / 2), f_Ui_Scale(UI_VIEW_WIDTH, dpi),
+		st_View.Height() + f_Ui_Scale(UI_VIEW_DROP_HEIGHT, dpi));
+	x = x + tight + f_Ui_Scale(UI_VIEW_WIDTH, dpi) + gap;
+	checkWidth = f_Ui_TextWidth(GetDlgItem(IDC_RESULT_COMPARE)) + f_Ui_Scale(UI_CHECK_BOX_PAD, dpi);
+	f_Ui_Move(this, IDC_RESULT_COMPARE, x, y, checkWidth, buttonHeight);
+	x = x + checkWidth + gap;
+	f_Ui_Move(this, IDC_RESULT_PLATFORM, x, y, f_Ui_TextWidth(GetDlgItem(IDC_RESULT_PLATFORM)) + f_Ui_Scale(UI_CHECK_BOX_PAD, dpi), buttonHeight);
 	f_Ui_Move(this, IDC_RESULT_LIST, st_CardResult.left + pad, y + buttonHeight + tight, st_CardResult.Width() - (2 * pad),
 		st_CardResult.bottom - pad - (y + buttonHeight + tight));
 
@@ -406,7 +444,7 @@ VOID CTargetSimUIDlg::f_LoadPreset(INT32 nPreset)
 	CString st_Name;
 
 	st_Scenario.f_LoadPreset(nPreset);
-	st_Name.Format(_T("%s  ·  시간 %g s, 간격 %g s"), CScenario::f_PresetName(nPreset), SCN_DURATION_TIME, SCN_STEP_TIME);
+	st_Name.Format(_T("%s  ·  시간 %g s, 간격 %g s"), CScenario::f_PresetName(nPreset), st_Scenario.durationTime, SCN_STEP_TIME);
 	SetDlgItemText(IDC_SCN_NAME, st_Name);
 
 	f_RefreshObjGrid();
@@ -639,72 +677,201 @@ VOID CTargetSimUIDlg::f_RunScenario(VOID)
 	st_Scenario.f_BuildConfig(&st_Config);
 	st_Result.f_Run(&st_Config);
 
+	// 같은 설정을 비중점법으로 한 번 더 (결과 표 비교용)
+	st_Config.noMidPoint = 1;
+	st_NoMidResult.f_Run(&st_Config);
+
+	// 같은 설정을 플랫폼 기준으로 한 번 더 (결과 표 비교용)
+	st_Config.noMidPoint	= 0;
+	st_Config.usePlatform	= 1;
+	st_PlatformResult.f_Run(&st_Config);
+
 	f_SetupResultList();
-	st_Plot.f_SetResult(&st_Result);
+	st_Plot.f_SetResult(&st_Result, (isPlatformCompare != 0) ? &st_PlatformResult : nullptr);
 }
 
-// 결과 표: 열은 객체 수 기준, 행은 표본 수. 열 순서는 CSV 와 동일.
+// 결과 표: 행은 표본 수. 객체 수가 바뀐 경우에만 보기 목록, 열 재생성.
 VOID CTargetSimUIDlg::f_SetupResultList(VOID)
 {
-	static const LPCTSTR	s_PartName[3] = { _T(" 위도 [°]"), _T(" 경도 [°]"), _T(" 고도 [m]") };
-	static const INT32		s_PartWidth[3] = { 124, 128, 112 };
-	const INT32				nColumnNum = 2 + (3 * st_Result.f_GetObjectNum());
-	CString					st_Object;
-	INT32					nColumn;
-	INT32					nObject;
-	INT32					nPart;
-
-	// 객체 수 변경 시에만 열 재생성.
-	if (nColumnNum != nResultColumnNum)
+	if (st_Result.f_GetObjectNum() != nResultObjectNum)
 	{
-		for (nColumn = nResultColumnNum - 1; nColumn >= 0; nColumn--)
-		{
-			(VOID)st_ResultList.DeleteColumn(nColumn);
-		}
-
-		(VOID)st_ResultList.InsertColumn(0, _T("스텝"), LVCFMT_LEFT, f_Ui_Scale(58, dpi));
-		(VOID)st_ResultList.InsertColumn(1, _T("시각 [s]"), LVCFMT_RIGHT, f_Ui_Scale(74, dpi));
-
-		for (nObject = 0; nObject < st_Result.f_GetObjectNum(); nObject++)
-		{
-			if (nObject == 0)
-			{
-				st_Object = _T("플랫폼");
-			}
-			else
-			{
-				st_Object.Format(_T("표적%d"), nObject);
-			}
-
-			for (nPart = 0; nPart < 3; nPart++)
-			{
-				(VOID)st_ResultList.InsertColumn(2 + (nObject * 3) + nPart, st_Object + s_PartName[nPart], LVCFMT_RIGHT, f_Ui_Scale(s_PartWidth[nPart], dpi));
-			}
-		}
-
-		nResultColumnNum = nColumnNum;
+		nResultObjectNum = st_Result.f_GetObjectNum();
+		f_SetupResultView();
+		f_SetupResultColumns();
 	}
 
 	(VOID)st_ResultList.SetItemCountEx(st_Result.f_GetSampleNum(), LVSICF_NOINVALIDATEALL | LVSICF_NOSCROLL);
 	st_ResultList.Invalidate(FALSE);
 }
 
+// 보기 목록: 전체, 플랫폼, 표적 1 ~ N. 보던 표적이 지워졌으면 마지막 표적.
+VOID CTargetSimUIDlg::f_SetupResultView(VOID)
+{
+	CString st_Name;
+	INT32	nObject;
+
+	st_ResultView.ResetContent();
+	(VOID)st_ResultView.AddString(_T("전체"));
+	(VOID)st_ResultView.AddString(_T("플랫폼"));
+
+	for (nObject = 1; nObject < nResultObjectNum; nObject++)
+	{
+		st_Name.Format(_T("표적 %d"), nObject);
+		(VOID)st_ResultView.AddString(st_Name);
+	}
+
+	if (nResultObject >= nResultObjectNum)
+	{
+		nResultObject = nResultObjectNum - 1;
+	}
+
+	(VOID)st_ResultView.SetCurSel(nResultObject + 1);
+}
+
+// 결과 표 열. 전체 보기는 CSV 와 같은 순서, 객체 하나 보기는 스텝, 시각, 위도, 경도, 고도.
+// 비교를 켜면 위도, 경도, 고도마다 기본 열 바로 뒤에 켠 비교 (비중점법, 플랫폼 기준) 열.
+VOID CTargetSimUIDlg::f_SetupResultColumns(VOID)
+{
+	static const LPCTSTR	s_PartName[3] = { _T("위도 [°]"), _T("경도 [°]"), _T("고도 [m]") };
+	static const INT32		s_PartWidth[3] = { 124, 128, 128 };
+	const INT32				nShownNum = (nResultObject < 0) ? nResultObjectNum : 1;
+	LPCTSTR					pt_MethodName[UI_RESULT_METHOD_MAX];
+	const CSimResult		*st_MethodSource[UI_RESULT_METHOD_MAX];
+	const INT32				nMethodNum = f_GetResultMethod(pt_MethodName, st_MethodSource);
+	CString					st_Object;
+	CString					st_Title;
+	INT32					nColumn;
+	INT32					nShown;
+	INT32					nPart;
+	INT32					nMethod;
+	INT32					width;
+
+	for (nColumn = st_ResultList.GetHeaderCtrl()->GetItemCount() - 1; nColumn >= 0; nColumn--)
+	{
+		(VOID)st_ResultList.DeleteColumn(nColumn);
+	}
+
+	(VOID)st_ResultList.InsertColumn(0, _T("스텝"), LVCFMT_LEFT, f_Ui_Scale(58, dpi));
+	(VOID)st_ResultList.InsertColumn(1, _T("시각 [s]"), LVCFMT_RIGHT, f_Ui_Scale(74, dpi));
+	nColumn = 2;
+
+	for (nShown = 0; nShown < nShownNum; nShown++)
+	{
+		// 전체 보기만 열 제목 앞에 객체 이름
+		if (nResultObject >= 0)
+		{
+			st_Object.Empty();
+		}
+		else if (nShown == 0)
+		{
+			st_Object = _T("플랫폼 ");
+		}
+		else
+		{
+			st_Object.Format(_T("표적%d "), nShown);
+		}
+
+		for (nPart = 0; nPart < 3; nPart++)
+		{
+			for (nMethod = 0; nMethod < nMethodNum; nMethod++)
+			{
+				// 비교할 때만 열 제목에 계산 이름. 열 너비는 제목이 다 보이게.
+				st_Title	= st_Object + pt_MethodName[nMethod] + s_PartName[nPart];
+				width		= st_ResultList.GetStringWidth(st_Title) + f_Ui_Scale(16, dpi);
+				width		= (width > f_Ui_Scale(s_PartWidth[nPart], dpi)) ? width : f_Ui_Scale(s_PartWidth[nPart], dpi);
+				(VOID)st_ResultList.InsertColumn(nColumn, st_Title, LVCFMT_RIGHT, width);
+				nColumn		= nColumn + 1;
+			}
+		}
+	}
+}
+
+// 결과 표에 나란히 보일 계산. 첫째는 기본 계산이고 켠 비교가 뒤에 붙음. 이름은 열 제목 앞에 붙는 말. 계산 수 반환.
+INT32 CTargetSimUIDlg::f_GetResultMethod(LPCTSTR pt_Name[], const CSimResult *st_Source[]) const
+{
+	INT32 nMethodNum = 1;
+
+	// 기본 계산 이름: 비교가 하나면 그 비교와 짝이 되는 말, 둘이면 '기본'
+	if (isResultCompare != 0)
+	{
+		pt_Name[0] = (isPlatformCompare != 0) ? _T("기본 ") : _T("중점 ");
+	}
+	else
+	{
+		pt_Name[0] = (isPlatformCompare != 0) ? _T("표적 기준 ") : _T("");
+	}
+
+	st_Source[0] = &st_Result;
+
+	if (isResultCompare != 0)
+	{
+		pt_Name[nMethodNum]		= _T("비중점 ");
+		st_Source[nMethodNum]	= &st_NoMidResult;
+		nMethodNum				= nMethodNum + 1;
+	}
+
+	if (isPlatformCompare != 0)
+	{
+		pt_Name[nMethodNum]		= _T("플랫폼 기준 ");
+		st_Source[nMethodNum]	= &st_PlatformResult;
+		nMethodNum				= nMethodNum + 1;
+	}
+
+	return nMethodNum;
+}
+
+// 보기 변경. 행은 그대로 두고 열만 다시 만듦.
+VOID CTargetSimUIDlg::f_OnResultViewChanged(VOID)
+{
+	nResultObject = st_ResultView.GetCurSel() - 1;
+	f_SetupResultColumns();
+	st_ResultList.Invalidate(FALSE);
+}
+
+// 비중점법 비교, 플랫폼 기준 비교 켜기 / 끄기. 결과는 이미 계산돼 있어 열과 그림만 다시 만듦.
+// 플랫폼 기준 비교는 궤적 그림에도 점선으로 겹쳐 그림.
+VOID CTargetSimUIDlg::f_OnResultCompareClicked(VOID)
+{
+	isResultCompare		= (IsDlgButtonChecked(IDC_RESULT_COMPARE) == BST_CHECKED) ? 1 : 0;
+	isPlatformCompare	= (IsDlgButtonChecked(IDC_RESULT_PLATFORM) == BST_CHECKED) ? 1 : 0;
+	f_SetupResultColumns();
+	st_ResultList.Invalidate(FALSE);
+	st_Plot.f_SetResult(&st_Result, (isPlatformCompare != 0) ? &st_PlatformResult : nullptr);
+}
+
 // 가상 리스트 요청 칸의 글자 제공. 보이는 행만 요청됨.
+// 위도, 경도, 고도 열은 어느 객체, 어느 방식의 열인지 찾아 그 결과의 CSV 열 번호로 바꿔 요청.
 VOID CTargetSimUIDlg::f_OnResultGetDispInfo(NMHDR *st_Hdr, LRESULT *pt_Result)
 {
-	NMLVDISPINFO	*st_Info = reinterpret_cast<NMLVDISPINFO *>(st_Hdr);
-	CHAR			pt_Cell[RES_CELL_SIZE];
+	NMLVDISPINFO		*st_Info = reinterpret_cast<NMLVDISPINFO *>(st_Hdr);
+	LPCTSTR				pt_MethodName[UI_RESULT_METHOD_MAX];
+	const CSimResult	*st_MethodSource[UI_RESULT_METHOD_MAX];
+	const INT32			nMethodNum = f_GetResultMethod(pt_MethodName, st_MethodSource);
+	const CSimResult	*st_Source = &st_Result;
+	CHAR				pt_Cell[RES_CELL_SIZE];
+	INT32				nColumn = st_Info->item.iSubItem;
+	INT32				nObject;
+	INT32				nPart;
 
 	if ((st_Info->item.mask & LVIF_TEXT) != 0U)
 	{
-		st_Result.f_FormatCell(st_Info->item.iItem, st_Info->item.iSubItem, pt_Cell, RES_CELL_SIZE);
+		// 3 열부터 객체마다 (위도, 경도, 고도) x 방식 수 만큼
+		if (nColumn >= 2)
+		{
+			nObject		= (nResultObject >= 0) ? nResultObject : ((nColumn - 2) / (3 * nMethodNum));
+			nPart		= ((nColumn - 2) % (3 * nMethodNum)) / nMethodNum;
+			st_Source	= st_MethodSource[(nColumn - 2) % nMethodNum];
+			nColumn		= 2 + (3 * nObject) + nPart;
+		}
+
+		st_Source->f_FormatCell(st_Info->item.iItem, nColumn, pt_Cell, RES_CELL_SIZE);
 		(VOID)MultiByteToWideChar(CP_UTF8, 0, pt_Cell, -1, st_Info->item.pszText, st_Info->item.cchTextMax);
 	}
 
 	*pt_Result = 0;
 }
 
-// 결과 CSV 저장. 입력 중인 값은 단추 클릭 시 확정되어 이미 결과에 반영됨.
+// 결과 CSV 저장 (보기, 비교와 관계없이 전체 객체의 기본 결과). 입력 중인 값은 단추 클릭 시 확정되어 이미 결과에 반영됨.
 VOID CTargetSimUIDlg::f_OnSaveCsvClicked(VOID)
 {
 	CFileDialog st_FileDlg(FALSE, _T("csv"), _T("TargetSim_LLA.csv"), OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR | OFN_HIDEREADONLY,

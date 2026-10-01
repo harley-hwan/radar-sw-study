@@ -22,6 +22,9 @@
 #define IDC_PLOT                        1060
 #define IDC_RESULT_LIST                 1065
 #define IDC_RESULT_TITLE                1066
+#define IDC_RESULT_VIEW                 1067
+#define IDC_RESULT_COMPARE              1068
+#define IDC_RESULT_PLATFORM             1069
 
 #define IDC_SAVE_CSV                    1072
 

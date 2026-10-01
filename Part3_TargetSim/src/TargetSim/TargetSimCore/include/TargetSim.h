@@ -51,12 +51,12 @@ typedef struct
 	ST_TargetManeuver		st_Maneuver[TGT_MAX_MANEUVER_NUM];	// 기동 목록
 } ST_TargetInit;
 
-// 플랫폼 초기 설정. 기동 없음.
+// 플랫폼 초기 설정. 기동이 없어 자세, 속력은 처음 값 그대로.
 typedef struct
 {
-	STRUCT_Coord_Lla		st_InitLla;
-	STRUCT_Coord_Attitude	st_InitAtt;
-	FLOAT64					headingSpeed;					// [m/s]
+	STRUCT_Coord_Lla		st_InitLla;						// 초기 위도, 경도 [rad], 고도 [m]
+	STRUCT_Coord_Attitude	st_InitAtt;						// 초기 자세 [rad]. 움직이는 방향을 정함
+	FLOAT64					headingSpeed;					// 속력 [m/s]
 } ST_PlatformInit;
 
 // 시뮬레이션 전체 설정.
@@ -64,6 +64,8 @@ typedef struct
 {
 	FLOAT64					durationTime;					// [s]
 	FLOAT64					stepTime;						// [s]
+	INT32					noMidPoint;						// 0 = 중점법, 1 = 비중점법 (비교용)
+	INT32					usePlatform;					// 0 = 표적 자리 기준, 1 = 플랫폼 기준 (비교용)
 	ST_PlatformInit			st_Platform;
 	INT32					nTargetNum;						// 1 ~ TGT_MAX_TARGET_NUM
 	ST_TargetInit			st_Target[TGT_MAX_TARGET_NUM];

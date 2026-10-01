@@ -11,8 +11,10 @@
 
 #define SCN_NEW_MANEUVER_SPAN	10.0					// [s] 새 기동 기본 길이
 #define SCN_COPY_LAT_OFFSET		0.01					// [deg] 새 표적 북쪽 이동량
-#define SCN_SPEC_TARGET_NUM		2						// 기본 / 응용 시나리오 프리셋의 표적 수
+#define SCN_SPEC_TARGET_NUM		2						// 프리셋의 표적 수 (세 프리셋 공통)
 #define SCN_DEMO_MANEUVER_NUM	10						// 응용 시나리오 프리셋의 기동 줄 수
+#define SCN_FULL_MANEUVER_NUM	10						// 원본 크기 프리셋의 기동 줄 수
+#define SCN_FULL_DURATION_TIME	116.0					// [s] 원본 크기 프리셋의 시뮬레이션 시간
 
 typedef struct
 {
@@ -26,7 +28,15 @@ typedef struct
 	LPCTSTR				pt_Field[SCN_MNV_FIELD_NUM];
 } ST_PresetManeuver;
 
-static const LPCTSTR	s_PresetName[SCN_PRESET_NUM] = { _T("기본 시나리오"), _T("응용 시나리오") };
+// 프리셋 하나. 플랫폼, 표적 초기값은 공통이고 시간과 기동표만 다름.
+typedef struct
+{
+	LPCTSTR					pt_Name;
+	FLOAT64					durationTime;
+	const ST_PresetManeuver	*st_Maneuver;
+	INT32					nManeuverNum;
+} ST_Preset;
+
 static const LPCTSTR	s_TurnName[SCN_TURN_TYPE_NUM] = { _T("0 없음"), _T("1 Roll"), _T("2 Yaw"), _T("3 Pitch") };
 
 // 기본 시나리오 (과제 명세): 플랫폼 정지, 대함 표적, 대공 표적
@@ -38,19 +48,43 @@ static const ST_PresetObject	s_SpecTarget[SCN_SPEC_TARGET_NUM] =
 };
 
 // 응용 시나리오: 기본 시나리오에 지그재그 기동표 추가. G 부호가 회전 방향 (+ 우선회, - 좌선회).
-// 대함(표적 1): Yaw 1 G, 45 도씩 4 회. 대공(표적 2): Yaw 8.205060 G, 90 도씩 6 회 (마지막만 150 도).
+// 대함(표적 1): Yaw 1 G, 45 도씩 4 회. 대공(표적 2): Yaw 8 G, 90 도씩 6 회 (마지막만 150 도).
 static const ST_PresetManeuver	s_DemoManeuver[SCN_DEMO_MANEUVER_NUM] =
 {
 	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("8.0"), _T("10.4") } },
 	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("15.8"), _T("18.2") } },
 	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("41.9"), _T("44.3") } },
 	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("49.7"), _T("52.1") } },
-	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("2.8"), _T("6.7") } },
-	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("13.3"), _T("17.2") } },
-	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("18.6"), _T("22.5") } },
-	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("36.2"), _T("40.1") } },
-	{ 1, TGT_TURN_YAW,		{ _T("-8.205060"), _T("41.5"), _T("45.4") } },
-	{ 1, TGT_TURN_YAW,		{ _T("8.205060"), _T("53.5"), _T("60.0") } }
+	{ 1, TGT_TURN_YAW,		{ _T("-8.0"), _T("2.7"), _T("6.7") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.0"), _T("13.2"), _T("17.2") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.0"), _T("18.5"), _T("22.5") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-8.0"), _T("36.1"), _T("40.1") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-8.0"), _T("41.4"), _T("45.4") } },
+	{ 1, TGT_TURN_YAW,		{ _T("8.0"), _T("53.3"), _T("60.0") } }
+};
+
+// 응용 시나리오 (원본 크기): 시나리오 폴더의 시나리오_지그재그_기동_원본크기.tsim 과 같은 값. 시간 116 s.
+// 대함(표적 1): Yaw 1 G, 45 도씩 4 회. 직진 세 구간이 28.4 s 씩 같음.
+// 대공(표적 2): Yaw 4 G, 90 도씩 6 회 (마지막만 150 도). 좌우 끝 125.970 ~ 126.043.
+static const ST_PresetManeuver	s_FullManeuver[SCN_FULL_MANEUVER_NUM] =
+{
+	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("28.4"), _T("30.8") } },
+	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("41.4"), _T("43.8") } },
+	{ 0, TGT_TURN_YAW,		{ _T("1.0"), _T("72.2"), _T("74.6") } },
+	{ 0, TGT_TURN_YAW,		{ _T("-1.0"), _T("85.2"), _T("87.6") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-4.0"), _T("6.0"), _T("14.0") } },
+	{ 1, TGT_TURN_YAW,		{ _T("4.0"), _T("24.1"), _T("32.1") } },
+	{ 1, TGT_TURN_YAW,		{ _T("4.0"), _T("35.2"), _T("43.2") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-4.0"), _T("67.5"), _T("75.5") } },
+	{ 1, TGT_TURN_YAW,		{ _T("-4.0"), _T("78.5"), _T("86.5") } },
+	{ 1, TGT_TURN_YAW,		{ _T("4.0"), _T("102.6"), _T("116.0") } }
+};
+
+static const ST_Preset	s_Preset[SCN_PRESET_NUM] =
+{
+	{ _T("기본 시나리오"),				SCN_DURATION_TIME,		nullptr,			0 },
+	{ _T("응용 시나리오"),				SCN_DURATION_TIME,		s_DemoManeuver,		SCN_DEMO_MANEUVER_NUM },
+	{ _T("응용 시나리오 (원본 크기)"),	SCN_FULL_DURATION_TIME,	s_FullManeuver,		SCN_FULL_MANEUVER_NUM }
 };
 
 // 프리셋 값 -> 객체 편집 글자. 기동은 비움.
@@ -83,7 +117,7 @@ static VOID f_Scn_ReadObject(const ST_ObjectText *st_Object, STRUCT_Coord_Lla *s
 // 프리셋 이름.
 LPCTSTR CScenario::f_PresetName(INT32 nPreset)
 {
-	return s_PresetName[nPreset];
+	return s_Preset[nPreset].pt_Name;
 }
 
 // 기동 회전축 이름.
@@ -92,37 +126,37 @@ LPCTSTR CScenario::f_TurnName(INT32 nTurnType)
 	return s_TurnName[nTurnType];
 }
 
-// 프리셋 -> 편집 글자. 응용 시나리오는 기본 시나리오 + 기동표.
+// 프리셋 -> 편집 글자. 기본 시나리오 초기값 + 프리셋 기동표, 시간.
 VOID CScenario::f_LoadPreset(INT32 nPreset)
 {
-	INT32 nTarget;
-	INT32 nIndex;
-	INT32 nField;
+	const ST_Preset	*st_Preset = &s_Preset[nPreset];
+	INT32			nTarget;
+	INT32			nIndex;
+	INT32			nField;
 
 	f_Scn_SetObject(&st_Platform, &s_SpecPlatform);
-	nTargetNum = SCN_SPEC_TARGET_NUM;
+	nTargetNum		= SCN_SPEC_TARGET_NUM;
+	durationTime	= st_Preset->durationTime;
 
 	for (nTarget = 0; nTarget < nTargetNum; nTarget++)
 	{
 		f_Scn_SetObject(&st_Target[nTarget], &s_SpecTarget[nTarget]);
 	}
 
-	if (nPreset == SCN_PRESET_MANEUVER)
+	for (nIndex = 0; nIndex < st_Preset->nManeuverNum; nIndex++)
 	{
-		for (nIndex = 0; nIndex < SCN_DEMO_MANEUVER_NUM; nIndex++)
+		const ST_PresetManeuver	*st_Source = &st_Preset->st_Maneuver[nIndex];
+		ST_ObjectText			*st_Object = &st_Target[st_Source->nTarget];
+		ST_ManeuverText			*st_New = &st_Object->st_Maneuver[st_Object->nManeuverNum];
+
+		st_New->enTurnType = st_Source->enTurnType;
+
+		for (nField = 0; nField < SCN_MNV_FIELD_NUM; nField++)
 		{
-			ST_ObjectText	*st_Object = &st_Target[s_DemoManeuver[nIndex].nTarget];
-			ST_ManeuverText	*st_New = &st_Object->st_Maneuver[st_Object->nManeuverNum];
-
-			st_New->enTurnType = s_DemoManeuver[nIndex].enTurnType;
-
-			for (nField = 0; nField < SCN_MNV_FIELD_NUM; nField++)
-			{
-				st_New->st_FieldText[nField] = s_DemoManeuver[nIndex].pt_Field[nField];
-			}
-
-			st_Object->nManeuverNum = st_Object->nManeuverNum + 1;
+			st_New->st_FieldText[nField] = st_Source->pt_Field[nField];
 		}
+
+		st_Object->nManeuverNum = st_Object->nManeuverNum + 1;
 	}
 }
 
@@ -200,13 +234,13 @@ VOID CScenario::f_DeleteManeuver(INT32 nTarget, INT32 nManeuver)
 	st_Object->nManeuverNum = st_Object->nManeuverNum - 1;
 }
 
-// 편집 글자 -> ST_SimConfig. 시간, 간격은 과제 명세 값.
+// 편집 글자 -> ST_SimConfig. 시간은 프리셋 값, 간격은 과제 명세 값.
 VOID CScenario::f_BuildConfig(ST_SimConfig *st_Config) const
 {
 	INT32 nTarget;
 	INT32 nManeuver;
 
-	st_Config->durationTime	= SCN_DURATION_TIME;
+	st_Config->durationTime	= durationTime;
 	st_Config->stepTime		= SCN_STEP_TIME;
 	st_Config->nTargetNum	= nTargetNum;
 
@@ -312,7 +346,7 @@ const ST_PlotPoint *CSimResult::f_GetPoint(INT32 nStep, INT32 nObject) const
 }
 
 // 결과 표 칸 하나의 글자. 표, CSV 공용.
-// 시각 소수 3 자리, 위경도 9 자리, 고도 4 자리.
+// 시각 소수 3 자리, 위경도 9 자리, 고도 9 자리.
 VOID CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 bufSize) const
 {
 	const ST_SimSample		*st_Sample = f_GetSample(nRow);
@@ -341,7 +375,7 @@ VOID CSimResult::f_FormatCell(INT32 nRow, INT32 nColumn, CHAR *pt_Buf, INT32 buf
 		}
 		else
 		{
-			(VOID)_snprintf_s(pt_Buf, static_cast<UINT64>(bufSize), _TRUNCATE, "%.4f", st_State->st_Lla.Alt);
+			(VOID)_snprintf_s(pt_Buf, static_cast<UINT64>(bufSize), _TRUNCATE, "%.9f", st_State->st_Lla.Alt);
 		}
 	}
 }
