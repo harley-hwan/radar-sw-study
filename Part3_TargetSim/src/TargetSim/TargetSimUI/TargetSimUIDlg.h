@@ -1,5 +1,6 @@
 #pragma once
 
+#include "CalcLog.h"
 #include "GridCtrl.h"
 #include "Scenario.h"
 #include "TrajectoryPlot.h"
@@ -38,6 +39,7 @@ protected:
 
 	afx_msg VOID	f_OnScenarioMenuClicked(VOID);
 	afx_msg VOID	f_OnScenarioPreset(UINT32 command);
+	afx_msg VOID	f_OnCalcLogClicked(VOID);
 	afx_msg VOID	f_OnTargetAddClicked(VOID);
 	afx_msg VOID	f_OnTargetDeleteClicked(VOID);
 	afx_msg VOID	f_OnManeuverAddClicked(VOID);
@@ -73,6 +75,7 @@ private:
 	VOID	f_SetupResultView(VOID);
 	VOID	f_SetupResultColumns(VOID);
 	INT32	f_GetResultMethod(LPCTSTR pt_Name[], const CSimResult *st_Source[]) const;
+	VOID	f_WriteCalcLog(VOID);
 
 	CGridCtrl			st_ObjGrid;
 	CGridCtrl			st_MnvGrid;
@@ -93,6 +96,7 @@ private:
 	CSimResult			st_Result;
 	CSimResult			st_NoMidResult;						// 같은 설정의 비중점법 결과 (비교용)
 	CSimResult			st_PlatformResult;					// 같은 설정의 플랫폼 기준 결과 (비교용)
+	CCalcLog			st_CalcLog;							// 기본 계산의 과정을 적는 콘솔
 
 	INT32				dpi;
 	INT32				textHeight;

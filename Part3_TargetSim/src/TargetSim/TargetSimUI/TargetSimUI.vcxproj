@@ -109,6 +109,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="CalcLog.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="GridCtrl.h" />
     <ClInclude Include="pch.h" />
@@ -121,6 +122,7 @@
     <ClInclude Include="UiCommon.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="CalcLog.cpp" />
     <ClCompile Include="GridCtrl.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>

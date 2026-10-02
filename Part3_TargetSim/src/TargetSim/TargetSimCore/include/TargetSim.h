@@ -22,6 +22,10 @@ extern "C" {
 #define TGT_MAX_TARGET_NUM			10
 #define TGT_MAX_MANEUVER_NUM		30
 
+// 계산 과정 기록을 받는 함수 (계산 로그용). 기록 내용 ST_StepTrace 는 맨 아래에 정의.
+typedef struct ST_StepTrace	ST_StepTrace;
+typedef VOID (*PF_TgtTrace)(const ST_StepTrace *st_Trace, VOID *pt_User);
+
 // 기동 회전축. 값은 과제 명세 그대로.
 typedef enum
 {
@@ -69,6 +73,8 @@ typedef struct
 	ST_PlatformInit			st_Platform;
 	INT32					nTargetNum;						// 1 ~ TGT_MAX_TARGET_NUM
 	ST_TargetInit			st_Target[TGT_MAX_TARGET_NUM];
+	PF_TgtTrace				pf_Trace;						// 계산 과정을 받을 함수. NULL 이면 기록 안 함
+	VOID					*pt_TraceUser;					// pf_Trace 에 그대로 넘기는 값
 } ST_SimConfig;
 
 // 플랫폼 또는 표적 하나의 한 시각 상태. 위치, 속도는 ECEF 이고 LLA 는 출력용.
@@ -106,6 +112,34 @@ TSCORE_API VOID					f_Tgt_StepSim(ST_SimState *st_Sim);
 TSCORE_API STRUCT_Coord_Rect	f_Tgt_EcefToNed(const STRUCT_Coord_Rect *st_Ecef, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
 TSCORE_API STRUCT_Coord_Lla		f_Tgt_NedToLla(const STRUCT_Coord_Rect *st_Ned, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
 TSCORE_API STRUCT_Coord_Rect	f_Tgt_LlaToNed(const STRUCT_Coord_Lla *st_Lla, const STRUCT_Coord_Rect *st_RefEcef, const STRUCT_Coord_Lla *st_RefLla);
+
+// 자세 각속도. Roll, Pitch, Yaw 가 1 초에 바뀌는 양.
+typedef struct
+{
+	FLOAT64					Roll;							// [rad/s]
+	FLOAT64					Pitch;							// [rad/s]
+	FLOAT64					Yaw;							// [rad/s]
+} ST_AttRate;
+
+// 계산 과정 기록. pf_Trace 가 있으면 0 초 상태를 만들 때 한 번, 그 뒤 스텝마다 객체마다 한 번씩 넘어감.
+// 값은 Core 가 계산에 쓴 것 그대로. 0 초 기록은 반 스텝 뒤 값 칸에도 0 초 상태가 들어감.
+struct ST_StepTrace
+{
+	INT32					nObject;						// 0 = 플랫폼, k = 표적 k
+	INT32					nStepIndex;						// -1 = 0 초 상태 만들기, 0 이상 = 진행 전 스텝 번호
+	FLOAT64					stepTime;						// [s]
+	FLOAT64					headingSpeed;					// 속력 [m/s]
+	ST_AttRate				st_AttRate;						// 이 스텝의 기동 각속도
+	ST_TargetState			st_Start;						// 스텝 시작 상태
+	STRUCT_Coord_Rect		st_VelNedStart;					// 출발 속도의 북, 동, 아래 성분 [m/s]
+	STRUCT_Coord_Rect		st_VelStart;					// 출발 속도 ECEF [m/s]
+	STRUCT_Coord_Attitude	st_AttMid;						// 반 스텝 뒤 자세 [rad]
+	STRUCT_Coord_Rect		st_PosMid;						// 반 스텝 뒤 위치 ECEF [m]
+	STRUCT_Coord_Lla		st_LlaMid;						// 반 스텝 뒤 위경도
+	STRUCT_Coord_Rect		st_VelNedMid;					// 중간 지점 속도의 북, 동, 아래 성분 [m/s]
+	STRUCT_Coord_Rect		st_VelMid;						// 중간 지점 속도 ECEF [m/s]
+	ST_TargetState			st_Next;						// 스텝 끝 상태
+};
 
 #ifdef __cplusplus
 }

@@ -1,13 +1,5 @@
 #include "TargetSim.h"
 
-// 자세 각속도. Roll, Pitch, Yaw 가 1 초에 바뀌는 양.
-typedef struct
-{
-	FLOAT64					Roll;							// [rad/s]
-	FLOAT64					Pitch;							// [rad/s]
-	FLOAT64					Yaw;							// [rad/s]
-} ST_AttRate;
-
 // simTime 에 걸린 기동의 각속도 반환. 기동 없으면 0.
 static ST_AttRate f_Tgt_GetAttRate(const ST_TargetInit *st_Target, FLOAT64 simTime)
 {
@@ -97,9 +89,64 @@ static VOID f_Tgt_InitState(ST_TargetState *st_State, const STRUCT_Coord_Lla *st
 	st_State->st_VelEcef	= f_Tgt_GetVelEcef(st_InitAtt, st_InitLla, st_Platform, headingSpeed);
 }
 
+// 계산 과정 기록에 이번 스텝의 값을 그대로 남김 (계산 로그용). st_Trace 가 NULL 이면 아무것도 안 함.
+static VOID f_Tgt_KeepTrace(ST_StepTrace *st_Trace, const ST_AttRate *st_AttRate, FLOAT64 headingSpeed, const ST_TargetState *st_Start,
+	const STRUCT_Coord_Rect *st_VelStart, const STRUCT_Coord_Attitude *st_AttMid, const STRUCT_Coord_Rect *st_PosMid,
+	const STRUCT_Coord_Lla *st_LlaMid, const STRUCT_Coord_Rect *st_VelMid, const ST_TargetState *st_Next)
+{
+	if (st_Trace != NULL)
+	{
+		st_Trace->headingSpeed	= headingSpeed;
+		st_Trace->st_AttRate	= *st_AttRate;
+		st_Trace->st_Start		= *st_Start;
+		st_Trace->st_VelStart	= *st_VelStart;
+		st_Trace->st_AttMid		= *st_AttMid;
+		st_Trace->st_PosMid		= *st_PosMid;
+		st_Trace->st_LlaMid		= *st_LlaMid;
+		st_Trace->st_VelMid		= *st_VelMid;
+		st_Trace->st_Next		= *st_Next;
+	}
+}
+
+// 남긴 기록에 객체, 스텝 번호를 붙여 pf_Trace 로 넘김. st_Trace 가 NULL 이면 아무것도 안 함.
+// 속도의 북, 동, 아래 성분은 f_Tgt_GetVelEcef 의 첫 단계와 같은 식으로 구함.
+static VOID f_Tgt_SendTrace(const ST_SimConfig *st_Config, ST_StepTrace *st_Trace, INT32 nObject, INT32 nStepIndex)
+{
+	const STRUCT_Coord_Attitude	*st_Att;
+
+	if ((st_Trace != NULL) && (st_Config->pf_Trace != NULL))
+	{
+		st_Trace->nObject		= nObject;
+		st_Trace->nStepIndex	= nStepIndex;
+		st_Trace->stepTime		= st_Config->stepTime;
+
+		st_Att						= &st_Trace->st_Start.st_Att;
+		st_Trace->st_VelNedStart	= f_Trans_Body_To_Ned(st_Trace->headingSpeed, 0.0, 0.0, st_Att->Roll, st_Att->Yaw, st_Att->Pitch);
+		st_Att						= &st_Trace->st_AttMid;
+		st_Trace->st_VelNedMid		= f_Trans_Body_To_Ned(st_Trace->headingSpeed, 0.0, 0.0, st_Att->Roll, st_Att->Yaw, st_Att->Pitch);
+
+		st_Config->pf_Trace(st_Trace, st_Config->pt_TraceUser);
+	}
+}
+
+// 0 초 상태의 계산 과정 기록 (pf_Trace 가 있을 때만). 반 스텝 뒤 값 칸에도 0 초 상태를 넣음.
+static VOID f_Tgt_SendInitTrace(const ST_SimConfig *st_Config, INT32 nObject, const ST_TargetState *st_State)
+{
+	const ST_AttRate	st_NoManeuverRate = { 0.0, 0.0, 0.0 };
+	const FLOAT64		headingSpeed = (nObject == 0) ? st_Config->st_Platform.headingSpeed : st_Config->st_Target[nObject - 1].headingSpeed;
+	ST_StepTrace		st_Trace;
+
+	if (st_Config->pf_Trace != NULL)
+	{
+		f_Tgt_KeepTrace(&st_Trace, &st_NoManeuverRate, headingSpeed, st_State, &st_State->st_VelEcef, &st_State->st_Att,
+			&st_State->st_PosEcef, &st_State->st_Lla, &st_State->st_VelEcef, st_State);
+		f_Tgt_SendTrace(st_Config, &st_Trace, nObject, -1);
+	}
+}
+
 // 중점법으로 한 스텝 전진. 반 스텝 뒤(중간 지점) 속도로 이동.
-static VOID f_Tgt_Propagate(ST_TargetState *st_State, const ST_AttRate *st_AttRate, const ST_TargetState *st_Platform, FLOAT64 headingSpeed,
-	FLOAT64 stepTime, FLOAT64 nextTime, INT32 noMidPoint)
+static VOID f_Tgt_Propagate(ST_TargetState *st_State, const ST_AttRate *st_AttRate, const ST_TargetState *st_Platform, ST_StepTrace *st_Trace,
+	FLOAT64 headingSpeed, FLOAT64 stepTime, FLOAT64 nextTime, INT32 noMidPoint)
 {
 	ST_TargetState			st_NextState;
 	STRUCT_Coord_Attitude	st_AttMid;
@@ -150,6 +197,10 @@ static VOID f_Tgt_Propagate(ST_TargetState *st_State, const ST_AttRate *st_AttRa
 	st_NextState.st_VelEcef	= f_Tgt_GetVelEcef(&st_NextState.st_Att, &st_NextState.st_Lla, st_Platform, headingSpeed);
 	st_NextState.simTime	= nextTime;
 
+	// 계산 로그를 켰으면 이번 스텝의 값을 그대로 남김.
+	f_Tgt_KeepTrace(st_Trace, st_AttRate, headingSpeed, st_State, &st_VelStart,
+		&st_AttMid, &st_PosMid, &st_LlaMid, &st_VelMid, &st_NextState);
+
 	*st_State = st_NextState;
 }
 
@@ -172,11 +223,13 @@ VOID f_Tgt_InitSim(ST_SimState *st_Sim, const ST_SimConfig *st_Config)
 	// 플랫폼, 표적의 시작 상태.
 	f_Tgt_InitState(&st_Sample->st_Platform, &st_Config->st_Platform.st_InitLla, &st_Config->st_Platform.st_InitAtt, st_Ref,
 		st_Config->st_Platform.headingSpeed);
+	f_Tgt_SendInitTrace(st_Config, 0, &st_Sample->st_Platform);
 
 	for (nTarget = 0; nTarget < st_Config->nTargetNum; nTarget++)
 	{
 		f_Tgt_InitState(&st_Sample->st_Target[nTarget], &st_Config->st_Target[nTarget].st_InitLla, &st_Config->st_Target[nTarget].st_InitAtt,
 			st_Ref, st_Config->st_Target[nTarget].headingSpeed);
+		f_Tgt_SendInitTrace(st_Config, nTarget + 1, &st_Sample->st_Target[nTarget]);
 	}
 }
 
@@ -187,6 +240,8 @@ VOID f_Tgt_StepSim(ST_SimState *st_Sim)
 	const ST_AttRate		st_NoManeuverRate = { 0.0, 0.0, 0.0 };
 	ST_SimSample			*st_Sample = &st_Sim->st_Sample;
 	const ST_TargetState	*st_Ref = (st_Config->usePlatform != 0) ? &st_Sample->st_Platform : NULL;
+	ST_StepTrace			st_TraceBuf;
+	ST_StepTrace			*st_Trace = (st_Config->pf_Trace != NULL) ? &st_TraceBuf : NULL;
 	ST_AttRate				st_ManeuverRate;
 	FLOAT64					curTime;
 	FLOAT64					nextTime;
@@ -197,15 +252,17 @@ VOID f_Tgt_StepSim(ST_SimState *st_Sim)
 	nextTime	= (FLOAT64)(st_Sample->nStepIndex + 1) * st_Config->stepTime;
 
 	// 플랫폼: 기동 없음, 각속도 0.
-	f_Tgt_Propagate(&st_Sample->st_Platform, &st_NoManeuverRate, st_Ref,
+	f_Tgt_Propagate(&st_Sample->st_Platform, &st_NoManeuverRate, st_Ref, st_Trace,
 		st_Config->st_Platform.headingSpeed, st_Config->stepTime, nextTime, st_Config->noMidPoint);
+	f_Tgt_SendTrace(st_Config, st_Trace, 0, st_Sample->nStepIndex);
 
 	// 표적: 현재 시각의 기동 각속도로 전진.
 	for (nTarget = 0; nTarget < st_Config->nTargetNum; nTarget++)
 	{
 		st_ManeuverRate = f_Tgt_GetAttRate(&st_Config->st_Target[nTarget], curTime);
-		f_Tgt_Propagate(&st_Sample->st_Target[nTarget], &st_ManeuverRate, st_Ref,
+		f_Tgt_Propagate(&st_Sample->st_Target[nTarget], &st_ManeuverRate, st_Ref, st_Trace,
 			st_Config->st_Target[nTarget].headingSpeed, st_Config->stepTime, nextTime, st_Config->noMidPoint);
+		f_Tgt_SendTrace(st_Config, st_Trace, nTarget + 1, st_Sample->nStepIndex);
 	}
 
 	st_Sample->nStepIndex	= st_Sample->nStepIndex + 1;

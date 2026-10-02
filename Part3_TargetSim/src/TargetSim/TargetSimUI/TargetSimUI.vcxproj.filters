@@ -45,6 +45,9 @@
     <ClInclude Include="Scenario.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="CalcLog.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="pch.cpp">
@@ -63,6 +66,9 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="Scenario.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="CalcLog.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

@@ -6,6 +6,7 @@
 
 #define IDC_SCN_MENU                    1002
 #define IDC_SCN_NAME                    1006
+#define IDC_CALC_LOG                    1007
 
 #define IDC_OBJ_TITLE                   1010
 #define IDC_OBJ_ADD                     1011

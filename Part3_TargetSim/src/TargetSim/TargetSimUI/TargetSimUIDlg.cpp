@@ -59,6 +59,7 @@ BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
 	ON_WM_CLOSE()
 	ON_BN_CLICKED(IDC_SCN_MENU, &CTargetSimUIDlg::f_OnScenarioMenuClicked)
 	ON_COMMAND_RANGE(ID_SCN_PRESET_FIRST, ID_SCN_PRESET_FIRST + SCN_PRESET_NUM - 1, &CTargetSimUIDlg::f_OnScenarioPreset)
+	ON_BN_CLICKED(IDC_CALC_LOG, &CTargetSimUIDlg::f_OnCalcLogClicked)
 	ON_BN_CLICKED(IDC_OBJ_ADD, &CTargetSimUIDlg::f_OnTargetAddClicked)
 	ON_BN_CLICKED(IDC_OBJ_DELETE, &CTargetSimUIDlg::f_OnTargetDeleteClicked)
 	ON_BN_CLICKED(IDC_MNV_ADD, &CTargetSimUIDlg::f_OnManeuverAddClicked)
@@ -245,12 +246,14 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 
 	GetClientRect(&st_Client);
 
-	// 위 막대
+	// 위 막대 (오른쪽 끝에 계산 로그)
 	st_TopBar.SetRect(0, 0, st_Client.right, buttonHeight + (2 * f_Ui_Scale(10, dpi)));
 	x = margin + f_Ui_Scale(110, dpi) + (2 * gap);
 	y = f_Ui_Scale(10, dpi);
+	checkWidth = f_Ui_TextWidth(GetDlgItem(IDC_CALC_LOG)) + f_Ui_Scale(UI_CHECK_BOX_PAD, dpi);
 	f_Ui_Move(this, IDC_SCN_MENU, margin, y, f_Ui_Scale(110, dpi), buttonHeight);
-	f_Ui_Move(this, IDC_SCN_NAME, x, y, st_Client.right - margin - x, buttonHeight);
+	f_Ui_Move(this, IDC_SCN_NAME, x, y, st_Client.right - margin - checkWidth - gap - x, buttonHeight);
+	f_Ui_Move(this, IDC_CALC_LOG, st_Client.right - margin - checkWidth, y, checkWidth, buttonHeight);
 
 	contentTop		= st_TopBar.bottom + margin;
 	contentBottom	= st_Client.bottom - margin;
@@ -423,10 +426,11 @@ VOID CTargetSimUIDlg::OnCancel(VOID)
 	st_MnvGrid.f_EndEdit(0);
 }
 
-// 닫기 단추. 입력 중인 값은 버리고 창 닫기.
+// 닫기 단추. 입력 중인 값은 버리고 창 닫기. 계산 로그 콘솔도 닫음.
 VOID CTargetSimUIDlg::OnClose(VOID)
 {
 	OnCancel();
+	st_CalcLog.f_Close();
 	EndDialog(IDCANCEL);
 }
 
@@ -669,7 +673,7 @@ VOID CTargetSimUIDlg::f_OnScenarioPreset(UINT32 command)
 
 // 실행
 
-// 편집 글자로 설정 생성, 전 구간 실행 후 결과 표와 그림 갱신.
+// 편집 글자로 설정 생성, 전 구간 실행 후 결과 표와 그림 갱신. 계산 로그를 켰으면 콘솔도 다시 씀.
 VOID CTargetSimUIDlg::f_RunScenario(VOID)
 {
 	ST_SimConfig st_Config = {};
@@ -688,6 +692,7 @@ VOID CTargetSimUIDlg::f_RunScenario(VOID)
 
 	f_SetupResultList();
 	st_Plot.f_SetResult(&st_Result, (isPlatformCompare != 0) ? &st_PlatformResult : nullptr);
+	f_WriteCalcLog();
 }
 
 // 결과 표: 행은 표본 수. 객체 수가 바뀐 경우에만 보기 목록, 열 재생성.
@@ -820,12 +825,13 @@ INT32 CTargetSimUIDlg::f_GetResultMethod(LPCTSTR pt_Name[], const CSimResult *st
 	return nMethodNum;
 }
 
-// 보기 변경. 행은 그대로 두고 열만 다시 만듦.
+// 보기 변경. 행은 그대로 두고 열만 다시 만듦. 계산 로그도 그 객체로 다시 씀.
 VOID CTargetSimUIDlg::f_OnResultViewChanged(VOID)
 {
 	nResultObject = st_ResultView.GetCurSel() - 1;
 	f_SetupResultColumns();
 	st_ResultList.Invalidate(FALSE);
+	f_WriteCalcLog();
 }
 
 // 비중점법 비교, 플랫폼 기준 비교 켜기 / 끄기. 결과는 이미 계산돼 있어 열과 그림만 다시 만듦.
@@ -883,5 +889,34 @@ VOID CTargetSimUIDlg::f_OnSaveCsvClicked(VOID)
 		{
 			(VOID)AfxMessageBox(_T("CSV 파일을 쓸 수 없습니다. 다른 프로그램이 열고 있지 않은지 확인하십시오."), MB_ICONWARNING);
 		}
+	}
+}
+
+// 계산 로그 켜기 / 끄기. 켜면 콘솔 창을 열고 지금 보기 객체의 계산 과정을 씀. 콘솔을 못 열면 체크를 되돌림.
+VOID CTargetSimUIDlg::f_OnCalcLogClicked(VOID)
+{
+	if (IsDlgButtonChecked(IDC_CALC_LOG) != BST_CHECKED)
+	{
+		st_CalcLog.f_Close();
+	}
+	else if (st_CalcLog.f_Open() != 0)
+	{
+		f_WriteCalcLog();
+	}
+	else
+	{
+		CheckDlgButton(IDC_CALC_LOG, BST_UNCHECKED);
+	}
+}
+
+// 계산 로그가 켜져 있으면 지금 시나리오, 지금 보기 객체 (결과 표와 같음) 의 계산 과정을 다시 씀.
+VOID CTargetSimUIDlg::f_WriteCalcLog(VOID)
+{
+	CString st_Title;
+
+	if (st_CalcLog.f_IsOpen() != 0)
+	{
+		(VOID)GetDlgItemText(IDC_SCN_NAME, st_Title);
+		st_CalcLog.f_Write(&st_Scenario, nResultObject, st_Title);
 	}
 }
