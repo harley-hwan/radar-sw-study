@@ -1,0 +1,147 @@
+// Microsoft Visual C++ generated resource script.
+//
+#pragma code_page(65001)
+#include "Resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+#include "afxres.h"
+#include "verrsrc.h"
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// TEXTINCLUDE
+//
+1 TEXTINCLUDE
+BEGIN
+    "Resource.h\0"
+END
+
+2 TEXTINCLUDE
+BEGIN
+    "#define APSTUDIO_READONLY_SYMBOLS\r\n"
+    "#include ""afxres.h""\r\n"
+    "#include ""verrsrc.h""\r\n"
+    "#undef APSTUDIO_READONLY_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE
+BEGIN
+    "#include ""res\\PlotSimUI.rc2""\r\n"
+    "#include ""afxres.rc""\r\n"
+    "\0"
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Dialog
+//
+IDD_PLOTSIMUI_DIALOG DIALOGEX 0, 0, 760, 470
+STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "PlotSim"
+FONT 9, "Malgun Gothic", 400, 0, 0x81
+BEGIN
+    LTEXT           "표적",IDC_PRESET_LABEL,8,8,20,14,SS_NOPREFIX | SS_CENTERIMAGE
+    COMBOBOX        IDC_PRESET,30,8,116,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "SNR",IDC_SNR_LABEL,166,8,18,14,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_SNR,186,8,30,14,ES_AUTOHSCROLL
+    COMBOBOX        IDC_SNR_UNIT,220,8,40,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "클러터",IDC_CLUTTER_LABEL,266,8,28,14,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_CLUTTER_NUM,296,8,24,14,ES_AUTOHSCROLL | ES_NUMBER
+    COMBOBOX        IDC_CLUTTER_MODE,324,8,100,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "seed",IDC_SEED_LABEL,430,8,20,14,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_SEED,452,8,44,14,ES_AUTOHSCROLL | ES_NUMBER
+    DEFPUSHBUTTON   "실행",IDC_RUN,620,8,50,14
+    PUSHBUTTON      "CSV 저장...",IDC_SAVE_CSV,676,8,60,14
+    LTEXT           "",IDC_PARAM_TEXT,8,26,744,10,SS_NOPREFIX | SS_ENDELLIPSIS
+
+    LTEXT           "검증 결과",IDC_CHECK_TITLE,8,40,300,10,SS_NOPREFIX | SS_CENTERIMAGE
+    CONTROL         "",IDC_CHECK_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,8,52,300,100
+    LTEXT           "결과 목록 (참값 / 플롯 / 클러터)",IDC_RESULT_TITLE,8,158,300,10,SS_NOPREFIX | SS_CENTERIMAGE
+    CONTROL         "",IDC_RESULT_LIST,"SysListView32",LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,8,170,300,292
+
+    LTEXT           "보기",IDC_VIEW_LABEL,316,40,20,14,SS_NOPREFIX | SS_CENTERIMAGE
+    COMBOBOX        IDC_VIEW,338,40,120,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_CHART,"Static",SS_LEFT,316,58,436,404
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// DESIGNINFO
+//
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_PLOTSIMUI_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 8
+        RIGHTMARGIN, 752
+        TOPMARGIN, 8
+        BOTTOMMARGIN, 462
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Version
+//
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "radar-sw-study"
+            VALUE "FileDescription", "PlotSim UI"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "PlotSimUI.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2026"
+            VALUE "OriginalFilename", "PlotSimUI.exe"
+            VALUE "ProductName", "PlotSim"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// String Table
+//
+STRINGTABLE
+BEGIN
+    AFX_IDS_APP_TITLE       "PlotSim"
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "res\PlotSimUI.rc2"
+#include "afxres.rc"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
