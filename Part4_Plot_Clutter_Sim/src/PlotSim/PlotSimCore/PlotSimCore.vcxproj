@@ -106,7 +106,6 @@
       <DisableSpecificWarnings Condition="'$(Configuration)|$(Platform)'=='Release|x64'">4244;%(DisableSpecificWarnings)</DisableSpecificWarnings>
     </ClCompile>
     <ClCompile Include="src\PlotSim.c" />
-    <ClCompile Include="src\PlotSimRun.c" />
     <ClCompile Include="src\TargetSim.c" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

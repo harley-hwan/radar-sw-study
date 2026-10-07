@@ -49,8 +49,5 @@
     <ClCompile Include="src\PlotSim.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\PlotSimRun.c">
-      <Filter>Source Files</Filter>
-    </ClCompile>
   </ItemGroup>
 </Project>
