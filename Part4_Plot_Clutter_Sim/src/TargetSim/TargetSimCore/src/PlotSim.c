@@ -1,17 +1,10 @@
-//
-// @file	PlotSim.c
-// @brief	난수 검증, 측정 표준편차, 플롯 / 클러터 모의.
-//			난수는 참고 소스 NoiseGeneration 의 UNIRAN, GAUSS, 좌표 변환은 참고 소스 CoordinateTransform 을 그대로 씀.
-// @author	hwan
-// @date	2026.10.07.
-//
 #include <math.h>
 #include <string.h>
 
 #include "PlotSim.h"
 #include "NoiseGeneration.h"
 
-// 히스토그램. isGauss 가 0 이면 UNIRAN, 아니면 GAUSS(0, 1) 를 PCS_RAND_NUM 개 뽑음.
+// isGauss 가 0 이면 UNIRAN, 아니면 GAUSS(0, 1) 히스토그램.
 static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOAT64 binMax, INT32 isGauss)
 {
 	INT32	nCount[PCS_GAUSS_BIN] = { 0 };
@@ -41,7 +34,6 @@ static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOA
 		}
 	}
 
-	// PDF = 개수 / (N * bin 폭)
 	for (nIndex = 0; nIndex < nBin; nIndex++)
 	{
 		st_Hist->pdf[nIndex] = (FLOAT64)nCount[nIndex] / ((FLOAT64)PCS_RAND_NUM * st_Hist->binWidth);
@@ -51,7 +43,7 @@ static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOA
 	st_Hist->std	= sqrt((sumSq / (FLOAT64)PCS_RAND_NUM) - (st_Hist->mean * st_Hist->mean));
 }
 
-// 표적 ECEF -> 레이다 안테나 구좌표 (참값). ECEF -> NED -> 동체 -> 안테나 -> 구좌표
+// ECEF -> NED -> 동체 -> 안테나 -> 구좌표.
 static STRUCT_Coord_Sph f_Pcs_EcefToSph(const STRUCT_Coord_Rect *st_Ecef, const ST_TargetState *st_Radar)
 {
 	const STRUCT_Coord_Attitude	*st_Att = &st_Radar->st_Att;
@@ -67,7 +59,7 @@ static STRUCT_Coord_Sph f_Pcs_EcefToSph(const STRUCT_Coord_Rect *st_Ecef, const 
 	return f_Trans_Ant_XYZ_To_Sph(st_Ant.x, st_Ant.y, st_Ant.z);
 }
 
-// 레이다 안테나 구좌표 -> LLA (전시용). 구좌표 -> 안테나 -> 동체 -> NED -> ECEF -> LLA
+// 구좌표 -> 안테나 -> 동체 -> NED -> ECEF -> LLA.
 static STRUCT_Coord_Lla f_Pcs_SphToLla(const STRUCT_Coord_Sph *st_Sph, const ST_TargetState *st_Radar)
 {
 	const STRUCT_Coord_Attitude	*st_Att = &st_Radar->st_Att;
@@ -85,13 +77,7 @@ static STRUCT_Coord_Lla f_Pcs_SphToLla(const STRUCT_Coord_Sph *st_Sph, const ST_
 	return f_Trans_Ecef_To_Lla(st_Ecef.x, st_Ecef.y, st_Ecef.z);
 }
 
-//
-// @brief	UNIRAN, GAUSS(0, 1) 검증용 히스토그램. 검증마다 seed 를 처음 값으로 맞춤
-// @param	st_Uniform	UNIRAN 결과 ([0, 1], bin 10개)
-// @param	st_Gauss	GAUSS 결과 ([-4, 4], bin 32개)
-// @return	없음
-// @author	hwan
-//
+// 난수 검증. 검증마다 seed 를 처음 값으로 맞춤.
 VOID f_Pcs_TestRand(ST_PcsHist *st_Uniform, ST_PcsHist *st_Gauss)
 {
 	changeSEED(PCS_SEED);
@@ -101,14 +87,8 @@ VOID f_Pcs_TestRand(ST_PcsHist *st_Uniform, ST_PcsHist *st_Gauss)
 	f_Pcs_FillHist(st_Gauss, PCS_GAUSS_BIN, PCS_GAUSS_MIN, PCS_GAUSS_MAX, 1);
 }
 
-//
-// @brief	거리 / 방위각 / 고각 측정 표준편차 p
-//			p_rng = c / (2 * B * sqrt(2 * SNR)), p_azi = 빔폭 / (K_M * sqrt(2 * SNR)), p_ele 도 같은 식
-//			과제 원문은 square(2 * SNR) 이지만 제곱근이 맞음 (제곱이면 p_rng 가 0.019 m 로 잡음이 거의 없어짐)
-// @param	snr		선형 SNR (0 보다 커야 함)
-// @return	r = p_rng [m], az = p_azi [rad], el = p_ele [rad]
-// @author	hwan
-//
+// 측정 표준편차 p. snr 은 선형값.
+// p_rng = c / (2 * B * sqrt(2 * SNR)), p_azi = 빔폭 / (K_M * sqrt(2 * SNR)), p_ele 도 같은 식.
 STRUCT_Coord_Sph f_Pcs_CalcSigma(FLOAT64 snr)
 {
 	const FLOAT64		root = sqrt(2.0 * snr);
@@ -121,60 +101,44 @@ STRUCT_Coord_Sph f_Pcs_CalcSigma(FLOAT64 snr)
 	return st_Sigma;
 }
 
-//
-// @brief	600 스캔 모의. 스캔마다 참값 -> 플롯 -> 클러터 순서로 만들고 표적을 0.1 s 진행함
-//			난수 순서: 플롯은 거리, 방위각, 고각. 클러터는 한 개씩 거리, 방위각, 고각
-// @param	st_Scan		결과 (PCS_SCAN_NUM 개)
-// @param	snr			선형 SNR (0 보다 커야 함)
-// @param	nClutterNum	스캔당 클러터 개수 (0 ~ PCS_MAX_CLUTTER, 벗어나면 끝값으로 맞춤)
-// @return	없음
-// @author	hwan
-//
-VOID f_Pcs_Run(ST_PcsScan *st_Scan, FLOAT64 snr, INT32 nClutterNum)
+// Part 3 결과 표본 nScanNum 개를 스캔마다 잼. 레이다는 그 표본의 플랫폼. 클러터 수는 0 ~ PCS_MAX_CLUTTER 로 맞춤.
+// 난수 순서: seed 를 처음 값으로 맞춘 뒤 스캔마다 표적 1 ~ N 플롯 (거리, 방위각, 고각), 그다음 클러터.
+VOID f_Pcs_Measure(ST_PcsScan *st_Scan, const ST_SimSample *st_Sample, INT32 nScanNum, FLOAT64 snr, INT32 nClutterNum)
 {
 	const STRUCT_Coord_Sph	st_Sigma = f_Pcs_CalcSigma(snr);
-	ST_SimConfig			st_Config;
-	ST_SimState				st_Sim;
-	const ST_TargetState	*st_Radar = &st_Sim.st_Sample.st_Platform;
-	const ST_TargetState	*st_Target = &st_Sim.st_Sample.st_Target[0];
+	const ST_SimSample		*st_In;
+	const ST_TargetState	*st_Radar;
 	ST_PcsScan				*st_Out;
 	STRUCT_Coord_Sph		*st_Clutter;
 	INT32					nScan;
+	INT32					nTarget;
 	INT32					nClutter;
-
-	// 표적 궤적 (Part 3): 플랫폼은 고도 0 m 에 정지, 표적은 이전 차수 대공 표적 하나
-	(VOID)memset(&st_Config, 0, sizeof(st_Config));
-	st_Config.durationTime					= PCS_SCAN_NUM * PCS_SCAN_TIME;
-	st_Config.stepTime						= PCS_SCAN_TIME;
-	st_Config.st_Platform.st_InitLla.Lat	= f_Deg_To_Rad(PCS_RADAR_LAT);
-	st_Config.st_Platform.st_InitLla.Lon	= f_Deg_To_Rad(PCS_RADAR_LON);
-	st_Config.nTargetNum					= 1;
-	st_Config.st_Target[0].st_InitLla.Lat	= f_Deg_To_Rad(32.12);
-	st_Config.st_Target[0].st_InitLla.Lon	= f_Deg_To_Rad(126.0);
-	st_Config.st_Target[0].st_InitLla.Alt	= 300.0;
-	st_Config.st_Target[0].st_InitAtt.Yaw	= f_Deg_To_Rad(180.0);
-	st_Config.st_Target[0].headingSpeed		= 200.0;
-	f_Tgt_InitSim(&st_Sim, &st_Config);
 
 	nClutterNum = (nClutterNum < 0) ? 0 : ((nClutterNum > PCS_MAX_CLUTTER) ? PCS_MAX_CLUTTER : nClutterNum);
 	changeSEED(PCS_SEED);
 
-	for (nScan = 0; nScan < PCS_SCAN_NUM; nScan++)
+	for (nScan = 0; nScan < nScanNum; nScan++)
 	{
-		st_Out			= &st_Scan[nScan];
-		st_Out->time	= st_Sim.st_Sample.simTime;
+		st_In		= &st_Sample[nScan];
+		st_Radar	= &st_In->st_Platform;
+		st_Out		= &st_Scan[nScan];
 
-		// 참값 x: 표적 위치를 레이다 안테나 구좌표로
-		st_Out->st_True		= f_Pcs_EcefToSph(&st_Target->st_PosEcef, st_Radar);
-		st_Out->st_TrueLla	= st_Target->st_Lla;
+		st_Out->time		= st_In->simTime;
+		st_Out->nTargetNum	= st_In->nTargetNum;
 
-		// 플롯 z = x + v, v ~ N(0, p^2). 성분마다 GAUSS 를 따로 부름
-		st_Out->st_Plot.r	= st_Out->st_True.r + GAUSS(0.0, st_Sigma.r);
-		st_Out->st_Plot.az	= st_Out->st_True.az + GAUSS(0.0, st_Sigma.az);
-		st_Out->st_Plot.el	= st_Out->st_True.el + GAUSS(0.0, st_Sigma.el);
-		st_Out->st_PlotLla	= f_Pcs_SphToLla(&st_Out->st_Plot, st_Radar);
+		for (nTarget = 0; nTarget < st_In->nTargetNum; nTarget++)
+		{
+			// 참값 x
+			st_Out->st_True[nTarget] = f_Pcs_EcefToSph(&st_In->st_Target[nTarget].st_PosEcef, st_Radar);
 
-		// 클러터: FOV 안에서 성분마다 c = min + (max - min) * UNIRAN(). 표적과 상관없이 매 스캔 새로 뽑음
+			// 플롯 z = x + v, v ~ N(0, p^2)
+			st_Out->st_Plot[nTarget].r	= st_Out->st_True[nTarget].r + GAUSS(0.0, st_Sigma.r);
+			st_Out->st_Plot[nTarget].az	= st_Out->st_True[nTarget].az + GAUSS(0.0, st_Sigma.az);
+			st_Out->st_Plot[nTarget].el	= st_Out->st_True[nTarget].el + GAUSS(0.0, st_Sigma.el);
+			st_Out->st_PlotLla[nTarget]	= f_Pcs_SphToLla(&st_Out->st_Plot[nTarget], st_Radar);
+		}
+
+		// 클러터: FOV 안 균등분포, 매 스캔 새로 뽑음
 		st_Out->nClutterNum = nClutterNum;
 
 		for (nClutter = 0; nClutter < nClutterNum; nClutter++)
@@ -185,7 +149,5 @@ VOID f_Pcs_Run(ST_PcsScan *st_Scan, FLOAT64 snr, INT32 nClutterNum)
 			st_Clutter->el	= f_Deg_To_Rad(PCS_CLT_ELE_MIN + ((PCS_CLT_ELE_MAX - PCS_CLT_ELE_MIN) * UNIRAN()));
 			st_Out->st_ClutterLla[nClutter] = f_Pcs_SphToLla(st_Clutter, st_Radar);
 		}
-
-		f_Tgt_StepSim(&st_Sim);
 	}
 }

@@ -14,19 +14,19 @@
     <ClInclude Include="include\Define.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\CommonDefine.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="include\matrixCalcLib.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\CoordinateTransform.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\NoiseGeneration.h">
+    <ClInclude Include="include\TargetSim.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="include\TargetSim.h">
+    <ClInclude Include="include\CommonDefine.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\NoiseGeneration.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\PlotSim.h">
@@ -40,10 +40,10 @@
     <ClCompile Include="src\CoordinateTransform.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\NoiseGeneration.c">
+    <ClCompile Include="src\TargetSim.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\TargetSim.c">
+    <ClCompile Include="src\NoiseGeneration.c">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\PlotSim.c">

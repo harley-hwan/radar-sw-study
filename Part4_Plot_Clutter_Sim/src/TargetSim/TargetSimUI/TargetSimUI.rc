@@ -1,0 +1,176 @@
+// Microsoft Visual C++ generated resource script.
+//
+#pragma code_page(65001)
+#include "Resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+#include "afxres.h"
+#include "verrsrc.h"
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// TEXTINCLUDE
+//
+1 TEXTINCLUDE
+BEGIN
+    "Resource.h\0"
+END
+
+2 TEXTINCLUDE
+BEGIN
+    "#define APSTUDIO_READONLY_SYMBOLS\r\n"
+    "#include ""afxres.h""\r\n"
+    "#include ""verrsrc.h""\r\n"
+    "#undef APSTUDIO_READONLY_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE
+BEGIN
+    "#include ""res\\TargetSimUI.rc2""\r\n"
+    "#include ""afxres.rc""\r\n"
+    "\0"
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Dialog
+//
+IDD_TARGETSIMUI_DIALOG DIALOGEX 0, 0, 760, 470
+STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "TargetSim + 플롯 · 클러터 모의"
+FONT 9, "Malgun Gothic", 400, 0, 0x81
+BEGIN
+    PUSHBUTTON      "시나리오 ▼",IDC_SCN_MENU,8,8,62,16
+    LTEXT           "",IDC_SCN_NAME,80,11,604,10,SS_NOPREFIX | SS_CENTERIMAGE | SS_ENDELLIPSIS
+    CONTROL         "계산 로그",IDC_CALC_LOG,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,692,10,60,12
+
+    LTEXT           "플랫폼 / 표적",IDC_OBJ_TITLE,8,34,200,12,SS_NOPREFIX | SS_CENTERIMAGE
+    PUSHBUTTON      "표적 추가",IDC_OBJ_ADD,248,32,44,14
+    PUSHBUTTON      "삭제",IDC_OBJ_DELETE,296,32,36,14
+    CONTROL         "",IDC_OBJ_GRID,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP,8,50,340,150
+
+    LTEXT           "기동",IDC_MNV_TITLE,8,208,200,12,SS_NOPREFIX | SS_CENTERIMAGE
+    PUSHBUTTON      "기동 추가",IDC_MNV_ADD,248,206,44,14
+    PUSHBUTTON      "삭제",IDC_MNV_DELETE,296,206,36,14
+    CONTROL         "",IDC_MNV_GRID,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP,8,224,340,136
+    LTEXT           "G 부호가 회전 방향 (Roll+ 우측 뱅크, Yaw+ 우선회, Pitch+ 기수 상승). 구간은 [시작, 종료)",IDC_MNV_HINT,8,364,340,10,SS_NOPREFIX | SS_ENDELLIPSIS
+    LTEXT           "숫자 칸은 두 번 클릭, 축 칸은 한 번 클릭해 편집. Enter 확정, Esc 취소",IDC_EDIT_HINT,8,376,340,10,SS_NOPREFIX | SS_ENDELLIPSIS
+
+    LTEXT           "측정 모의 (과제 4)",IDC_PCS_TITLE,8,398,200,12,SS_NOPREFIX | SS_CENTERIMAGE
+    PUSHBUTTON      "난수 확인...",IDC_PCS_RAND,288,396,60,14
+    LTEXT           "SNR (선형)",IDC_PCS_SNR_LABEL,8,416,40,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PCS_SNR,50,415,36,14,ES_AUTOHSCROLL
+    LTEXT           "스캔당 클러터",IDC_PCS_CLUTTER_LABEL,94,416,52,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PCS_CLUTTER,148,415,24,14,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "플롯 표시",IDC_PCS_SHOW_PLOT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,180,416,44,12
+    CONTROL         "클러터 표시",IDC_PCS_SHOW_CLUTTER,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,228,416,52,12
+    LTEXT           "",IDC_PCS_SUMMARY,8,434,340,24,SS_NOPREFIX
+
+    CONTROL         "",IDC_PLOT,"Static",SS_LEFT,356,34,396,250
+    LTEXT           "결과 (LLA)",IDC_RESULT_TITLE,356,292,44,12,SS_NOPREFIX | SS_CENTERIMAGE
+    COMBOBOX        IDC_RESULT_VIEW,404,290,56,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "비중점법 비교",IDC_RESULT_COMPARE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,466,292,64,12
+    CONTROL         "플랫폼 기준 비교",IDC_RESULT_PLATFORM,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,534,292,72,12
+    PUSHBUTTON      "CSV 저장...",IDC_SAVE_CSV,672,290,80,14
+    CONTROL         "",IDC_RESULT_LIST,"SysListView32",LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP,356,308,396,154
+END
+
+IDD_RAND_DIALOG DIALOGEX 0, 0, 440, 190
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "난수 확인 (UNIRAN, GAUSS)"
+FONT 9, "Malgun Gothic", 400, 0, 0x81
+BEGIN
+    CONTROL         "",IDC_RAND_UNIFORM,"Static",SS_LEFT,8,8,208,156
+    CONTROL         "",IDC_RAND_GAUSS,"Static",SS_LEFT,224,8,208,156
+    DEFPUSHBUTTON   "닫기",IDOK,382,170,50,14
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// DESIGNINFO
+//
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_TARGETSIMUI_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 8
+        RIGHTMARGIN, 752
+        TOPMARGIN, 8
+        BOTTOMMARGIN, 462
+    END
+
+    IDD_RAND_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 8
+        RIGHTMARGIN, 432
+        TOPMARGIN, 8
+        BOTTOMMARGIN, 182
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Version
+//
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "radar-sw-study"
+            VALUE "FileDescription", "TargetSim UI"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "TargetSimUI.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2026"
+            VALUE "OriginalFilename", "TargetSimUI.exe"
+            VALUE "ProductName", "TargetSim"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// String Table
+//
+STRINGTABLE
+BEGIN
+    AFX_IDS_APP_TITLE       "TargetSim"
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "res\TargetSimUI.rc2"
+#include "afxres.rc"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED

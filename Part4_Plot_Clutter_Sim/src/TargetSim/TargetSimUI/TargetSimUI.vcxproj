@@ -13,8 +13,8 @@
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
     <Keyword>MFCProj</Keyword>
-    <ProjectGuid>{1CED34CD-0EEF-45C6-8CBA-7357094A1AA9}</ProjectGuid>
-    <RootNamespace>PlotSimUI</RootNamespace>
+    <ProjectGuid>{C4D19E62-8F37-4A10-95B2-6E8D4C1B9F53}</ProjectGuid>
+    <RootNamespace>TargetSimUI</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
@@ -58,7 +58,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)PlotSimCore\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)TargetSimCore\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
       <Optimization>Disabled</Optimization>
@@ -86,7 +86,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)PlotSimCore\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir);$(SolutionDir)TargetSimCore\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -109,32 +109,45 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="ChartView.h" />
+    <ClInclude Include="CalcLog.h" />
     <ClInclude Include="framework.h" />
+    <ClInclude Include="GridCtrl.h" />
+    <ClInclude Include="HistView.h" />
     <ClInclude Include="pch.h" />
-    <ClInclude Include="PlotSimUI.h" />
-    <ClInclude Include="PlotSimUIDlg.h" />
+    <ClInclude Include="PlotResult.h" />
+    <ClInclude Include="RandDlg.h" />
     <ClInclude Include="Resource.h" />
+    <ClInclude Include="Scenario.h" />
+    <ClInclude Include="TargetSimUI.h" />
+    <ClInclude Include="TargetSimUIDlg.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="TrajectoryPlot.h" />
+    <ClInclude Include="UiCommon.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="ChartView.cpp" />
+    <ClCompile Include="CalcLog.cpp" />
+    <ClCompile Include="GridCtrl.cpp" />
+    <ClCompile Include="HistView.cpp" />
     <ClCompile Include="pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="PlotSimUI.cpp" />
-    <ClCompile Include="PlotSimUIDlg.cpp" />
+    <ClCompile Include="PlotResult.cpp" />
+    <ClCompile Include="RandDlg.cpp" />
+    <ClCompile Include="Scenario.cpp" />
+    <ClCompile Include="TargetSimUI.cpp" />
+    <ClCompile Include="TargetSimUIDlg.cpp" />
+    <ClCompile Include="TrajectoryPlot.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="PlotSimUI.rc" />
+    <ResourceCompile Include="TargetSimUI.rc" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="res\PlotSimUI.rc2" />
+    <None Include="res\TargetSimUI.rc2" />
   </ItemGroup>
   <ItemGroup>
-    <ProjectReference Include="..\PlotSimCore\PlotSimCore.vcxproj">
-      <Project>{105dd6f4-7bcb-4d01-9c72-99e2078887be}</Project>
+    <ProjectReference Include="..\TargetSimCore\TargetSimCore.vcxproj">
+      <Project>{7b2e4c31-9a5d-4e88-b1c6-3f0a5d72e410}</Project>
     </ProjectReference>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />

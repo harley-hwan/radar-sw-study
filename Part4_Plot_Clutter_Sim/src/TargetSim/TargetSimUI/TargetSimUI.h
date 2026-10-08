@@ -6,14 +6,14 @@
 
 #include "Resource.h"
 
-class CPlotSimUIApp : public CWinApp
+class CTargetSimUIApp : public CWinApp
 {
 public:
-	CPlotSimUIApp() noexcept;
+	CTargetSimUIApp() noexcept;
 
 	virtual BOOL InitInstance() override;
 
 	DECLARE_MESSAGE_MAP()
 };
 
-extern CPlotSimUIApp g_PlotSimApp;
+extern CTargetSimUIApp g_TargetSimApp;
