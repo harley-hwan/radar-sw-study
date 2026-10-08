@@ -9,23 +9,7 @@ namespace Gdiplus
 	class Font;
 }
 
-// 시각 그래프 칸
-#define PLOT_PANEL_ALT			0						// 고도-시각
-#define PLOT_PANEL_SPEED		1						// 속력-시각
-#define PLOT_PANEL_NUM			2
-
-// 시각 그래프 칸 하나.
-struct ST_PlotPanel
-{
-	LPCTSTR				pt_Title = _T("");
-	FLOAT64				minSpan = 1.0;						// 세로축 최소 폭
-	FLOAT64				valueMin = 0.0;						// 세로축 범위
-	FLOAT64				valueMax = 1.0;
-	FLOAT64				valueGrid = 1.0;					// 세로축 눈금 간격
-	CRect				st_Area = CRect(0, 0, 0, 0);
-};
-
-// 궤적 그림: 플랫폼 기준 동-북 평면 + 고도-시각, 속력-시각. 결과는 대화상자 소유.
+// 궤적 그림: 플랫폼 기준 동-북 평면 (위경도 격자). 결과는 대화상자 소유. 과제 3 의 고도 · 속력 시각 그래프는 뺌.
 // 비교 결과 (플랫폼 기준 계산) 를 주면 같은 색을 어둡게 한 점선으로 겹쳐 그림.
 // 측정 모의 결과 (과제 4) 를 주면 평면에 클러터 (회색 점), 플롯 (검은 점) 을 궤적 아래에 깔아 그림.
 class CTrajectoryPlot : public CStatic
@@ -49,16 +33,12 @@ private:
 	VOID				f_ComputeView(VOID);
 	VOID				f_DrawMap(Gdiplus::Graphics *st_Graphics) const;
 	VOID				f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
-	VOID				f_DrawPanel(Gdiplus::Graphics *st_Graphics, INT32 nPanel) const;
 	VOID				f_DrawMapTrack(Gdiplus::Graphics *st_Graphics, const CSimResult *st_Source, INT32 isCompare) const;
 	VOID				f_DrawMapMeasure(Gdiplus::Graphics *st_Graphics) const;
 	VOID				f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
-	VOID				f_DrawPanelTrack(Gdiplus::Graphics *st_Graphics, INT32 nPanel, const CSimResult *st_Source, INT32 isCompare) const;
 	VOID				f_MapToPixel(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 	STRUCT_Coord_Lla	f_PlotToLla(FLOAT64 east, FLOAT64 north) const;
 	ST_PlotPoint		f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const;
-	FLOAT64				f_PanelValue(const CSimResult *st_Source, INT32 nPanel, INT32 nStep, INT32 nObject) const;
-	VOID				f_PanelToPixel(INT32 nPanel, INT32 nStep, FLOAT64 value, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 
 	const CSimResult	*st_Result;
 	const CSimResult	*st_Compare;					// 비교 결과 (플랫폼 기준). 없으면 nullptr
@@ -74,8 +54,6 @@ private:
 	FLOAT64				centerLon;
 	FLOAT64				gridLatDeg;						// 격자 간격 [deg]
 	FLOAT64				gridLonDeg;
-	FLOAT64				timeGrid;
 
 	CRect				st_MapArea;
-	ST_PlotPanel		st_Panel[PLOT_PANEL_NUM];
 };
