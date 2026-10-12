@@ -95,6 +95,7 @@ STRUCT_Coord_Sph f_Pcs_CalcSigma(FLOAT64 snr)
 	STRUCT_Coord_Sph	st_Sigma;
 
 	st_Sigma.r	= LIGHT_SPEED / (2.0 * PCS_BANDWIDTH * root);
+	// 빔폭은 도 단위라 라디안으로 바꿔 계산 (참값 각도가 라디안).
 	st_Sigma.az	= f_Deg_To_Rad(PCS_BEAM_AZI) / (PCS_KM * root);
 	st_Sigma.el	= f_Deg_To_Rad(PCS_BEAM_ELE) / (PCS_KM * root);
 
