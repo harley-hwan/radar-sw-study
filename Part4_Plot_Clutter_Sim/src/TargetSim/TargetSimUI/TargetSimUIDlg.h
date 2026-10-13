@@ -118,6 +118,7 @@ private:
 	INT32				isPlatformCompare;					// 1 이면 결과 표에 플랫폼 기준 열도 표시
 	FLOAT64				snr;								// 측정 모의 SNR (선형)
 	INT32				nClutterNum;						// 스캔당 클러터 수
+	INT32				isShowTrue;							// 1 이면 지도에 참값 궤적 표시
 	INT32				isShowPlot;							// 1 이면 지도에 플롯 표시
 	INT32				isShowClutter;						// 1 이면 지도에 클러터 표시
 };

@@ -1,0 +1,61 @@
+#pragma once
+
+#include "PlotResult.h"
+#include "Scenario.h"
+
+namespace Gdiplus
+{
+	class Graphics;
+	class Font;
+}
+
+// 궤적 그림: 플랫폼 기준 동-북 평면 (위경도 격자). 결과는 대화상자 소유. 과제 3 의 고도 · 속력 시각 그래프는 뺌.
+// 비교 결과 (플랫폼 기준 계산) 를 주면 같은 색을 어둡게 한 점선으로 겹쳐 그림.
+// 측정 모의 결과 (과제 4) 를 주면 평면에 클러터 (회색 점), 플롯 (검은 점) 을 궤적 아래에 깔아 그림.
+// 참값 궤적을 숨기면 플롯, 클러터만 남고 플랫폼 (레이다) 시작점만 기준으로 표시. 축척은 그대로 둬 켜고 끈 그림을 바로 비교할 수 있게 함.
+class CTrajectoryPlot : public CStatic
+{
+public:
+	CTrajectoryPlot() noexcept;
+
+	VOID	f_SetDpi(INT32 newDpi);
+	VOID	f_SetResult(const CSimResult *st_NewResult, const CSimResult *st_NewCompare);
+	VOID	f_SetMeasure(const CPlotResult *st_NewMeasure, INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter);
+
+protected:
+	afx_msg VOID	OnPaint(VOID);
+	afx_msg BOOL	OnEraseBkgnd(CDC *st_Dc);
+	afx_msg VOID	OnSize(UINT32 type, INT32 width, INT32 height);
+
+	DECLARE_MESSAGE_MAP()
+
+private:
+	VOID				f_ComputeLayout(const CRect &st_Client);
+	VOID				f_ComputeView(VOID);
+	VOID				f_DrawMap(Gdiplus::Graphics *st_Graphics) const;
+	VOID				f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, INT32 nStartNum) const;
+	VOID				f_DrawMapTrack(Gdiplus::Graphics *st_Graphics, const CSimResult *st_Source, INT32 isCompare) const;
+	VOID				f_DrawMapMeasure(Gdiplus::Graphics *st_Graphics) const;
+	VOID				f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
+	VOID				f_MapToPixel(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
+	STRUCT_Coord_Lla	f_PlotToLla(FLOAT64 east, FLOAT64 north) const;
+	ST_PlotPoint		f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const;
+
+	const CSimResult	*st_Result;
+	const CSimResult	*st_Compare;					// 비교 결과 (플랫폼 기준). 없으면 nullptr
+	const CPlotResult	*st_Measure;					// 측정 모의 결과. 없으면 nullptr
+	INT32				isShowTrue;						// 1 이면 참값 궤적 (기본 계산, 비교 결과) 과 표적 시작점 표시
+	INT32				isShowPlot;
+	INT32				isShowClutter;
+	INT32				dpi;
+
+	FLOAT64				pixelPerMeter;
+	FLOAT64				centerEast;
+	FLOAT64				centerNorth;
+	FLOAT64				centerLat;						// 보이는 영역 중심 [rad]
+	FLOAT64				centerLon;
+	FLOAT64				gridLatDeg;						// 격자 간격 [deg]
+	FLOAT64				gridLonDeg;
+
+	CRect				st_MapArea;
+};

@@ -10,6 +10,7 @@
 #endif
 
 #define HIST_COLOR_BAR			RGB(160, 196, 236)					// 표본 PDF 막대
+#define HIST_COLOR_MARK			RGB(252, 211, 77)					// 계산 예로 든 칸의 막대
 #define HIST_COLOR_THEORY		RGB(235, 104, 52)					// 이론 PDF 선
 
 // 96 DPI 기준 픽셀 -> 현재 화면 픽셀.
@@ -65,11 +66,12 @@ BEGIN_MESSAGE_MAP(CHistView, CStatic)
 	ON_WM_ERASEBKGND()
 END_MESSAGE_MAP()
 
-// 그릴 히스토그램 교체 후 다시 그리기.
-VOID CHistView::f_SetHist(const ST_PcsHist *st_NewHist, INT32 isNewGauss)
+// 그릴 히스토그램과 색을 달리할 칸 교체 후 다시 그리기.
+VOID CHistView::f_SetHist(const ST_PcsHist *st_NewHist, INT32 isNewGauss, INT32 nNewMarkBin)
 {
-	st_Hist	= st_NewHist;
-	isGauss	= isNewGauss;
+	st_Hist		= st_NewHist;
+	isGauss		= isNewGauss;
+	nMarkBin	= nNewMarkBin;
 	Invalidate(FALSE);
 }
 
@@ -144,11 +146,11 @@ VOID CHistView::f_Draw(CDC *st_Dc, const CRect &st_Area) const
 		return st_Plot.bottom - static_cast<INT32>(lround((y / yMax) * static_cast<FLOAT64>(st_Plot.Height())));
 	};
 
-	// 제목과 통계
+	// 제목과 통계. 반올림하면 0 이 되는 평균은 0 으로 적음 (-0.0000 이 안 나오게)
 	if (isGauss != 0)
 	{
 		f_Hist_Text(st_Dc, st_Area.left + f_Hist_Px(st_Dc, 10), st_Area.top + f_Hist_Px(st_Dc, 12), TA_LEFT, UI_COLOR_TEXT, _T("GAUSS(0, 1) 정규난수 10,000개"));
-		st_Text.Format(_T("평균 %+.4f, 표준편차 %.4f  (이론 0, 1)"), st_Hist->mean, st_Hist->std);
+		st_Text.Format(_T("평균 %+.4f, 표준편차 %.4f  (이론 0, 1)"), (fabs(st_Hist->mean) < 0.00005) ? 0.0 : st_Hist->mean, st_Hist->std);
 	}
 	else
 	{
@@ -179,7 +181,7 @@ VOID CHistView::f_Draw(CDC *st_Dc, const CRect &st_Area) const
 		const INT32 right = f_ToX(xMin + (static_cast<FLOAT64>(nIndex + 1) * st_Hist->binWidth));
 		const INT32 top = f_ToY(st_Hist->pdf[nIndex]);
 
-		st_Dc->FillSolidRect(left + 1, top, right - left - 1, st_Plot.bottom - top, HIST_COLOR_BAR);
+		st_Dc->FillSolidRect(left + 1, top, right - left - 1, st_Plot.bottom - top, (nIndex == nMarkBin) ? HIST_COLOR_MARK : HIST_COLOR_BAR);
 	}
 
 	// 이론 PDF

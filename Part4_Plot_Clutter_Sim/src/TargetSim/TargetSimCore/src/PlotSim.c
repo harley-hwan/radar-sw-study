@@ -4,10 +4,13 @@
 #include "PlotSim.h"
 #include "NoiseGeneration.h"
 
+// 난수 검증이 이어 쓸 SEED. 측정 모의 (f_Pcs_Measure) 의 SEED 와 따로 둠.
+static INT64 s_RandSeed = PCS_SEED;
+
 // isGauss 가 0 이면 UNIRAN, 아니면 GAUSS(0, 1) 히스토그램.
+// 난수 확인 창에서 계산 과정을 보이려고 칸별 개수, 합, 제곱합, 앞 표본 (PCS_RAND_SHOW 개) 과 그 칸도 남김.
 static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOAT64 binMax, INT32 isGauss)
 {
-	INT32	nCount[PCS_GAUSS_BIN] = { 0 };
 	FLOAT64	sum = 0.0;
 	FLOAT64	sumSq = 0.0;
 	FLOAT64	value;
@@ -15,6 +18,7 @@ static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOA
 	INT32	nIndex;
 
 	(VOID)memset(st_Hist, 0, sizeof(*st_Hist));
+	st_Hist->seedStart	= (INT64)valueSEED();
 	st_Hist->nBin		= nBin;
 	st_Hist->binMin		= binMin;
 	st_Hist->binWidth	= (binMax - binMin) / (FLOAT64)nBin;
@@ -30,15 +34,28 @@ static VOID f_Pcs_FillHist(ST_PcsHist *st_Hist, INT32 nBin, FLOAT64 binMin, FLOA
 
 		if ((nBinIndex >= 0) && (nBinIndex < nBin))
 		{
-			nCount[nBinIndex]++;
+			st_Hist->nCount[nBinIndex]++;
+		}
+		else
+		{
+			st_Hist->nOutNum++;
+			nBinIndex = -1;
+		}
+
+		if (nIndex < PCS_RAND_SHOW)
+		{
+			st_Hist->sample[nIndex]		= value;
+			st_Hist->nSampleBin[nIndex]	= nBinIndex;
 		}
 	}
 
 	for (nIndex = 0; nIndex < nBin; nIndex++)
 	{
-		st_Hist->pdf[nIndex] = (FLOAT64)nCount[nIndex] / ((FLOAT64)PCS_RAND_NUM * st_Hist->binWidth);
+		st_Hist->pdf[nIndex] = (FLOAT64)st_Hist->nCount[nIndex] / ((FLOAT64)PCS_RAND_NUM * st_Hist->binWidth);
 	}
 
+	st_Hist->sum	= sum;
+	st_Hist->sumSq	= sumSq;
 	st_Hist->mean	= sum / (FLOAT64)PCS_RAND_NUM;
 	st_Hist->std	= sqrt((sumSq / (FLOAT64)PCS_RAND_NUM) - (st_Hist->mean * st_Hist->mean));
 }
@@ -77,14 +94,17 @@ static STRUCT_Coord_Lla f_Pcs_SphToLla(const STRUCT_Coord_Sph *st_Sph, const ST_
 	return f_Trans_Ecef_To_Lla(st_Ecef.x, st_Ecef.y, st_Ecef.z);
 }
 
-// 난수 검증. 검증마다 seed 를 처음 값으로 맞춤.
+// 난수 검증. 앞 검증이 멈춘 SEED (s_RandSeed) 에서 이어 뽑으므로 부를 때마다 다른 난수가 나옴. 프로그램의 첫 검증은 PCS_SEED 부터.
+// 측정 모의 쪽 SEED 는 끝나고 되돌려 둠 (측정 모의는 시작할 때 SEED 를 PCS_SEED 로 맞추므로 어차피 영향 없음).
 VOID f_Pcs_TestRand(ST_PcsHist *st_Uniform, ST_PcsHist *st_Gauss)
 {
-	changeSEED(PCS_SEED);
-	f_Pcs_FillHist(st_Uniform, PCS_UNIFORM_BIN, 0.0, 1.0, 0);
+	const INT64 seedMeasure = (INT64)valueSEED();
 
-	changeSEED(PCS_SEED);
+	changeSEED((long)s_RandSeed);
+	f_Pcs_FillHist(st_Uniform, PCS_UNIFORM_BIN, 0.0, 1.0, 0);
 	f_Pcs_FillHist(st_Gauss, PCS_GAUSS_BIN, PCS_GAUSS_MIN, PCS_GAUSS_MAX, 1);
+	s_RandSeed = (INT64)valueSEED();
+	changeSEED((long)seedMeasure);
 }
 
 // 측정 표준편차 p. snr 은 선형값.

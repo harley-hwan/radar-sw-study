@@ -39,11 +39,22 @@
 #define IDC_PCS_SHOW_PLOT               1086
 #define IDC_PCS_SHOW_CLUTTER            1087
 #define IDC_PCS_SUMMARY                 1088
+#define IDC_PCS_SHOW_TRUE               1089
 
 #define IDC_RAND_UNIFORM                1090
 #define IDC_RAND_GAUSS                  1091
 #define IDC_RAND_UNIFORM_CALC           1092
 #define IDC_RAND_GAUSS_CALC             1093
+#define IDC_RAND_INFO                   1094
+#define IDC_RAND_REDRAW                 1095
+#define IDC_RAND_UNIFORM_SAMPLE         1096
+#define IDC_RAND_UNIFORM_BIN            1097
+#define IDC_RAND_GAUSS_SAMPLE           1098
+#define IDC_RAND_GAUSS_BIN              1099
+#define IDC_RAND_UNIFORM_SAMPLE_TITLE   1100
+#define IDC_RAND_UNIFORM_BIN_TITLE      1101
+#define IDC_RAND_GAUSS_SAMPLE_TITLE     1102
+#define IDC_RAND_GAUSS_BIN_TITLE        1103
 
 #define ID_SCN_PRESET_FIRST             32771
 
@@ -53,7 +64,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        104
 #define _APS_NEXT_COMMAND_VALUE         32782
-#define _APS_NEXT_CONTROL_VALUE         1094
+#define _APS_NEXT_CONTROL_VALUE         1104
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

@@ -177,6 +177,32 @@ static CString f_Plot_ObjectName(INT32 nObject)
 	return st_Name;
 }
 
+// 평면 제목. 보이는 것 (궤적, 플롯, 클러터) 만 적음.
+static CString f_Plot_MapTitle(INT32 isTrack, INT32 isPlot, INT32 isClutter)
+{
+	static const LPCTSTR	s_Part[3] = { _T("궤적"), _T("플롯"), _T("클러터") };
+	const INT32				isShown[3] = { isTrack, isPlot, isClutter };
+	CString					st_Title;
+	INT32					nPart;
+
+	for (nPart = 0; nPart < 3; nPart++)
+	{
+		if (isShown[nPart] != 0)
+		{
+			if (st_Title.IsEmpty() == FALSE)
+			{
+				st_Title += _T(" · ");
+			}
+
+			st_Title += s_Part[nPart];
+		}
+	}
+
+	st_Title += (st_Title.IsEmpty() == FALSE) ? _T(" (위도-경도)") : _T("위도-경도");
+
+	return st_Title;
+}
+
 BEGIN_MESSAGE_MAP(CTrajectoryPlot, CStatic)
 	ON_WM_PAINT()
 	ON_WM_ERASEBKGND()
@@ -188,6 +214,7 @@ CTrajectoryPlot::CTrajectoryPlot() noexcept
 	: st_Result(nullptr)
 	, st_Compare(nullptr)
 	, st_Measure(nullptr)
+	, isShowTrue(1)
 	, isShowPlot(1)
 	, isShowClutter(1)
 	, dpi(UI_BASE_DPI)
@@ -223,10 +250,11 @@ VOID CTrajectoryPlot::f_SetResult(const CSimResult *st_NewResult, const CSimResu
 	Invalidate(FALSE);
 }
 
-// 측정 모의 결과와 표시 여부 교체 후 다시 그리기. 결과는 st_Result 와 같은 실행의 것이어야 함.
-VOID CTrajectoryPlot::f_SetMeasure(const CPlotResult *st_NewMeasure, INT32 isNewShowPlot, INT32 isNewShowClutter)
+// 측정 모의 결과와 표시 여부 (참값 궤적, 플롯, 클러터) 교체 후 다시 그리기. 결과는 st_Result 와 같은 실행의 것이어야 함.
+VOID CTrajectoryPlot::f_SetMeasure(const CPlotResult *st_NewMeasure, INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter)
 {
 	st_Measure		= st_NewMeasure;
+	isShowTrue		= isNewShowTrue;
 	isShowPlot		= isNewShowPlot;
 	isShowClutter	= isNewShowClutter;
 
@@ -284,7 +312,7 @@ VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 		st_Client.right - f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi), st_Client.bottom - f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi));
 }
 
-// 모든 점이 들어가는 축척, 중심, 눈금 간격 계산.
+// 모든 점이 들어가는 축척, 중심, 눈금 간격 계산. 참값 궤적은 숨겨도 범위에 넣어 켜고 끌 때 축척이 바뀌지 않게 함.
 VOID CTrajectoryPlot::f_ComputeView(VOID)
 {
 	const INT32				nSampleNum = st_Result->f_GetSampleNum();
@@ -402,7 +430,7 @@ ST_PlotPoint CTrajectoryPlot::f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const
 	return st_Point;
 }
 
-// 동-북 평면: 위경도 격자, 궤적, 시작점 그리기.
+// 동-북 평면: 위경도 격자, 궤적, 시작점 그리기. 참값 궤적을 숨기면 플랫폼 (레이다) 시작점만 그림.
 VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -412,8 +440,10 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	Gdiplus::Pen				st_GridPen(f_Plot_Color(UI_COLOR_GRID_LINE, 255), 1.0F);
 	Gdiplus::Pen				st_FramePen(f_Plot_Color(UI_COLOR_BORDER, 255), 1.0F);
 	const Gdiplus::Rect			st_Clip(st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
-	const INT32					nObjectNum = st_Result->f_GetObjectNum();
-	const INT32					isMeasureShown = ((st_Measure != nullptr) && ((isShowPlot != 0) || (isShowClutter != 0))) ? 1 : 0;
+	const INT32					nStartNum = (isShowTrue != 0) ? st_Result->f_GetObjectNum() : 1;	// 시작점을 그릴 객체 수 (0 = 플랫폼)
+	const INT32					isPlotShown = ((st_Measure != nullptr) && (isShowPlot != 0)) ? 1 : 0;
+	const INT32					isClutterShown = ((st_Measure != nullptr) && (isShowClutter != 0)) ? 1 : 0;
+	const INT32					isMeasureShown = ((isPlotShown != 0) || (isClutterShown != 0)) ? 1 : 0;
 	const FLOAT64				halfEast = (0.5 * static_cast<FLOAT64>(st_MapArea.Width())) / pixelPerMeter;
 	const FLOAT64				halfNorth = (0.5 * static_cast<FLOAT64>(st_MapArea.Height())) / pixelPerMeter;
 	ST_PlotPoint				st_Point;
@@ -464,14 +494,14 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 
 	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
 
-	f_Plot_Text(st_Graphics, &st_Bold, CString((isMeasureShown != 0) ? _T("궤적 · 플롯 · 클러터 (위도-경도)") : _T("궤적 (위도-경도)")),
+	f_Plot_Text(st_Graphics, &st_Bold, f_Plot_MapTitle(isShowTrue, isPlotShown, isClutterShown),
 		static_cast<FLOAT64>(st_MapArea.left), static_cast<FLOAT64>(st_MapArea.top) - 5.0, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT);
 	f_Plot_Text(st_Graphics, &st_Font, CString(_T("Lon [deg]")), static_cast<FLOAT64>(st_MapArea.right) - 6.0, static_cast<FLOAT64>(st_MapArea.bottom) - 4.0,
 		Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT_OFF);
 	f_Plot_Text(st_Graphics, &st_Font, CString(_T("Lat [deg]")), static_cast<FLOAT64>(st_MapArea.left) + 6.0, static_cast<FLOAT64>(st_MapArea.top) + 4.0,
 		Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_OFF);
 
-	if (st_Compare != nullptr)
+	if ((isShowTrue != 0) && (st_Compare != nullptr))
 	{
 		f_Plot_Text(st_Graphics, &st_Font, CString(_T("점선 = 플랫폼 기준")), static_cast<FLOAT64>(st_MapArea.right), static_cast<FLOAT64>(st_MapArea.top) - 5.0,
 			Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT_SUB);
@@ -483,18 +513,21 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	// 측정 모의 점은 궤적 아래에 깔아 참값 선이 가려지지 않게 함.
 	f_DrawMapMeasure(st_Graphics);
 
-	// 궤적. 비교 결과는 점선으로 위에 겹침 (평면에서는 거의 같은 자리).
-	f_DrawMapTrack(st_Graphics, st_Result, 0);
-
-	if (st_Compare != nullptr)
+	// 참값 궤적. 비교 결과는 점선으로 위에 겹침 (평면에서는 거의 같은 자리).
+	if (isShowTrue != 0)
 	{
-		f_DrawMapTrack(st_Graphics, st_Compare, 1);
+		f_DrawMapTrack(st_Graphics, st_Result, 0);
+
+		if (st_Compare != nullptr)
+		{
+			f_DrawMapTrack(st_Graphics, st_Compare, 1);
+		}
 	}
 
 	// 시작점. 이름표의 흰 바탕이 시작점 원을 가리지 않게 이름표를 먼저 그림.
-	f_DrawStartLabels(st_Graphics, &st_Font);
+	f_DrawStartLabels(st_Graphics, &st_Font, nStartNum);
 
-	for (nObject = 0; nObject < nObjectNum; nObject++)
+	for (nObject = 0; nObject < nStartNum; nObject++)
 	{
 		const FLOAT32		radius = 5.0F * scale;
 		Gdiplus::SolidBrush	st_Fill(f_Plot_Color(UI_COLOR_CARD, 255));
@@ -584,7 +617,7 @@ VOID CTrajectoryPlot::f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const 
 	const FLOAT32			pad = PLOT_LEGEND_PAD * scale;
 	const FLOAT32			markWidth = 18.0F * scale;
 	const CString			st_Name[3] = { CString(_T("참값 궤적 (표적 색)")), CString(_T("플롯")), CString(_T("클러터")) };
-	const INT32				isShown[3] = { 1, isShowPlot, isShowClutter };
+	const INT32				isShown[3] = { isShowTrue, isShowPlot, isShowClutter };
 	const COLORREF			markColor[3] = { UI_COLOR_TEXT_SUB, PLOT_COLOR_PLOT, PLOT_COLOR_CLUTTER };
 	const Gdiplus::PointF	st_Zero(0.0F, 0.0F);
 	Gdiplus::RectF			st_Bound;
@@ -645,8 +678,8 @@ VOID CTrajectoryPlot::f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const 
 	}
 }
 
-// 시작점 이름표. 출발 방향 반대쪽에 표시. 측정 모의 점을 보일 때는 흰 바탕을 깔아 읽히게 함.
-VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
+// 시작점 이름표 (앞 nStartNum 객체). 출발 방향 반대쪽에 표시. 측정 모의 점을 보일 때는 흰 바탕을 깔아 읽히게 함.
+VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, INT32 nStartNum) const
 {
 	const FLOAT64				gap = PLOT_LABEL_GAP_PX * static_cast<FLOAT64>(f_Ui_Scale(100, dpi)) / 100.0;
 	const INT32					isBacked = ((st_Measure != nullptr) && ((isShowPlot != 0) || (isShowClutter != 0))) ? 1 : 0;
@@ -657,7 +690,7 @@ VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gd
 	FLOAT64						yaw;
 	INT32						nObject;
 
-	for (nObject = 0; nObject < st_Result->f_GetObjectNum(); nObject++)
+	for (nObject = 0; nObject < nStartNum; nObject++)
 	{
 		yaw = st_Result->f_GetState(0, nObject)->st_Att.Yaw;
 		f_MapToPixel(st_Result->f_GetPoint(0, nObject), &x, &y);

@@ -82,6 +82,7 @@ BEGIN_MESSAGE_MAP(CTargetSimUIDlg, CDialogEx)
 	ON_NOTIFY(LVN_GETDISPINFO, IDC_RESULT_LIST, &CTargetSimUIDlg::f_OnResultGetDispInfo)
 	ON_EN_KILLFOCUS(IDC_PCS_SNR, &CTargetSimUIDlg::f_OnPcsInputKillFocus)
 	ON_EN_KILLFOCUS(IDC_PCS_CLUTTER, &CTargetSimUIDlg::f_OnPcsInputKillFocus)
+	ON_BN_CLICKED(IDC_PCS_SHOW_TRUE, &CTargetSimUIDlg::f_OnPcsShowClicked)
 	ON_BN_CLICKED(IDC_PCS_SHOW_PLOT, &CTargetSimUIDlg::f_OnPcsShowClicked)
 	ON_BN_CLICKED(IDC_PCS_SHOW_CLUTTER, &CTargetSimUIDlg::f_OnPcsShowClicked)
 	ON_BN_CLICKED(IDC_PCS_RAND, &CTargetSimUIDlg::f_OnPcsRandClicked)
@@ -105,6 +106,7 @@ CTargetSimUIDlg::CTargetSimUIDlg(CWnd *st_Parent)
 	, isPlatformCompare(0)
 	, snr(UI_PCS_SNR)
 	, nClutterNum(UI_PCS_CLUTTER)
+	, isShowTrue(1)
 	, isShowPlot(1)
 	, isShowClutter(1)
 {
@@ -154,6 +156,7 @@ BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 
 	// 측정 모의 입력, 지도 표시
 	f_ShowMeasureInput();
+	CheckDlgButton(IDC_PCS_SHOW_TRUE, BST_CHECKED);
 	CheckDlgButton(IDC_PCS_SHOW_PLOT, BST_CHECKED);
 	CheckDlgButton(IDC_PCS_SHOW_CLUTTER, BST_CHECKED);
 
@@ -347,7 +350,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	f_Ui_Move(this, IDC_MNV_HINT, st_CardMnv.left + pad, st_CardMnv.bottom - pad - (2 * hintHeight), st_CardMnv.Width() - (2 * pad), hintHeight);
 	f_Ui_Move(this, IDC_EDIT_HINT, st_CardMnv.left + pad, st_CardMnv.bottom - pad - hintHeight, st_CardMnv.Width() - (2 * pad), hintHeight);
 
-	// 측정 모의 카드: 제목 + 난수 확인 단추, SNR, 스캔당 클러터, 지도 표시 두 개, 요약
+	// 측정 모의 카드: 제목 + 난수 확인 단추, SNR, 스캔당 클러터, 지도 표시 세 개 (참값 궤적, 플롯, 클러터), 요약
 	x = st_CardPcs.right - pad - f_Ui_Scale(UI_PCS_BUTTON_WIDTH, dpi);
 	y = st_CardPcs.top + pad;
 	f_Ui_Move(this, IDC_PCS_RAND, x, y, f_Ui_Scale(UI_PCS_BUTTON_WIDTH, dpi), buttonHeight);
@@ -364,6 +367,9 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	x = x + labelWidth;
 	f_Ui_Move(this, IDC_PCS_CLUTTER, x, y, f_Ui_Scale(UI_PCS_CLUTTER_WIDTH, dpi), buttonHeight);
 	x = x + f_Ui_Scale(UI_PCS_CLUTTER_WIDTH, dpi) + (2 * gap);
+	checkWidth = f_Ui_TextWidth(GetDlgItem(IDC_PCS_SHOW_TRUE)) + f_Ui_Scale(UI_CHECK_BOX_PAD, dpi);
+	f_Ui_Move(this, IDC_PCS_SHOW_TRUE, x, y, checkWidth, buttonHeight);
+	x = x + checkWidth + gap;
 	checkWidth = f_Ui_TextWidth(GetDlgItem(IDC_PCS_SHOW_PLOT)) + f_Ui_Scale(UI_CHECK_BOX_PAD, dpi);
 	f_Ui_Move(this, IDC_PCS_SHOW_PLOT, x, y, checkWidth, buttonHeight);
 	x = x + checkWidth + gap;
@@ -991,7 +997,7 @@ VOID CTargetSimUIDlg::f_RunMeasure(VOID)
 		st_PlotResult.st_Sigma.r, f_Rad_To_Deg(st_PlotResult.st_Sigma.az), f_Rad_To_Deg(st_PlotResult.st_Sigma.el), st_PlotResult.st_ErrorStd.r,
 		f_Rad_To_Deg(st_PlotResult.st_ErrorStd.az), f_Rad_To_Deg(st_PlotResult.st_ErrorStd.el), st_PlotResult.nPlotNum, st_PlotResult.nClutterSum);
 	SetDlgItemText(IDC_PCS_SUMMARY, st_Text);
-	st_Plot.f_SetMeasure(&st_PlotResult, isShowPlot, isShowClutter);
+	st_Plot.f_SetMeasure(&st_PlotResult, isShowTrue, isShowPlot, isShowClutter);
 }
 
 // SNR, 스캔당 클러터 입력 확정. 바뀌었으면 측정 모의만 다시 함 (표적 궤적은 그대로).
@@ -1043,12 +1049,14 @@ VOID CTargetSimUIDlg::f_OnPcsInputKillFocus(VOID)
 	f_ApplyMeasureInput();
 }
 
-// 지도에 플롯, 클러터 보이기 / 숨기기. 결과는 그대로 두고 그림만 다시 그림.
+// 지도에 참값 궤적, 플롯, 클러터 보이기 / 숨기기. 결과는 그대로 두고 그림만 다시 그림.
+// 참값 궤적을 끄면 플롯, 클러터가 어떻게 퍼져 있는지만 볼 수 있음 (축척은 그대로).
 VOID CTargetSimUIDlg::f_OnPcsShowClicked(VOID)
 {
+	isShowTrue		= (IsDlgButtonChecked(IDC_PCS_SHOW_TRUE) == BST_CHECKED) ? 1 : 0;
 	isShowPlot		= (IsDlgButtonChecked(IDC_PCS_SHOW_PLOT) == BST_CHECKED) ? 1 : 0;
 	isShowClutter	= (IsDlgButtonChecked(IDC_PCS_SHOW_CLUTTER) == BST_CHECKED) ? 1 : 0;
-	st_Plot.f_SetMeasure(&st_PlotResult, isShowPlot, isShowClutter);
+	st_Plot.f_SetMeasure(&st_PlotResult, isShowTrue, isShowPlot, isShowClutter);
 }
 
 // 난수 확인 창 (UNIRAN, GAUSS 히스토그램).

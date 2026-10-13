@@ -25,20 +25,29 @@ extern "C" {
 
 // 난수 검증
 #define PCS_RAND_NUM			10000					// 표본 수
+#define PCS_RAND_SHOW			10						// 난수 확인 창에 보일 앞 표본 수
 #define PCS_UNIFORM_BIN			10						// [0, 1] 을 0.1 간격
 #define PCS_GAUSS_BIN			32						// [-4, 4] 를 0.25 간격
 #define PCS_GAUSS_MIN			(-4.0)
 #define PCS_GAUSS_MAX			4.0
 
 // 난수 히스토그램. 막대 넓이 합이 1 이 되게 PDF 로 맞춤.
+// 난수 확인 창에 계산 과정을 보이려고 칸별 개수, 합, 제곱합, 앞 표본도 남김.
 typedef struct
 {
+	INT64				seedStart;						// 뽑기 전 SEED
 	INT32				nBin;
 	FLOAT64				binMin;
 	FLOAT64				binWidth;
+	INT32				nCount[PCS_GAUSS_BIN];			// 칸별 개수
+	INT32				nOutNum;						// 칸 밖이라 세지 않은 개수 (GAUSS 의 |x| > 4)
 	FLOAT64				pdf[PCS_GAUSS_BIN];				// 개수 / (표본 수 * bin 폭)
+	FLOAT64				sum;							// 합 (칸 밖 값도 넣음)
+	FLOAT64				sumSq;							// 제곱합
 	FLOAT64				mean;
 	FLOAT64				std;
+	FLOAT64				sample[PCS_RAND_SHOW];			// 앞 표본
+	INT32				nSampleBin[PCS_RAND_SHOW];		// 앞 표본이 들어간 칸. 칸 밖이면 -1
 } ST_PcsHist;
 
 // 스캔 하나의 측정 결과. 구좌표는 레이다 안테나 좌표계 (방위각 왼쪽 +, 고각 위쪽 +), 거리 m, 각도 rad.
