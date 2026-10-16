@@ -1,0 +1,32 @@
+Memory 순서와 동기화
+01. 컴퓨터 구조 및 동작 원리
+    구성 요소
+        CPU, cache, Memory
+    CPU가 데이터를 수정하는 과정
+    SMP(Symmetric Multi-Processing)
+    SMP 구조에서 데이터 수정
+    
+02. Store buffer
+    Store buffer의 필요성
+    Store buffer 예제
+    Store bufer가 문제가 생기는 상황
+        void foo() { a=1;b=1;}                      // CPU#0이 foo함수 실행
+        void bar() { while(b==0); assert(a==1);}    // CPU#1이 bar함수 실행
+
+03. Memory reordering
+    Memory reordering이란?
+
+04. Memory barrier
+    Memory barrier이란?
+        정의
+        종류
+            -mb
+            -rmb
+            -wmb
+    Memory barrier를 사용한 올바른 코드
+        void foo() { a=1; mb(); b=1;}               // CPU#0이 실행  
+        void bar() { while(b==0); assert(a==1);}    // CPU#1이 실행
+    실제 코드 예제(kfifo)
+    실험 및 결과
+    Memory 계층 구조
+    Cache Miss 측정 방법 (perf ...)
