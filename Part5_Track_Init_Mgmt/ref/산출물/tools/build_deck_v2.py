@@ -1094,18 +1094,20 @@ def build(template, fig, out):
 NOTES = {}
 
 
-def write_script_md(path):
-    """노트를 발표 대본 md 로 같이 써 둠"""
+def write_script_md(path, appendix=''):
+    """노트를 발표 대본 md 로 같이 써 둠. appendix 가 있으면 끝에 질의응답 부록으로 붙임"""
     lines = ['# Chapter 5 발표 대본 (2 판)', '', 'Part.5 : 트랙 개시 · 관리 (Track Initiation and Management)', '',
              '- 자료 : `Chapter5_TrackInitMgmt.pptx` (%d장) — 같은 내용이 각 슬라이드의 슬라이드 노트에도 들어 있다.' % PG['end'],
              '- 발표자 : Janghwan Kim (Harley)', '- 코드 : `Part5_Track_Init_Mgmt/src/TargetSim` — TargetSimCore (TrackMgr, PlotLink, Idd.h) / TargetSimUI (MFC)', '', '---', '']
     for n in sorted(NOTES):
         lines += ['## %d. %s' % (n, NOTES[n][0]), '', NOTES[n][1].strip(), '', '---', '']
-    io.open(path, 'w', encoding='utf-8').write('\n'.join(lines))
+    if appendix:
+        lines += [appendix.strip(), '']
+    io.open(path, 'w', encoding='utf-8', newline='\n').write('\n'.join(lines))
 
 
 if __name__ == '__main__':
     import notes_v2
     NOTES.update(notes_v2.NOTES)
     build(sys.argv[1], sys.argv[2], sys.argv[3])
-    write_script_md(os.path.join(os.path.dirname(os.path.abspath(sys.argv[3])), 'Chapter5_발표대본.md'))
+    write_script_md(os.path.join(os.path.dirname(os.path.abspath(sys.argv[3])), 'Chapter5_발표대본.md'), getattr(notes_v2, 'APPENDIX', ''))
