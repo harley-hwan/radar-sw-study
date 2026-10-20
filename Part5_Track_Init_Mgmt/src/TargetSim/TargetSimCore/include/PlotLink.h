@@ -15,7 +15,7 @@ extern "C" {
 #define LNK_IP					"127.0.0.1"
 #define LNK_PORT				50505					// 쓰는 중이면 빈 포트를 받음
 #define LNK_RECV_TIMEOUT_MS		100						// 수신 대기 한 번의 최대 시간. 멈춤 확인 간격
-#define LNK_RECV_BUF_SIZE		(8 * 1024 * 1024)		// 수신 소켓 버퍼 [B]. 메시지 600 개가 다 들어가는 크기
+#define LNK_RECV_BUF_SIZE		(8 * 1024 * 1024)		// 수신 소켓 버퍼 [B]. 한 번 실행의 메시지 (1160 개 x 약 0.9 KB) 가 다 들어가는 크기
 #define LNK_MAX_AHEAD			200						// 처리가 끝나지 않은 메시지가 이만큼이면 송신이 기다림
 #define LNK_AHEAD_WAIT_MS		1000					// 기다리는 최대 시간 [ms]
 #define LNK_END_WAIT_MS			1000					// 송신이 끝난 뒤 이만큼 아무것도 안 오면 수신 종료

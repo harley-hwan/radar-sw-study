@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""과제 5 발표 그림. python figures.py <data_dir> <cover_src.png> <out_dir>
+"""과제 5 발표 그림. python figures.py <data_dir> <out_dir>
 
-data_dir 의 csv 는 dump_fig_data.c 가 만든 것 (기본 시나리오 + 표적 3개, SNR 20). cover_src 는 과제 4 발표자료 표지 바탕 그림.
+data_dir 의 csv 는 dump_fig_data.c 가 만든 것 (응용 시나리오 (원본 크기), SNR 20).
 그림 안 글자는 슬라이드에 놓였을 때 8 pt 안팎이 되게 실제 크기 (inch) 로 그린다.
 """
 import csv
@@ -46,7 +46,7 @@ SIG_EL = math.radians(0.4939)
 T = 0.1
 VMAX = 800.0
 
-DATA, COVER_SRC, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
+DATA, OUT = sys.argv[1], sys.argv[2]
 os.makedirs(OUT, exist_ok=True)
 
 
@@ -85,27 +85,53 @@ def arrow(ax, p0, p1, col=NAVY, lw=1.2, style='-|>', ms=9, ls='-', rad=0.0, z=3)
     ax.add_patch(a)
 
 
-# 1. 표지 바탕: 과제 4 표지 그림 위에 트랙 심볼 (임시 트랙 사각형 + 속도 선) 을 얹음
+# 1. 표지 바탕: 과제 4 표지와 같은 틀 (격자, 거리 원, 시야 부채꼴) 위에 이번 시나리오의 클러터, 플롯, 참값 궤적, 트랙 심볼을 그림.
+#    2 배 크기로 그린 뒤 줄여 선을 부드럽게 함
 def fig_cover():
-    im = Image.open(COVER_SRC).convert('RGBA')
-    over = Image.new('RGBA', im.size, (0, 0, 0, 0))
-    d = ImageDraw.Draw(over)
-    S, ox, oy = 79.2, 669, 1350                      # 1 km = 79.2 px, 레이다 자리
-    trk = read('tracks.csv')
+    W0, H0, K = 2933, 1650, 2                         # 표지 그림 크기 (과제 4 표지와 같음), 그리는 배율
+    S, ox, oy = 65.0 * K, 860 * K, 1350 * K           # 1 km = 65 px, 레이다 자리. 서쪽 10 km 표적과 15 km 부채꼴이 제목 왼쪽에 들어가게
+    im = Image.new('RGB', (W0 * K, H0 * K), (27, 39, 64))
+    d = ImageDraw.Draw(im, 'RGBA')
+    step = 91.67 * K
+    for i in range(int(W0 * K / step) + 1):
+        d.line((round(i * step), 0, round(i * step), H0 * K), fill=(35, 49, 80), width=2 * K)
+    for i in range(int(H0 * K / step) + 1):
+        d.line((0, round(i * step), W0 * K, round(i * step)), fill=(35, 49, 80), width=2 * K)
+    for km in (5, 10, 15):
+        r = km * S
+        d.ellipse((ox - r, oy - r, ox + r, oy + r), outline=(51, 67, 106), width=2 * K)
+    for sgn in (-1, 1):                               # 시야 ±60°, 15 km 까지 점선
+        a = math.radians(60 * sgn)
+        for k in range(int(15 * S / (24 * K))):
+            t0, t1 = k * 24 * K, k * 24 * K + 14 * K
+            d.line((ox + t0 * math.sin(a), oy - t0 * math.cos(a), ox + t1 * math.sin(a), oy - t1 * math.cos(a)), fill=(72, 84, 113), width=2 * K)
+
+    def xy(north, east):
+        return ox + east / 1000 * S, oy - north / 1000 * S
+
+    for r in read('plots.csv'):
+        x, y = xy(float(r['north']), float(r['east']))
+        col = (98, 112, 144, 200) if r['source'] == '0' else (196, 205, 222, 150)
+        d.ellipse((x - 1.6 * K, y - 1.6 * K, x + 1.6 * K, y + 1.6 * K), fill=col)
+    path = defaultdict(list)
+    for r in read('truth.csv'):
+        path[int(r['target'])].append(xy(float(r['north']), float(r['east'])))
+    for k, p in path.items():
+        rgb = tuple(int(OBJ[k][i:i + 2], 16) for i in (1, 3, 5))
+        d.line(p, fill=rgb + (255,), width=3 * K, joint='curve')
     seen = set()
-    for r in trk:
+    for r in read('tracks.csv'):
         s = int(r['scan'])
         if int(r['init_scan']) != s or s % 9 != 0:
             continue
-        x = ox + float(r['east']) / 1000 * S
-        y = oy - float(r['north']) / 1000 * S
-        lx = x + float(r['ve']) * 1.0 / 1000 * S
-        ly = y - float(r['vn']) * 1.0 / 1000 * S
-        d.line((x, y, lx, ly), fill=(234, 88, 12, 200), width=3)
-        h = 9
-        d.rectangle((x - h, y - h, x + h, y + h), outline=(234, 88, 12, 255), width=3)
+        x, y = xy(float(r['north']), float(r['east']))
+        lx, ly = x + float(r['ve']) * 1.0 / 1000 * S, y - float(r['vn']) * 1.0 / 1000 * S
+        d.line((x, y, lx, ly), fill=(234, 88, 12, 200), width=3 * K)
+        h = 9 * K
+        d.rectangle((x - h, y - h, x + h, y + h), outline=(234, 88, 12, 255), width=3 * K)
         seen.add(s)
-    Image.alpha_composite(im, over).convert('RGB').save(os.path.join(OUT, 'cover_bg.png'))
+    d.polygon([(ox, oy - 14 * K), (ox - 12 * K, oy + 8 * K), (ox + 12 * K, oy + 8 * K)], fill=(174, 185, 204))
+    im.resize((W0, H0), Image.LANCZOS).save(os.path.join(OUT, 'cover_bg.png'))
     print('saved cover_bg.png', len(seen))
 
 
@@ -153,95 +179,83 @@ def fig_1p2p():
     save(fig, 'fig_1p2p.png')
 
 
-# 3. 9 x 9 오차 공분산 (예시 값)
+# 3. 9 x 9 오차 공분산: 일반적인 숫자 예 (세 축 모두 σ = 10 m, 축끼리 상관 없음, T = 0.1 s)
+P_COL = {0: '#F3F4F7', 1: '#DCE7FD', 2: '#DDF3EA', 3: '#FDECD7'}
+
+
 def fig_pmatrix():
-    lines = [l.strip() for l in open(os.path.join(DATA, 'p_example.csv'), encoding='utf-8')]
-    P = np.array([[float(v) for v in lines[1 + i].split(',')] for i in range(9)])
+    R, TT = 100.0, 0.1
+    val = {1: R, 2: R / TT, 3: 2 * R / TT ** 2}
     names = ['x', "x'", "x''", 'y', "y'", "y''", 'z', "z'", "z''"]
-    kind = np.zeros((9, 9), dtype=int)
+    fig, ax = plt.subplots(figsize=(5.45, 3.95))
+    fig.subplots_adjust(left=0.005, right=0.995, top=0.995, bottom=0.005)
+    ax.set_aspect('equal')
+    clean(ax)
+    ax.set_xlim(-2.1, 11.85)
+    ax.set_ylim(-0.12, 10.0)
     for i in range(9):
         for j in range(9):
             a, b = i % 3, j % 3
-            if a == 2 or b == 2:
-                kind[i, j] = 0
+            same = (i // 3) == (j // 3)
+            if not same or a == 2 or b == 2:
+                k = 0
             elif a == 0 and b == 0:
-                kind[i, j] = 1
+                k = 1
             elif a == 1 and b == 1:
-                kind[i, j] = 3
+                k = 3
             else:
-                kind[i, j] = 2
-    cols = {0: '#EEF0F4', 1: '#DCE7FD', 2: '#DDF3EA', 3: '#FDECD7'}
-    fig, ax = plt.subplots(figsize=(4.55, 4.05))
-    for i in range(9):
-        for j in range(9):
-            ax.add_patch(Rectangle((j, 8 - i), 1, 1, fc=cols[kind[i, j]], ec='white', lw=1.2))
-            v = P[i, j]
-            if kind[i, j] == 0:
-                txt, c = '0', MUTE
-            elif abs(v) >= 9999.5:
-                e = int(math.floor(math.log10(abs(v))))
-                txt, c = '%.1fe%d' % (v / 10 ** e, e), NAVY
-            else:
-                txt, c = '%.0f' % v, NAVY
-            ax.text(j + 0.5, 8 - i + 0.5, txt, ha='center', va='center', fontsize=6.3, color=c)
-    for k in (3, 6):
-        ax.plot([k, k], [0, 9], color=SUB, lw=1.0)
-        ax.plot([0, 9], [9 - k, 9 - k], color=SUB, lw=1.0)
-    ax.set_xlim(0, 9)
-    ax.set_ylim(0, 9)
-    ax.set_xticks(np.arange(9) + 0.5)
-    ax.set_xticklabels(names, fontsize=8, color=NAVY)
-    ax.set_yticks(np.arange(9) + 0.5)
-    ax.set_yticklabels(names[::-1], fontsize=8, color=NAVY)
-    ax.xaxis.tick_top()
-    ax.tick_params(length=0)
-    for s in ax.spines.values():
-        s.set_visible(False)
-    ax.set_aspect('equal')
-    fig.tight_layout(pad=0.2)
+                k = 2
+            ax.add_patch(Rectangle((j, 8 - i), 1, 1, fc=P_COL[k], ec='white', lw=1.4))
+            txt = '0' if k == 0 else '{:,.0f}'.format(val[k])
+            ax.text(j + 0.5, 8 - i + 0.5, txt, ha='center', va='center', fontsize=8 if k else 7, color=NAVY if k else '#B3BCCB',
+                    fontweight='bold' if k else 'normal')
+    for k in range(3):
+        ax.add_patch(Rectangle((3 * k, 6 - 3 * k), 3, 3, fill=False, ec=NAVY, lw=1.6))
+    for n, t in enumerate(names):
+        ax.text(n + 0.5, 9.12, t, ha='center', va='bottom', fontsize=9, color=NAVY)
+        ax.text(-0.15, 8 - n + 0.5, t, ha='right', va='center', fontsize=9, color=NAVY)
+    for k, t in enumerate(['x 축', 'y 축', 'z 축']):
+        ax.text(9.2, 7.5 - 3 * k, t, ha='left', va='center', fontsize=9, color=SUB, fontweight='bold')
     save(fig, 'fig_pmatrix.png')
 
 
-# 4. 속도 게이트: 짝짓기 예와 거리별 잡음
+# 4. 속도 게이트: 짝짓기 예와 거리별 잡음 (처음 판으로 되돌림. 글자 겹침만 고침)
 def fig_gate():
-    fig = plt.figure(figsize=(11.9, 2.95))
-    ax = fig.add_axes([0.0, 0.02, 0.40, 0.90])
+    fig = plt.figure(figsize=(11.9, 3.3))
+    ax = fig.add_axes([0.0, 0.02, 0.40, 0.88])
     ax.set_aspect('equal')
     clean(ax)
     ax.set_xlim(-140, 330)
     ax.set_ylim(-120, 135)
-    ax.set_title('짝짓기: 앞 스캔 플롯 (빈 원) 과 이번 스캔 플롯 (채운 원)', color=NAVY, fontsize=9, fontweight='bold', loc='left')
+    ax.set_title('짝짓기: 앞 스캔 플롯 (빈 원) 과 이번 스캔 플롯 (채운 원)', color=NAVY, fontsize=10, fontweight='bold', loc='left')
     prev = {'A': (-40, 10), 'B': (180, 40)}
     cur = {'1': (12, 40), '2': (85, -40), '3': (230, 70), '4': (260, -60)}
     for k, p in prev.items():
         ax.add_patch(Circle(p, 80, fill=False, ls='--', ec=MUTE, lw=0.9))
         ax.plot(*p, 'o', mfc='white', mec=PLOT, ms=6, mew=1.3, zorder=6)
-        ax.text(p[0] - 8, p[1] + 8, k, ha='right', color=NAVY, fontsize=9, fontweight='bold')
+        ax.text(p[0] - 8, p[1] + 8, k, ha='right', color=NAVY, fontsize=9.5, fontweight='bold')
     for k, p in cur.items():
         ax.plot(*p, 'o', color=PLOT, ms=6, zorder=6)
-        ax.text(p[0] + 7, p[1] + 7, k, color=NAVY, fontsize=9, fontweight='bold')
-    pairs = [('A', '1', True), ('A', '2', False), ('B', '3', True), ('B', '4', False)]
-    for a, b, ok in pairs:
+        ax.text(p[0] + 7, p[1] + 7, k, color=NAVY, fontsize=9.5, fontweight='bold')
+    # 글자 자리는 선 · 점과 겹치지 않게 쌍마다 정함
+    pairs = [('A', '1', True, (-38, 56)), ('A', '2', False, (8, -58)), ('B', '3', True, (182, 90)), ('B', '4', False, (268, 4))]
+    for a, b, ok, pos in pairs:
         p0, p1 = np.array(prev[a]), np.array(cur[b])
         dist = np.linalg.norm(p1 - p0)
         col = GREEN if ok else RED
         ax.plot([p0[0], p1[0]], [p0[1], p1[1]], color=col, lw=1.5 if ok else 1.2, ls='-' if ok else ':', zorder=4)
-        u = (p1 - p0) / dist
-        nrm = np.array([-u[1], u[0]])
-        pos = p0 + 0.55 * (p1 - p0) + (16 if ok else -16) * nrm
-        ax.text(pos[0], pos[1], '%.0f m/s %s' % (dist / T, '통과' if ok else '탈락'), color=col, fontsize=7.5, ha='center', va='center',
-                bbox=dict(fc='white', ec='none', pad=0.6))
-    ax.text(-135, -112, '점선 원 = 반경 V_max · T = 80 m.  속력이 작은 쌍부터 하나씩 고르고, 쓴 플롯은 다시 쓰지 않는다',
-            color=SUB, fontsize=7.5)
-    # 거리별 잡음 (두 플롯 차 Δz 의 2σ 타원) 과 게이트
-    rng = [(1000, '1 km'), (5000, '5 km'), (14000, '14 km')]
-    gate = defaultdict(lambda: [0, 0])
-    for r in read('gate.csv'):
-        b = int(float(r['range']) // 1000)
-        gate[b][0] += int(r['pass'])
-        gate[b][1] += 1
+        ax.text(pos[0], pos[1], '%.0f m/s %s' % (dist / T, '통과' if ok else '탈락'), color=col, fontsize=8.5, ha='center', va='center',
+                bbox=dict(fc='white', ec='none', pad=0.6), zorder=7)
+    ax.text(-135, -92, '점선 원 = 반경 V_max · T = 80 m\n속력이 작은 쌍부터 하나씩 고르고, 쓴 플롯은 다시 쓰지 않는다',
+            color=SUB, fontsize=8.3, va='top', linespacing=1.4)
+    # 거리별 잡음 (같은 표적 두 플롯 차의 2σ 타원) 과 게이트
+    fig.text(0.43, 0.955, '거리별: 같은 표적 두 플롯의 차이 (파란 타원) 와 게이트 (빨간 원)', color=NAVY, fontsize=10, fontweight='bold',
+             ha='left', va='center')
+    # 이번 시나리오의 표적 거리 (4.8 ~ 14.2 km) 안에서 세 거리. 통과율은 그 거리 ±0.5 km 안의 같은 표적 쌍
+    rng = [(5000, '5 km'), (9000, '9 km'), (14000, '14 km')]
+    pairs = read('gate.csv')
     for n, (r, name) in enumerate(rng):
-        ax2 = fig.add_axes([0.43 + n * 0.19, 0.04, 0.18, 0.82])
+        ax2 = fig.add_axes([0.43 + n * 0.19, 0.03, 0.18, 0.79])
         ax2.set_aspect('equal')
         clean(ax2)
         ax2.set_xlim(-360, 360)
@@ -252,13 +266,14 @@ def fig_gate():
         ax2.add_patch(Circle((0, 0), 80, fill=False, ec=RED, lw=1.4, ls='--'))
         ax2.plot([-360, 360], [0, 0], color=LINE, lw=0.6, zorder=0)
         ax2.plot([0, 0], [-360, 360], color=LINE, lw=0.6, zorder=0)
-        b = r // 1000 if r < 14000 else 14
-        rate = gate[b][0] / gate[b][1] if gate[b][1] else float('nan')
-        ax2.set_title('%s:  횡방향 2σ ±%.0f m' % (name, sx), color=NAVY, fontsize=8.5, fontweight='bold')
-        ax2.text(0, -335, '게이트 통과율 %.0f %%' % (100 * rate), ha='center', color=RED if rate < 0.5 else GREEN, fontsize=8.5,
+        near = [int(p['pass']) for p in pairs if abs(float(p['range']) - r) < 500]
+        rate = np.mean(near) if near else float('nan')
+        ax2.set_title('%s:  가로 방향 2σ ±%.0f m' % (name, sx), color=NAVY, fontsize=9.5, fontweight='bold')
+        ax2.text(0, -335, '게이트 통과율 %.0f %%' % (100 * rate), ha='center', color=RED if rate < 0.5 else GREEN, fontsize=9.5,
                  fontweight='bold')
         if n == 0:
-            ax2.text(-350, 300, '파란 타원: 두 플롯 차의 2σ\n빨간 원: 게이트 80 m', color=SUB, fontsize=7.2, va='top')
+            ax2.text(-350, 300, '파란 타원: 두 플롯 차의 2σ\n빨간 원: 게이트 80 m', color=SUB, fontsize=8, va='top',
+                     bbox=dict(fc='white', ec='none', pad=1.0), zorder=5)
     save(fig, 'fig_gate.png')
 
 
@@ -270,16 +285,24 @@ def fig_mn():
     ax.set_aspect('equal')
     ax.set_xlim(-0.6, 13.0)
     ax.set_ylim(-1.2, 4.6)
-    hits = [1, 1, 0, 1, 1]
+    # 세 번째 성공이 나오는 스캔 4 에서 확정. 스캔 5 는 볼 필요가 없어 빈 칸
+    hits = [1, 1, 0, 1, None]
     ax.text(-0.5, 4.25, '임시 트랙 (예: M = 3, N = 5)', color=NAVY, fontsize=9, fontweight='bold')
     for i, h in enumerate(hits):
-        ax.add_patch(Circle((i, 3.1), 0.36, fc=GREEN if h else 'white', ec=GREEN if h else RED, lw=1.3))
-        ax.text(i, 3.1, '성공' if h else '실패', ha='center', va='center', fontsize=6.5, color='white' if h else RED)
-        ax.text(i, 2.5, '스캔 %d' % (i + 1), ha='center', va='top', fontsize=6.5, color=MUTE)
+        if h is None:
+            ax.add_patch(Circle((i, 3.1), 0.36, fc='white', ec=LINE, lw=1.0, ls='--'))
+        else:
+            ax.add_patch(Circle((i, 3.1), 0.36, fc=GREEN if h else 'white', ec=GREEN if h else RED, lw=1.3))
+            ax.text(i, 3.1, '성공' if h else '실패', ha='center', va='center', fontsize=6.5, color='white' if h else RED)
+        if i == 3:
+            ax.text(i, 2.5, '스캔 4 확정', ha='center', va='top', fontsize=6.5, color=CONF, fontweight='bold')
+        else:
+            ax.text(i, 2.5, '스캔 %d' % (i + 1), ha='center', va='top', fontsize=6.5, color=MUTE)
     ax.add_patch(FancyBboxPatch((-0.5, 2.62), 5.0, 0.95, boxstyle='round,pad=0.02,rounding_size=0.15', fill=False, ec=BLUE, lw=1.2,
                                 ls='--'))
-    ax.text(5.0, 3.35, 'N = 5 번 중 M = 3 번 성공 -> 확정', color=BLUE, fontsize=8, va='center', fontweight='bold')
-    ax.text(5.0, 2.8, 'M 번 연속 실패 -> 삭제', color=RED, fontsize=8, va='center', fontweight='bold')
+    ax.text(5.0, 3.42, 'N = 5 번 안에 M = 3 번 성공 -> 확정', color=BLUE, fontsize=8, va='center', fontweight='bold')
+    ax.text(5.0, 3.05, '(이 예는 스캔 4 에서 세 번째 성공)', color=SUB, fontsize=7, va='center')
+    ax.text(5.0, 2.68, 'M 번 연속 실패 -> 삭제', color=RED, fontsize=8, va='center', fontweight='bold')
     ax.text(-0.5, 1.45, '확정 트랙', color=NAVY, fontsize=9, fontweight='bold')
     seq = [1, 1, 0, 0, 0, 0]
     for i, h in enumerate(seq):
@@ -329,7 +352,6 @@ def fig_state():
     ax.text(1.5, 4.62, '연관 성공 +1, 실패 -1', ha='center', color=TENT, fontsize=7.5)
     arrow(ax, (8.4, 3.78), (9.1, 3.78), col=MEM, lw=1.1, rad=-1.4, ms=7)
     ax.text(8.75, 4.62, '실패: MemoryScore +1', ha='center', color=MEM, fontsize=7.5)
-    ax.text(9.95, 0.15, '문턱: 확정 5, 임시 삭제 0, 메모리 삭제 5 (과제 값)', ha='right', color=SUB, fontsize=7.5)
     save(fig, 'fig_state.png')
 
 
@@ -355,45 +377,78 @@ def score_seq(flags):
     return out
 
 
-# 7. 스코어 변화 예 두 가지
+# 7. 스코어 변화 예 두 가지. 그래프 아래 '계산' 줄에 스캔마다 어떤 규칙으로 값이 바뀌었는지 적음
+def score_calc(seq):
+    out = []
+    for i, (f, ts, ms, st) in enumerate(seq):
+        if i == 0:
+            out.append(('개시\nTS = %d' % ts, st))
+            continue
+        pst = seq[i - 1][3]
+        if pst == 1:
+            if st == 2:
+                t = 'TS + 1\n= %d\n-> 확정' % ts
+            elif st == 4:
+                t = 'TS - 1\n= %d\n-> 삭제' % ts
+            else:
+                t = 'TS %s 1\n= %d' % ('+' if f else '-', ts)
+        elif pst == 2:
+            t = '확정\n유지' if f else '-> 메모리\nMS = %d' % ms
+        elif f:
+            t = '-> 확정\nMS = 0'
+        elif st == 4:
+            t = 'MS + 1\n= %d\n-> 삭제' % ms
+        else:
+            t = 'MS + 1\n= %d' % ms
+        out.append((t, st))
+    return out
+
+
 def fig_score():
     cases = [([1, 1, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0], '연관 결과를 넣은 예'), ([0, 0, 0], '과제 조건: Assigned_Flag 늘 0')]
-    fig, axs = plt.subplots(1, 2, figsize=(11.9, 2.75), gridspec_kw={'width_ratios': [2.3, 1]})
+    fig, axs = plt.subplots(1, 2, figsize=(11.9, 4.15), gridspec_kw={'width_ratios': [2.3, 1]})
     bg = {1: '#FFF1E6', 2: '#E8F7EE', 3: '#F5EBFF', 4: '#EEF0F4'}
-    for ax, (flags, title) in zip(axs, cases):
+    col = {1: TENT, 2: CONF, 3: MEM, 4: DEL}
+    for k, (ax, (flags, title)) in enumerate(zip(axs, cases)):
         seq = score_seq(flags)
+        calc = score_calc(seq)
         n = len(seq)
         for i, (f, ts, ms, st) in enumerate(seq):
             ax.add_patch(Rectangle((i - 0.5, -1.2), 1, 8.2, fc=bg[st], ec='white', lw=1.0, zorder=0))
-            ax.text(i, 6.45, '-' if f is None else str(f), ha='center', color=NAVY, fontsize=8, fontweight='bold')
-            ax.text(i, -0.95, {1: '임시', 2: '확정', 3: '메모리', 4: '삭제'}[st], ha='center', fontsize=7,
-                    color={1: TENT, 2: CONF, 3: MEM, 4: DEL}[st])
+            ax.text(i, 6.45, '-' if f is None else str(f), ha='center', color=NAVY, fontsize=10, fontweight='bold')
+            ax.text(i, -0.95, {1: '임시', 2: '확정', 3: '메모리', 4: '삭제'}[st], ha='center', fontsize=9, color=col[st])
+            ax.add_patch(Rectangle((i - 0.5, -4.05), 1, 2.7, fc='white', ec=LINE, lw=0.8, zorder=0))
+            t, cst = calc[i]
+            ax.text(i, -2.7, t, ha='center', va='center', fontsize=8, color=col[cst], linespacing=1.35)
         xs = np.arange(n)
-        ax.step(xs, [s[1] for s in seq], where='mid', color=TENT, lw=1.8, label='TrackScore')
-        ax.plot(xs, [s[1] for s in seq], 'o', color=TENT, ms=3.5)
-        ax.step(xs, [s[2] for s in seq], where='mid', color=MEM, lw=1.6, ls='--', label='MemoryScore')
-        ax.plot(xs, [s[2] for s in seq], 's', color=MEM, ms=3)
-        ax.axhline(5, color=CONF, lw=0.8, ls=':')
-        ax.axhline(0, color=DEL, lw=0.8, ls=':')
+        ax.step(xs, [q[1] for q in seq], where='mid', color=TENT, lw=2.2, label='TrackScore (TS)')
+        ax.plot(xs, [q[1] for q in seq], 'o', color=TENT, ms=4.5)
+        ax.step(xs, [q[2] for q in seq], where='mid', color=MEM, lw=2.0, ls='--', label='MemoryScore (MS)')
+        ax.plot(xs, [q[2] for q in seq], 's', color=MEM, ms=4)
+        ax.axhline(5, xmin=0, xmax=1, color=CONF, lw=0.8, ls=':')
+        ax.plot([-0.5, n - 0.5], [0, 0], color=DEL, lw=0.8, ls=':')
         ax.set_xlim(-0.5, n - 0.5)
-        ax.set_ylim(-1.2, 7.0)
+        ax.set_ylim(-4.1, 7.0)
         ax.set_xticks(xs)
-        ax.set_xticklabels([str(i) for i in xs], fontsize=7.5, color=SUB)
+        ax.set_xticklabels([str(i) for i in xs], fontsize=9, color=SUB)
         ax.set_yticks([0, 1, 2, 3, 4, 5])
-        ax.tick_params(labelsize=7.5, colors=SUB, length=0)
-        for s in ax.spines.values():
-            s.set_color(LINE)
-        ax.set_title(title, color=NAVY, fontsize=9, fontweight='bold', loc='left', pad=14)
-        ax.text(-0.45, 7.25, 'Assigned_Flag', color=SUB, fontsize=7)
-        ax.set_xlabel('개시 후 스캔', fontsize=7.5, color=SUB)
-    axs[0].legend(loc='lower right', fontsize=7.5, frameon=True, framealpha=0.95, edgecolor=LINE, bbox_to_anchor=(1.0, 1.0), ncol=2)
+        ax.tick_params(labelsize=9, colors=SUB, length=0)
+        for sp in ax.spines.values():
+            sp.set_color(LINE)
+        ax.set_title(title, color=NAVY, fontsize=11, fontweight='bold', loc='left', pad=10)
+        ax.set_xlabel('개시 후 스캔', fontsize=9, color=SUB)
+        if k == 0:
+            ax.text(-0.75, 6.62, 'Assigned_Flag', ha='right', va='center', fontsize=8.5, color=SUB)
+            ax.text(-0.75, -0.8, '상태', ha='right', va='center', fontsize=8.5, color=SUB)
+            ax.text(-0.75, -2.7, '계산', ha='right', va='center', fontsize=8.5, color=SUB)
+    axs[0].legend(loc='lower right', fontsize=9, frameon=True, framealpha=0.95, edgecolor=LINE, bbox_to_anchor=(1.0, 1.0), ncol=2)
     fig.tight_layout(pad=0.4, w_pad=2.0)
     save(fig, 'fig_score.png')
 
 
 # 8. 쓰레드 · UDP 구조
 def fig_arch():
-    fig, ax = plt.subplots(figsize=(11.9, 2.7))
+    fig, ax = plt.subplots(figsize=(11.9, 2.75))
     fig.subplots_adjust(left=0.005, right=0.995, top=0.99, bottom=0.01)
     clean(ax)
     ax.set_xlim(0, 24)
@@ -401,28 +456,64 @@ def fig_arch():
 
     def blk(x, y, w, h, title, lines, ec=NAVY, fc=BOXF, tc=NAVY):
         ax.add_patch(FancyBboxPatch((x, y), w, h, boxstyle='round,pad=0.02,rounding_size=0.15', fc=fc, ec=ec, lw=1.4))
-        ax.text(x + w / 2, y + h - 0.3, title, ha='center', va='top', color=tc, fontsize=9, fontweight='bold')
-        ax.text(x + w / 2, y + h - 1.05, '\n'.join(lines), ha='center', va='top', color=SUB, fontsize=7.5, linespacing=1.5)
+        ax.text(x + w / 2, y + h - 0.3, title, ha='center', va='top', color=tc, fontsize=10.5, fontweight='bold')
+        ax.text(x + w / 2, y + h - 1.05, '\n'.join(lines), ha='center', va='top', color=SUB, fontsize=8.8, linespacing=1.55)
 
     ax.add_patch(FancyBboxPatch((0.2, -0.75), 17.4, 5.75, boxstyle='round,pad=0.02,rounding_size=0.2', fc='white', ec=LINE, lw=1.0, ls='--'))
-    ax.text(0.45, 4.8, 'TargetSimCore (DLL)', color=MUTE, fontsize=8, va='top')
-    blk(0.6, 0.4, 3.6, 3.9, '측정 모의 (과제 4)', ['표적 플롯 + 클러터', '스캔 600 개', '안테나 구좌표'])
-    blk(5.1, 0.4, 4.2, 3.9, '송신 쓰레드', ['신호처리 역할', '스캔마다 플롯을 섞고', '플롯 ID 10000 부터', 'STRUCT_PlotMsg 1 개'], ec=BLUE, tc=BLUE)
-    blk(12.6, 0.4, 4.6, 3.9, '수신 쓰레드', ['데이터 처리 역할', '안테나 -> 동체 -> VC-NED', '트랙 관리 (Flag 0)', '2 Point 트랙 개시'], ec=ORANGE,
+    ax.text(0.45, 4.85, 'TargetSimCore (DLL)', color=MUTE, fontsize=8.5, va='top')
+    blk(0.6, 0.4, 3.6, 3.9, '측정 모의 (과제 4)', ['표적 플롯 + 클러터', '스캔 1,160 개', '안테나 구좌표'])
+    blk(5.1, 0.4, 4.2, 3.9, '송신 쓰레드', ['신호처리 역할', '스캔마다 플롯을 섞어', 'STRUCT_PlotMsg 1 개로 보냄', '(과제 1 의 UDP 함수)'], ec=BLUE, tc=BLUE)
+    blk(12.6, 0.4, 4.6, 3.9, '수신 쓰레드', ['데이터 처리 역할', '안테나 -> 동체 -> VC-NED', '트랙 관리 (Assigned_Flag 0)', '2 Point 트랙 개시'], ec=ORANGE,
         tc=ORANGE)
-    blk(19.0, 0.4, 4.6, 3.9, 'UI (MFC)', ['50 ms 타이머로', '처리된 스캔을 가져와', '2D, 3D 그림, 트랙 표', '슬라이더로 스캔 고르기'])
+    blk(19.0, 0.4, 4.6, 3.9, 'UI (MFC)', ['처리가 끝난 스캔을 가져와', '2D, 3D 그림과 트랙 표', '슬라이더로 스캔 고르기'])
     arrow(ax, (4.25, 2.35), (5.05, 2.35), lw=1.4)
     ax.add_patch(FancyBboxPatch((9.75, 1.2), 2.4, 2.3, boxstyle='round,pad=0.02,rounding_size=0.15', fc='#EEF4FF', ec=BLUE, lw=1.2))
-    ax.text(10.95, 3.25, 'UDP', ha='center', va='top', color=BLUE, fontsize=9, fontweight='bold')
-    ax.text(10.95, 2.6, '127.0.0.1:50505\n데이터그램 1 개\n= 스캔 1 개', ha='center', va='top', color=SUB, fontsize=7, linespacing=1.4)
+    ax.text(10.95, 3.3, 'UDP', ha='center', va='top', color=BLUE, fontsize=10.5, fontweight='bold')
+    ax.text(10.95, 2.6, '127.0.0.1:50505\n데이터그램 1 개\n= 스캔 1 개', ha='center', va='top', color=SUB, fontsize=8, linespacing=1.45)
     arrow(ax, (9.35, 2.35), (9.7, 2.35), col=BLUE, lw=1.4)
     arrow(ax, (12.2, 2.35), (12.55, 2.35), col=BLUE, lw=1.4)
     arrow(ax, (17.25, 2.35), (18.95, 2.35), col=ORANGE, lw=1.4)
-    ax.text(18.1, 2.55, '결과 복사', ha='center', color=ORANGE, fontsize=7.5)
-    ax.text(18.1, 1.95, '(잠금 안에서)', ha='center', color=MUTE, fontsize=7)
+    ax.text(18.1, 2.6, '스캔별 결과', ha='center', color=ORANGE, fontsize=8.5)
     arrow(ax, (12.6, -0.35), (9.3, -0.35), col=MUTE, lw=1.0, ls='--', ms=7)
-    ax.text(10.95, -0.2, '처리가 밀리면 송신이 기다림', ha='center', va='bottom', color=MUTE, fontsize=7)
+    ax.text(10.95, -0.2, '처리가 밀리면 송신이 기다림', ha='center', va='bottom', color=MUTE, fontsize=8)
     save(fig, 'fig_arch.png')
+
+
+# 8-1. 연관 성공 / 실패 (개념)
+def fig_assoc():
+    fig, axs = plt.subplots(1, 2, figsize=(6.2, 2.55))
+    fig.subplots_adjust(left=0.005, right=0.995, top=0.90, bottom=0.01, wspace=0.06)
+    titles = ['예상 위치 근처에 이번 스캔 플롯이 있음', '예상 위치 근처에 플롯이 없음']
+    for n, ax in enumerate(axs):
+        ax.set_aspect('equal')
+        ax.set_xlim(0, 10)
+        ax.set_ylim(-0.9, 6.0)
+        clean(ax)
+        ax.add_patch(Rectangle((0.05, -0.85), 9.9, 6.8, fc=BOXF, ec=LINE, lw=0.8, zorder=0))
+        ax.set_title(titles[n], color=NAVY, fontsize=8.5, fontweight='bold', loc='left', pad=4)
+        # 지난 트랙 자리와 이번 예상 위치
+        hist = [(1.2, 1.3), (2.5, 2.0), (3.8, 2.7)]
+        ax.plot([p[0] for p in hist], [p[1] for p in hist], color=NAVY, lw=1.0, ls=':', zorder=2)
+        for k, p in enumerate(hist):
+            ax.add_patch(Rectangle((p[0] - 0.22, p[1] - 0.22), 0.44, 0.44, fc='white', ec=NAVY, lw=1.3 if k == 2 else 0.9,
+                                   alpha=1.0 if k == 2 else 0.55, zorder=4))
+        pred = (5.3, 3.4)
+        arrow(ax, (4.05, 2.84), (pred[0] - 0.12, pred[1] - 0.06), col=NAVY, lw=1.0, ls='--', ms=7)
+        ax.add_patch(Circle(pred, 1.15, fill=False, ec=BLUE, lw=1.1, ls='--', zorder=3))
+        ax.plot(*pred, 'x', color=BLUE, ms=5, mew=1.2, zorder=5)
+        ax.text(pred[0], pred[1] + 1.3, '예상 위치', ha='center', va='bottom', color=BLUE, fontsize=7.5)
+        ax.text(3.8, 2.15, '트랙', ha='center', va='top', color=NAVY, fontsize=7.5)
+        for c in [(1.3, 4.6), (8.6, 1.1), (8.9, 4.9)]:
+            ax.plot(*c, 'o', color=CLUT, ms=3.5, zorder=4)
+        if n == 0:
+            ax.plot(5.75, 3.05, 'o', color=PLOT, ms=5, zorder=6)
+            ax.text(6.6, 2.35, '이번 스캔 플롯', color=PLOT, fontsize=7.5, va='center')
+            ax.text(5.0, -0.45, '연관 성공  ->  Assigned_Flag = 1', ha='center', va='center', color=CONF, fontsize=8.5, fontweight='bold')
+        else:
+            ax.text(6.6, 2.35, '들어온 플롯 없음', color=SUB, fontsize=7.5, va='center')
+            ax.text(5.0, -0.45, '연관 실패  ->  Assigned_Flag = 0', ha='center', va='center', color=RED, fontsize=8.5, fontweight='bold')
+        ax.text(8.75, 5.35, '클러터', ha='center', va='bottom', color=MUTE, fontsize=6.5)
+    save(fig, 'fig_assoc.png')
 
 
 # 9. 거리별 게이트 통과율: 이론 (몬테카를로) 과 시뮬레이션
@@ -434,18 +525,17 @@ def fig_rate():
         n = 40000
         d = np.stack([rs.normal(0, math.sqrt(2) * SIG_R, n), rs.normal(0, math.sqrt(2) * r * SIG_AZ, n),
                       rs.normal(0, math.sqrt(2) * r * SIG_EL, n)], axis=1)
-        d[:, 1] += 100.0 * T
+        d[:, 1] += 200.0 * T                           # 표적 2 (대공) 속력. 이 거리들에서는 속력이 통과율을 거의 바꾸지 않음
         theo.append(np.mean(np.linalg.norm(d, axis=1) < VMAX * T))
-    gate = read('gate.csv')
-    b = defaultdict(lambda: [0, 0])
-    for r in gate:
-        k = int(float(r['range']) // 1000)
-        b[k][0] += int(r['pass'])
-        b[k][1] += 1
+    # 1 km 구간마다 같은 표적 쌍의 통과율. 점은 구간 안 쌍들의 평균 거리에 찍음 (구간을 고르게 채우지 않으므로)
+    b = defaultdict(list)
+    for r in read('gate.csv'):
+        b[int(float(r['range']) // 1000)].append((float(r['range']), int(r['pass'])))
     fig, ax = plt.subplots(figsize=(6.1, 3.0))
-    ax.plot(rng_axis / 1000, theo, color=BLUE, lw=1.8, label='이론 (잡음만 고려, 표적 100 m/s)')
-    xs = [k + 0.5 for k in sorted(b) if b[k][1] >= 20]
-    ys = [b[k][0] / b[k][1] for k in sorted(b) if b[k][1] >= 20]
+    ax.plot(rng_axis / 1000, theo, color=BLUE, lw=1.8, label='이론 (잡음만 고려, 표적 200 m/s)')
+    keys = [k for k in sorted(b) if len(b[k]) >= 20]
+    xs = [np.mean([v[0] for v in b[k]]) / 1000 for k in keys]
+    ys = [np.mean([v[1] for v in b[k]]) for k in keys]
     ax.plot(xs, ys, 'o', color=TENT, ms=5, label='시뮬레이션 (참 표적 쌍, 1 km 구간)')
     ax.axhline(1.0, color=LINE, lw=0.8)
     ax.set_xlim(0, 15)
@@ -496,37 +586,65 @@ def fig_track_concept():
     save(fig, 'fig_track_concept.png')
 
 
-# 11. 측정 공분산 모양 (표적 5 예시, 북-동 평면)
+# 11. 측정 오차를 북 · 동 (VC-NED) 로 옮기면: 빔 기준으로는 기울지 않은 타원이 북 · 동 축에서는 비스듬함 (p_example 의 표적 예)
 def fig_rcov():
     lines = [l.strip() for l in open(os.path.join(DATA, 'p_example.csv'), encoding='utf-8')]
-    i = lines.index('# R1')
-    R = np.array([[float(v) for v in lines[i + 1 + k].split(',')] for k in range(3)])
-    tail = lines[i + 4].split()
-    pn, pe = float(tail[6]), float(tail[7])
-    fig, ax = plt.subplots(figsize=(4.7, 3.55))
-    ax.set_aspect('equal')
-    ax.plot([0, pe / 1000], [0, pn / 1000], color=MUTE, lw=0.9, ls='--')
-    ax.plot(0, 0, '^', color=NAVY, ms=7)
-    ax.text(0.0, -0.45, '레이다', color=NAVY, fontsize=7.5, ha='center', va='top')
-    C = R[:2, :2][[1, 0]][:, [1, 0]]                # (동, 북) 순서
-    w, v = np.linalg.eigh(C)
-    k = 20.0
-    ang = math.degrees(math.atan2(v[1, 1], v[0, 1]))
-    ax.add_patch(Ellipse((pe / 1000, pn / 1000), 2 * 2 * k * math.sqrt(w[1]) / 1000, 2 * 2 * k * math.sqrt(w[0]) / 1000, angle=ang,
-                         fc='#DCE7FD', ec=BLUE, lw=1.2))
-    ax.plot(pe / 1000, pn / 1000, 'o', color=PLOT, ms=4)
-    ax.text(pe / 1000 + 0.35, pn / 1000 + 1.55, '표적 5 플롯  (%.1f km)' % (math.hypot(pn, pe) / 1000), color=NAVY, fontsize=7.5)
-    ax.text(-5.9, -1.1, '2σ 타원, 20 배로 키워 그림\n가로 방향 σ = r·σ_az = 약 %.0f m\n거리 방향 σ = σ_r = 4.7 m\n아래 방향 σ = r·σ_el = 약 %.0f m'
-            % (math.sqrt(w[1]), math.sqrt(R[2, 2])), color=SUB, fontsize=7.5, va='top')
-    ax.set_xlim(-6.2, 1.2)
-    ax.set_ylim(-3.6, 6.6)
-    ax.set_xlabel('동 [km]', fontsize=7.5, color=SUB)
-    ax.set_ylabel('북 [km]', fontsize=7.5, color=SUB)
-    ax.tick_params(labelsize=7, colors=SUB)
-    for s in ax.spines.values():
-        s.set_color(LINE)
-    ax.grid(color='#EEF0F4', lw=0.8)
-    fig.tight_layout(pad=0.3)
+    k = lines.index('# R1')
+    R = np.array([[float(v) for v in lines[k + 1 + i].split(',')] for i in range(3)])
+    tail = lines[k + 4].split()
+    pn, pe = float(tail[-3]), float(tail[-2])
+    rng = math.hypot(pn, pe)
+    los = np.array([pe, pn]) / rng                      # (동, 북) 레이다 -> 표적
+    lat = np.array([los[1], -los[0]])                   # 옆 방향 (시선에 수직)
+    if lat[0] < 0:
+        lat = -lat
+    s_lat = rng * SIG_AZ
+    ang = math.degrees(math.atan2(lat[1], lat[0]))
+    fig = plt.figure(figsize=(5.1, 3.9))
+    L = max(68.0, 1.45 * s_lat)                        # 칸 반폭 [m]. 옆 오차 타원이 들어가게
+    u = L / 68.0                                       # 글자 · 화살표 자리 비율
+    for n, x0 in enumerate([0.02, 0.55]):
+        ax = fig.add_axes([x0, 0.30, 0.43, 0.58])
+        ax.set_aspect('equal')
+        clean(ax)
+        ax.set_xlim(-L, L)
+        ax.set_ylim(-L, L)
+        ax.add_patch(Rectangle((-L, -L), 2 * L, 2 * L, fc=BOXF, ec=LINE, lw=0.8, zorder=0))
+        if n == 0:
+            ax.set_title('빔 기준으로 보면', fontsize=10.5, color=NAVY, fontweight='bold', pad=4)
+            arrow(ax, (-L + 8 * u, 0), (L - 6 * u, 0), col=MUTE, lw=0.8, ms=6)
+            arrow(ax, (0, -L + 8 * u), (0, L - 6 * u), col=MUTE, lw=0.8, ms=6)
+            ax.text(L - 6 * u, -7 * u, '옆 방향', ha='right', va='top', fontsize=8.5, color=SUB)
+            ax.text(4 * u, L - 8 * u, '빔 방향\n(거리)', ha='left', va='top', fontsize=8.5, color=SUB, linespacing=1.15)
+            ax.add_patch(Ellipse((0, 0), 2 * s_lat, 2 * SIG_R, fc='#DCE7FD', ec=BLUE, lw=1.2, zorder=3))
+            ax.text(0, 9 * u, '옆 ±%.0f m' % s_lat, ha='center', va='bottom', fontsize=9.5, color=BLUE, fontweight='bold')
+            ax.text(-L + 6 * u, -16 * u, '거리 ±%.1f m' % SIG_R, ha='left', va='top', fontsize=9.5, color=BLUE, fontweight='bold')
+            ax.text(0, -L + 4 * u, '레이다 쪽', ha='center', va='bottom', fontsize=8, color=MUTE)
+        else:
+            ax.set_title('북 · 동 (VC-NED) 기준으로 보면', fontsize=10.5, color=NAVY, fontweight='bold', pad=4)
+            arrow(ax, (-L + 8 * u, 0), (L - 6 * u, 0), col=MUTE, lw=0.8, ms=6)
+            arrow(ax, (0, -L + 8 * u), (0, L - 6 * u), col=MUTE, lw=0.8, ms=6)
+            ax.text(L - 6 * u, -7 * u, '동', ha='right', va='top', fontsize=9.5, color=SUB)
+            ax.text(4 * u, L - 8 * u, '북', ha='left', va='top', fontsize=9.5, color=SUB)
+            ax.plot([0, -los[0] * L * 0.95], [0, -los[1] * L * 0.95], color=MUTE, lw=0.9, ls=':', zorder=2)
+            ax.text(-los[0] * L * 0.62 + 4 * u, -los[1] * L * 0.62, '레이다 쪽', ha='left', va='center', fontsize=8, color=MUTE)
+            ax.add_patch(Ellipse((0, 0), 2 * s_lat, 2 * SIG_R, angle=ang, fc='#DCE7FD', ec=BLUE, lw=1.2, zorder=3))
+            ax.text(-L + 6 * u, L - 8 * u, '같은 오차가\n축에 비스듬함', ha='left', va='top', fontsize=9, color=BLUE, fontweight='bold', linespacing=1.2)
+    # 두 칸 사이: 축을 바꿈
+    fig.text(0.50, 0.62, '->', ha='center', va='center', fontsize=13, color=NAVY, fontweight='bold')
+    fig.text(0.50, 0.53, 'J, M', ha='center', va='center', fontsize=8.5, color=SUB)
+    # 아래: 같은 오차를 두 축으로 적은 R (북 · 동 2 x 2 만, 단위 m²)
+    rows = [(0.235, '[ %4.0f    %4.0f ]\n[ %4.0f    %4.0f ]' % (SIG_R ** 2, 0, 0, s_lat ** 2), '기울지 않아 대각선만 값이 있음'),
+            (0.765, '[ %4.0f    %4.0f ]\n[ %4.0f    %4.0f ]' % (R[0, 0], R[0, 1], R[1, 0], R[1, 1]), '북 · 동 오차가 같이 움직여\n대각선 밖 칸도 큼')]
+    for x, mat, note in rows:
+        fig.text(x, 0.185, mat, ha='center', va='center', fontsize=10, color=NAVY, family='Consolas', linespacing=1.3)
+        fig.text(x, 0.065, note, ha='center', va='center', fontsize=9, color=SUB, linespacing=1.2)
+    fig.text(0.02, 0.185, 'R', ha='left', va='center', fontsize=10.5, color=NAVY, fontweight='bold')
+    tgt = int(lines[0].split()[2])
+    compass = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동', '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서']
+    side = compass[int(round(math.degrees(math.atan2(pe, pn)) / 22.5)) % 16]
+    fig.text(0.5, 0.965, '표적 %d (%s쪽 %.1f km) 플롯의 오차 범위  (단위 m², 아래 방향은 생략)' % (tgt, side, rng / 1000), ha='center', va='center', fontsize=8.5,
+             color=SUB)
     save(fig, 'fig_rcov.png')
 
 
@@ -541,4 +659,5 @@ if __name__ == '__main__':
     fig_state()
     fig_score()
     fig_arch()
+    fig_assoc()
     fig_rate()

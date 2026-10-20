@@ -454,14 +454,23 @@ static UINT32 __stdcall f_Lnk_TxThread(VOID *pt_Arg)
 		if (isStop == 0)
 		{
 			msgSize	= f_Lnk_BuildMsg(st_Msg, nScan, &plotId);
+
+			// 루프백은 sendto 가 돌아오기 전에 수신 쪽이 받을 수 있어 보낸 수를 먼저 셈 (받음이 보냄보다 커 보이지 않게). 못 보내면 되돌림
+			EnterCriticalSection(&s_Link.st_Lock);
+			s_Link.st_Status.nSentNum++;
+			LeaveCriticalSection(&s_Link.st_Lock);
+
 			lSent	= f_SocketSendUDP_IPv4_Normal(&st_Socket, st_Msg, (INT64)msgSize);
 
 			EnterCriticalSection(&s_Link.st_Lock);
 
 			if (lSent == (INT64)msgSize)
 			{
-				s_Link.st_Status.nSentNum++;
 				s_Link.st_Status.sentBytes = s_Link.st_Status.sentBytes + lSent;
+			}
+			else
+			{
+				s_Link.st_Status.nSentNum--;
 			}
 
 			LeaveCriticalSection(&s_Link.st_Lock);

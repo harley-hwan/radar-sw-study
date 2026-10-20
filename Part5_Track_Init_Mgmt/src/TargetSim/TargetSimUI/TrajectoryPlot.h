@@ -9,11 +9,9 @@ namespace Gdiplus
 	class Font;
 }
 
-// 궤적 그림: 플랫폼 기준 동-북 평면 (위경도 격자). 결과는 대화상자 소유. 과제 3 의 고도 · 속력 시각 그래프는 뺌.
-// 비교 결과 (플랫폼 기준 계산) 를 주면 같은 색을 어둡게 한 점선으로 겹쳐 그림.
-// 측정 모의 결과 (과제 4) 를 주면 평면에 클러터 (회색 점), 플롯 (검은 점) 을 궤적 아래에 깔아 그림.
-// 참값 궤적을 숨기면 플롯, 클러터만 남고 플랫폼 (레이다) 시작점만 기준으로 표시. 축척은 그대로 둬 켜고 끈 그림을 바로 비교할 수 있게 함.
-// 트랙 결과 (과제 5) 를 주면 지금 스캔까지의 플롯만 옅게 깔고, 지금 스캔의 참값 위치, 받은 플롯, 트랙 심볼을 위에 그림.
+// 2D 그림: 플랫폼 초기 위치 기준 동-북 평면 (위경도 격자) 에 True · Plot · Track 심볼을 함께 그림. 결과는 대화상자 소유.
+// 지금 스캔까지의 플롯 (검은 점) · 클러터 (회색 점) 를 옅게 깔고 참값 궤적을 그린 뒤, 지금 스캔의 참값 위치, 받은 플롯, 트랙 심볼을 위에 그림.
+// 참값을 숨기면 플랫폼 (레이다) 시작점만 기준으로 표시. 축척은 그대로 둬 켜고 끈 그림을 바로 비교할 수 있게 함.
 // 휠로 확대 · 축소, 끌어서 이동, 두 번 클릭하면 처음 보기.
 class CTrajectoryPlot : public CStatic
 {
@@ -21,9 +19,8 @@ public:
 	CTrajectoryPlot() noexcept;
 
 	VOID	f_SetDpi(INT32 newDpi);
-	VOID	f_SetResult(const CSimResult *st_NewResult, const CSimResult *st_NewCompare);
-	VOID	f_SetMeasure(const CPlotResult *st_NewMeasure, INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter);
-	VOID	f_SetTrack(const CTrackResult *st_NewTrack, INT32 isNewShowTrack);
+	VOID	f_SetData(const CSimResult *st_NewResult, const CPlotResult *st_NewMeasure, const CTrackResult *st_NewTrack);
+	VOID	f_SetShow(INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter, INT32 isNewShowTrack);
 	VOID	f_SetScan(INT32 nNewScan);
 	VOID	f_Zoom(INT32 delta, CPoint st_ScreenPoint);
 
@@ -44,19 +41,18 @@ private:
 	VOID				f_ComputeView(VOID);
 	VOID				f_DrawMap(Gdiplus::Graphics *st_Graphics) const;
 	VOID				f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, INT32 nStartNum) const;
-	VOID				f_DrawMapTrack(Gdiplus::Graphics *st_Graphics, const CSimResult *st_Source, INT32 isCompare) const;
-	VOID				f_DrawMapMeasure(Gdiplus::Graphics *st_Graphics) const;
+	VOID				f_DrawMapTruth(Gdiplus::Graphics *st_Graphics) const;
+	VOID				f_DrawMapHistory(Gdiplus::Graphics *st_Graphics) const;
 	VOID				f_DrawMapScan(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
-	VOID				f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
+	VOID				f_DrawMapLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
 	VOID				f_MapToPixel(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 	STRUCT_Coord_Lla	f_PlotToLla(FLOAT64 east, FLOAT64 north) const;
 	ST_PlotPoint		f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const;
 
-	const CSimResult	*st_Result;
-	const CSimResult	*st_Compare;					// 비교 결과 (플랫폼 기준). 없으면 nullptr
-	const CPlotResult	*st_Measure;					// 측정 모의 결과. 없으면 nullptr
-	const CTrackResult	*st_Track;						// 트랙 결과. 없으면 nullptr
-	INT32				isShowTrue;						// 1 이면 참값 궤적 (기본 계산, 비교 결과) 과 표적 시작점 표시
+	const CSimResult	*st_Result;						// 궤적 계산 결과 (참값). 셋 중 하나라도 없으면 그리지 않음
+	const CPlotResult	*st_Measure;					// 측정 모의 결과 (플롯, 클러터)
+	const CTrackResult	*st_Track;						// 트랙 결과 (받은 플롯, 트랙)
+	INT32				isShowTrue;						// 1 이면 참값 궤적, 지금 위치, 표적 시작점 표시
 	INT32				isShowPlot;
 	INT32				isShowClutter;
 	INT32				isShowTrack;
@@ -81,8 +77,9 @@ private:
 	CRect				st_MapArea;
 };
 
-// 3D 그림 (과제 5): 플랫폼 초기 위치 기준 동-북-위 공간을 비스듬히 내려다본 정투영. 고도는 바닥 폭에 맞춰 1 ~ 5 배로 늘려 그림.
-// 참값 궤적, 지금 스캔까지의 플롯 (옅게), 지금 스캔의 참값 위치 · 받은 플롯 · 트랙 심볼을 2D 와 같은 기호로 그림.
+// 3D 그림: 플랫폼 초기 위치 기준 동-북-위 공간을 비스듬히 내려다본 정투영. 고도는 바닥 폭에 맞춰 1 ~ 5 배로 늘려 그림.
+// 장면 상자는 바닥을 참값 궤적과 보이는 표적 플롯, 고도를 참값 궤적으로 잡고, 클러터는 상자 안 것만 그림.
+// 참값 궤적 (바닥 그림자 포함), 지금 스캔까지의 플롯 (옅게), 지금 스캔의 참값 위치 · 받은 플롯 · 트랙 심볼을 2D 와 같은 기호로 그림.
 // 끌면 회전 (좌우 = 방위, 위아래 = 내려다보는 각), 휠로 확대 · 축소, 두 번 클릭하면 처음 보기.
 class CTrackView3D : public CStatic
 {
@@ -113,6 +110,7 @@ private:
 	VOID	f_Project(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const;
 	VOID	f_DrawScene(Gdiplus::Graphics *st_Graphics) const;
 	VOID	f_DrawGround(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const;
+	INT32	f_IsInBox(const ST_PlotPoint *st_Point) const;
 
 	const CSimResult	*st_Result;
 	const CPlotResult	*st_Measure;

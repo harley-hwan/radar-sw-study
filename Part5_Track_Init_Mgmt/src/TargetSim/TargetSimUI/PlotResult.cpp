@@ -21,35 +21,23 @@ static ST_PlotPoint f_Meas_ToPoint(const STRUCT_Coord_Lla *st_Lla, const ST_Targ
 	return st_Point;
 }
 
-// 합, 제곱합 -> 모집단 표준편차 (N 으로 나눔).
-static FLOAT64 f_Meas_Std(FLOAT64 sum, FLOAT64 sumSq, INT32 nNum)
+// 세 성분의 크기. 속도면 속력, 축별 표준편차면 RSS.
+static FLOAT64 f_Meas_Norm(const FLOAT64 pt_Value[3])
 {
-	FLOAT64 mean;
-	FLOAT64 std = 0.0;
-
-	if (nNum > 0)
-	{
-		mean	= sum / static_cast<FLOAT64>(nNum);
-		std		= sqrt(fmax(0.0, (sumSq / static_cast<FLOAT64>(nNum)) - (mean * mean)));
-	}
-
-	return std;
+	return sqrt((pt_Value[0] * pt_Value[0]) + (pt_Value[1] * pt_Value[1]) + (pt_Value[2] * pt_Value[2]));
 }
 
 // CPlotResult
 
-// Part 3 결과로 측정 모의 실행 후 그림 좌표, 통계 계산.
+// 궤적 계산 결과로 측정 모의 실행 후 플롯, 클러터의 그림 좌표 계산.
 // 표본은 CSimResult 안의 vector 에 이어져 있어 첫 표본 주소를 배열로 넘김.
 VOID CPlotResult::f_Run(const CSimResult *st_Source, FLOAT64 snr, INT32 nClutterNum)
 {
 	const ST_TargetState	*st_Origin = st_Source->f_GetState(0, 0);
 	const INT32				nScanNum = st_Source->f_GetSampleNum() - 1;
-	FLOAT64					sum[3] = { 0.0, 0.0, 0.0 };
-	FLOAT64					sumSq[3] = { 0.0, 0.0, 0.0 };
 	INT32					nScan;
 	INT32					nTarget;
 	INT32					nClutter;
-	INT32					nPart;
 
 	nTargetNum	= st_Source->f_GetObjectNum() - 1;
 	st_Sigma	= f_Pcs_CalcSigma(snr);
@@ -58,25 +46,13 @@ VOID CPlotResult::f_Run(const CSimResult *st_Source, FLOAT64 snr, INT32 nClutter
 
 	st_PlotPointBuf.clear();
 	st_ClutterPointBuf.assign(static_cast<UINT64>(nScanNum) * PCS_MAX_CLUTTER, ST_PlotPoint());
-	nPlotNum	= 0;
-	nClutterSum	= 0;
 
 	for (nScan = 0; nScan < nScanNum; nScan++)
 	{
 		const ST_PcsScan *st_Scan = &st_ScanBuf[static_cast<UINT64>(nScan)];
 
-		// 플롯 오차 z - x 는 성분마다 넣은 잡음 v 와 같음
 		for (nTarget = 0; nTarget < nTargetNum; nTarget++)
 		{
-			const FLOAT64 diff[3] = { st_Scan->st_Plot[nTarget].r - st_Scan->st_True[nTarget].r, st_Scan->st_Plot[nTarget].az - st_Scan->st_True[nTarget].az,
-				st_Scan->st_Plot[nTarget].el - st_Scan->st_True[nTarget].el };
-
-			for (nPart = 0; nPart < 3; nPart++)
-			{
-				sum[nPart]		= sum[nPart] + diff[nPart];
-				sumSq[nPart]	= sumSq[nPart] + (diff[nPart] * diff[nPart]);
-			}
-
 			st_PlotPointBuf.push_back(f_Meas_ToPoint(&st_Scan->st_PlotLla[nTarget], st_Origin));
 		}
 
@@ -84,14 +60,7 @@ VOID CPlotResult::f_Run(const CSimResult *st_Source, FLOAT64 snr, INT32 nClutter
 		{
 			st_ClutterPointBuf[(static_cast<UINT64>(nScan) * PCS_MAX_CLUTTER) + static_cast<UINT64>(nClutter)] = f_Meas_ToPoint(&st_Scan->st_ClutterLla[nClutter], st_Origin);
 		}
-
-		nPlotNum	= nPlotNum + nTargetNum;
-		nClutterSum	= nClutterSum + st_Scan->nClutterNum;
 	}
-
-	st_ErrorStd.r	= f_Meas_Std(sum[0], sumSq[0], nPlotNum);
-	st_ErrorStd.az	= f_Meas_Std(sum[1], sumSq[1], nPlotNum);
-	st_ErrorStd.el	= f_Meas_Std(sum[2], sumSq[2], nPlotNum);
 }
 
 // 스캔 수.
@@ -145,7 +114,6 @@ INT32 CTrackResult::f_Start(const CSimResult *st_NewSource, const CPlotResult *s
 	st_Source	= st_NewSource;
 	nScanTotal	= nScanNum;
 	st_Status	= {};
-	(VOID)memset(nSourceCount, 0, sizeof(nSourceCount));
 	st_ScanBuf.clear();
 	st_TrackStart.clear();
 	st_TrackBuf.clear();
@@ -225,12 +193,6 @@ VOID CTrackResult::f_AddScan(const ST_LnkScan *st_Scan)
 		st_Item.st_Point	= f_ToPoint(st_Item.st_View.pos, st_Scan->ScanNum);
 		st_Item.st_Lead		= f_ToPoint(lead, st_Scan->ScanNum);
 		st_TrackBuf.push_back(st_Item);
-
-		// 이번 스캔에 만든 트랙만 셈
-		if (st_Item.st_View.nInitScan == static_cast<INT32>(st_Scan->ScanNum))
-		{
-			nSourceCount[(st_Item.nSource == TRK_SOURCE_MIXED) ? (TGT_MAX_TARGET_NUM + 1) : st_Item.nSource]++;
-		}
 	}
 
 	for (nPlot = 0; nPlot < st_Scan->nPlotNum; nPlot++)
@@ -257,6 +219,38 @@ ST_PlotPoint CTrackResult::f_ToPoint(const FLOAT64 pt_Pos[3], UINT32 scanNum) co
 	st_Point.up		= -st_Map.z;
 
 	return st_Point;
+}
+
+// 스캔 nScanNum 까지 받은 스캔에서 만든 트랙 수, 삭제 상태가 된 트랙 수, 만든 트랙의 참값별 수 ([0] 클러터, [k] 표적 k, 마지막 칸 섞임).
+// 받은 스캔은 스캔 번호 순서로 쌓임.
+VOID CTrackResult::f_CountTo(INT32 nScanNum, INT32 *pt_CreatedNum, INT32 *pt_DeletedNum, INT32 pt_Source[TGT_MAX_TARGET_NUM + 2]) const
+{
+	const ST_LnkScan	*st_Scan;
+	const ST_TrackItem	*st_Item;
+	INT32				nIndex;
+	INT32				nTrack;
+
+	*pt_CreatedNum = 0;
+	*pt_DeletedNum = 0;
+	(VOID)memset(pt_Source, 0, sizeof(INT32) * (TGT_MAX_TARGET_NUM + 2));
+
+	for (nIndex = 0; (nIndex < f_GetScanNum()) && (static_cast<INT32>(f_GetScan(nIndex)->ScanNum) <= nScanNum); nIndex++)
+	{
+		st_Scan			= f_GetScan(nIndex);
+		*pt_CreatedNum	= *pt_CreatedNum + st_Scan->st_Log.nCreatedNum;
+		*pt_DeletedNum	= *pt_DeletedNum + st_Scan->st_Log.nDeletedNum;
+
+		for (nTrack = 0; nTrack < f_GetTrackNum(nIndex); nTrack++)
+		{
+			st_Item = f_GetTrack(nIndex, nTrack);
+
+			// 이번 스캔에 만든 트랙만 셈
+			if (st_Item->st_View.nInitScan == static_cast<INT32>(st_Scan->ScanNum))
+			{
+				pt_Source[(st_Item->nSource == TRK_SOURCE_MIXED) ? (TGT_MAX_TARGET_NUM + 1) : st_Item->nSource]++;
+			}
+		}
+	}
 }
 
 // 받은 스캔 수.
@@ -301,7 +295,36 @@ const ST_RecvPlot *CTrackResult::f_GetPlot(INT32 nIndex, INT32 nPlot) const
 	return &st_PlotBuf[static_cast<UINT64>(st_PlotStart[static_cast<UINT64>(nIndex)] + nPlot)];
 }
 
+// 스캔에 받은 플롯을 참값 (송신 쪽 기록) 으로 나눠 셈. 화면 요약용.
+VOID CTrackResult::f_CountPlot(INT32 nIndex, INT32 *pt_TargetNum, INT32 *pt_ClutterNum) const
+{
+	INT32 nSource;
+	INT32 nPlot;
+
+	*pt_TargetNum	= 0;
+	*pt_ClutterNum	= 0;
+
+	for (nPlot = 0; nPlot < f_GetPlotNum(nIndex); nPlot++)
+	{
+		nSource = f_GetPlot(nIndex, nPlot)->nSource;
+
+		if (nSource > 0)
+		{
+			*pt_TargetNum = *pt_TargetNum + 1;
+		}
+		else if (nSource == 0)
+		{
+			*pt_ClutterNum = *pt_ClutterNum + 1;
+		}
+		else
+		{
+			// 송신 쪽 기록에 없는 플롯은 세지 않음
+		}
+	}
+}
+
 // 트랙 표 칸 하나의 글자. 화면 표, CSV 공용. CSV 는 상태, 참값을 숫자로 씀 (참값: k 표적 k, 0 클러터, -1 섞임).
+// 표준편차 열은 오차 공분산 (mat_EstP) 대각의 제곱근을 세 축 RSS 로 묶은 값.
 VOID CTrackResult::f_FormatCell(INT32 nIndex, INT32 nTrack, INT32 nColumn, INT32 isCsv, CHAR *pt_Buf, INT32 bufSize) const
 {
 	const ST_TrackItem	*st_Item = f_GetTrack(nIndex, nTrack);
@@ -363,10 +386,22 @@ VOID CTrackResult::f_FormatCell(INT32 nIndex, INT32 nTrack, INT32 nColumn, INT32
 	{
 		(VOID)_snprintf_s(pt_Buf, size, _TRUNCATE, "%.1f", st_View->vel[nColumn - TRK_COL_VEL]);
 	}
+	else if (nColumn == TRK_COL_SPEED)
+	{
+		(VOID)_snprintf_s(pt_Buf, size, _TRUNCATE, "%.1f", f_Meas_Norm(st_View->vel));
+	}
+	else if (nColumn == TRK_COL_POS_STD)
+	{
+		(VOID)_snprintf_s(pt_Buf, size, _TRUNCATE, "%.1f", f_Meas_Norm(st_View->posStd));
+	}
+	else if (nColumn == TRK_COL_VEL_STD)
+	{
+		(VOID)_snprintf_s(pt_Buf, size, _TRUNCATE, "%.1f", f_Meas_Norm(st_View->velStd));
+	}
 	else
 	{
-		(VOID)_snprintf_s(pt_Buf, size, _TRUNCATE, "%.1f",
-			sqrt((st_View->vel[0] * st_View->vel[0]) + (st_View->vel[1] * st_View->vel[1]) + (st_View->vel[2] * st_View->vel[2])));
+		// 없는 열
+		pt_Buf[0] = '\0';
 	}
 }
 
@@ -385,7 +420,7 @@ INT32 CTrackResult::f_WriteCsv(const CString &st_Path) const
 	if (st_File != nullptr)
 	{
 		(VOID)fputs("scan,time_s,track_id,track_state,track_score,memory_score,assigned_flag,init_scan,init_plot_id_prev,init_plot_id_cur,source,"
-			"north_m,east_m,down_m,v_north_mps,v_east_mps,v_down_mps,speed_mps\r\n", st_File);
+			"north_m,east_m,down_m,v_north_mps,v_east_mps,v_down_mps,speed_mps,pos_std_m,vel_std_mps\r\n", st_File);
 
 		for (nIndex = 0; nIndex < f_GetScanNum(); nIndex++)
 		{

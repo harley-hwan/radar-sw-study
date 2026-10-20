@@ -39,25 +39,13 @@
     <ClInclude Include="UiCommon.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="GridCtrl.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Scenario.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="ScoreDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="CalcLog.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="PlotResult.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="HistView.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RandDlg.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -74,25 +62,13 @@
     <ClCompile Include="TrajectoryPlot.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="GridCtrl.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Scenario.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="ScoreDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="CalcLog.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="PlotResult.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="HistView.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RandDlg.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

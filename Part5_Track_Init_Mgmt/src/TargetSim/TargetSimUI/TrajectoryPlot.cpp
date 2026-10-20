@@ -34,15 +34,15 @@ namespace Gdiplus
 #define PLOT_LABEL_ROOM_X_PX	56.0					// [px @96dpi] 가장자리 시작점의 이름표 자리 (간격 + 글자 폭)
 #define PLOT_LABEL_ROOM_Y_PX	26.0					// [px @96dpi] 가장자리 시작점의 이름표 자리 (간격 + 글자 높이)
 #define PLOT_LABEL_SIDE_MIN		0.3
-#define PLOT_COMPARE_DARK		60						// [%] 비교 결과 선 밝기 (같은 색을 어둡게)
 #define PLOT_COLOR_PLOT			RGB(31, 41, 55)			// 플롯 점. 표적 색 선과 겹쳐도 보이게 검정에 가깝게
 #define PLOT_COLOR_CLUTTER		RGB(156, 163, 175)		// 클러터 점
 #define PLOT_PLOT_RADIUS		1.6F					// [px @96dpi]
 #define PLOT_CLUTTER_RADIUS		1.4F
 #define PLOT_LEGEND_PAD			8.0F					// [px @96dpi]
 
-// 과제 5: 지금 스캔 강조, 트랙 심볼
+// 지금 스캔 강조, 트랙 심볼
 #define PLOT_HISTORY_ALPHA		90						// 지난 스캔 플롯, 클러터의 불투명도
+#define PLOT_FUTURE_ALPHA		60						// 지금 스캔 뒤 참값 궤적 (앞으로 갈 길) 의 불투명도
 #define PLOT_SCAN_RADIUS		3.2F					// [px @96dpi] 지금 스캔에 받은 플롯
 #define PLOT_TRUE_RADIUS		4.0F					// [px @96dpi] 지금 스캔의 참값 위치
 #define PLOT_TRACK_HALF			6.0F					// [px @96dpi] 트랙 사각형 반 변
@@ -64,6 +64,7 @@ namespace Gdiplus
 #define TRK3D_DRAG_DEG_PER_PX	0.4						// 끌기 1 px 당 회전 [deg]
 #define TRK3D_MIN_SPAN			2000.0					// [m]
 #define TRK3D_MIN_UP			1000.0					// [m] 고도 축 최소 길이
+#define TRK3D_SHADOW_ALPHA		170						// 참값 궤적 바닥 그림자 (회색) 의 불투명도
 
 // 범례 줄 종류
 #define PLOT_LEG_LINE			0						// 참값 궤적 · 위치
@@ -82,28 +83,6 @@ typedef struct
 static Gdiplus::Color f_Plot_Color(COLORREF color, INT32 alpha)
 {
 	return Gdiplus::Color(static_cast<UINT8>(alpha), GetRValue(color), GetGValue(color), GetBValue(color));
-}
-
-// 궤적 선 색. 비교 결과는 같은 색을 어둡게.
-static Gdiplus::Color f_Plot_TrackColor(INT32 nObject, INT32 isCompare)
-{
-	const COLORREF	color = f_Ui_ObjectColor(nObject);
-	const INT32		percent = (isCompare != 0) ? PLOT_COMPARE_DARK : 100;
-
-	return f_Plot_Color(RGB((GetRValue(color) * percent) / 100, (GetGValue(color) * percent) / 100, (GetBValue(color) * percent) / 100), 255);
-}
-
-// 궤적 선 모양. 꺾이는 곳은 둥글게, 비교 결과는 점선.
-static VOID f_Plot_SetTrackStyle(Gdiplus::Pen *st_Pen, INT32 isCompare)
-{
-	static const Gdiplus::REAL s_Dash[2] = { 4.0F, 3.0F };					// 선, 빈칸 길이 (선 굵기 배)
-
-	(VOID)st_Pen->SetLineJoin(Gdiplus::LineJoinRound);
-
-	if (isCompare != 0)
-	{
-		(VOID)st_Pen->SetDashPattern(s_Dash, 2);
-	}
 }
 
 // 좌표 -> 정수 픽셀 반올림.
@@ -222,11 +201,11 @@ static CString f_Plot_ObjectName(INT32 nObject)
 	return st_Name;
 }
 
-// 평면 제목. 보이는 것 (궤적, 플롯, 클러터, 트랙) 만 적음.
-static CString f_Plot_MapTitle(INT32 isTrack, INT32 isPlot, INT32 isClutter, INT32 isTrackSymbol)
+// 평면 제목. 보이는 것 (참값, 플롯, 클러터, 트랙) 만 적음.
+static CString f_Plot_MapTitle(INT32 isTrue, INT32 isPlot, INT32 isClutter, INT32 isTrack)
 {
-	static const LPCTSTR	s_Part[4] = { _T("궤적"), _T("플롯"), _T("클러터"), _T("트랙") };
-	const INT32				isShown[4] = { isTrack, isPlot, isClutter, isTrackSymbol };
+	static const LPCTSTR	s_Part[4] = { _T("참값"), _T("플롯"), _T("클러터"), _T("트랙") };
+	const INT32				isShown[4] = { isTrue, isPlot, isClutter, isTrack };
 	CString					st_Title;
 	INT32					nPart;
 
@@ -320,8 +299,33 @@ static VOID f_Plot_TrackSymbol(Gdiplus::Graphics *st_Graphics, const Gdiplus::Fo
 	f_Plot_TrackBox(st_Graphics, static_cast<FLOAT32>(x), static_cast<FLOAT32>(y), half, st_View->TrackState, scale);
 
 	st_Id.Format(_T("%u"), st_View->TrackId);
-	f_Plot_LabelText(st_Graphics, st_Font, st_Id, x + static_cast<FLOAT64>(half) + 2.0, y - static_cast<FLOAT64>(half),
-		Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, f_Plot_TrackStateColor(st_View->TrackState));
+
+	// 삭제 트랙은 같은 표적에 새로 만든 트랙과 자리가 거의 같아 ID 를 왼쪽 아래에 씀 (새 트랙 ID 는 오른쪽 위)
+	if (st_View->TrackState == TRK_STATE_DELETED)
+	{
+		f_Plot_LabelText(st_Graphics, st_Font, st_Id, x - static_cast<FLOAT64>(half) - 2.0, y + static_cast<FLOAT64>(half),
+			Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentNear, f_Plot_TrackStateColor(st_View->TrackState));
+	}
+	else
+	{
+		f_Plot_LabelText(st_Graphics, st_Font, st_Id, x + static_cast<FLOAT64>(half) + 2.0, y - static_cast<FLOAT64>(half),
+			Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, f_Plot_TrackStateColor(st_View->TrackState));
+	}
+}
+
+// 지난 스캔 점 여러 개를 한 번에 그림. 스캔마다 쌓여 수천 개가 되므로 하나씩 안티앨리어싱 원으로 그리지 않고 작은 사각형으로 모아 그림
+// (원으로 그리면 그리는 시간이 스캔 수에 비례해 늘어 다시 보내기 중 화면이 스캔을 건너뜀).
+static VOID f_Plot_FillDots(Gdiplus::Graphics *st_Graphics, COLORREF color, const std::vector<Gdiplus::RectF> &st_Dot)
+{
+	const Gdiplus::SmoothingMode	mode = st_Graphics->GetSmoothingMode();
+	Gdiplus::SolidBrush				st_Brush(f_Plot_Color(color, PLOT_HISTORY_ALPHA));
+
+	if (st_Dot.empty() == false)
+	{
+		(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
+		(VOID)st_Graphics->FillRectangles(&st_Brush, st_Dot.data(), static_cast<INT32>(st_Dot.size()));
+		(VOID)st_Graphics->SetSmoothingMode(mode);
+	}
 }
 
 // 지금 스캔에 받은 플롯: 흰 테를 두른 점 (표적 플롯은 검정, 클러터는 회색).
@@ -458,8 +462,8 @@ static VOID f_Plot_Legend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *s
 	}
 }
 
-// 보이는 것에 맞춘 범례 줄. 트랙 결과가 있으면 지금 스캔 기호 설명을 붙임. 줄 수 반환.
-static INT32 f_Plot_LegendRows(ST_LegendRow *st_Row, INT32 isShowTrue, INT32 isShowPlot, INT32 isShowClutter, INT32 isShowTrack, INT32 isTrackMode)
+// 보이는 것에 맞춘 범례 줄. 줄 수 반환.
+static INT32 f_Plot_LegendRows(ST_LegendRow *st_Row, INT32 isShowTrue, INT32 isShowPlot, INT32 isShowClutter, INT32 isShowTrack)
 {
 	INT32 nRowNum = 0;
 
@@ -467,7 +471,7 @@ static INT32 f_Plot_LegendRows(ST_LegendRow *st_Row, INT32 isShowTrue, INT32 isS
 	{
 		st_Row[nRowNum].nKind	= PLOT_LEG_LINE;
 		st_Row[nRowNum].color	= UI_COLOR_TEXT_SUB;
-		st_Row[nRowNum].st_Name	= (isTrackMode != 0) ? _T("참값 궤적, 지금 위치 (표적 색)") : _T("참값 궤적 (표적 색)");
+		st_Row[nRowNum].st_Name	= _T("참값 궤적, 지금 위치 (표적 색)");
 		nRowNum++;
 	}
 
@@ -475,7 +479,7 @@ static INT32 f_Plot_LegendRows(ST_LegendRow *st_Row, INT32 isShowTrue, INT32 isS
 	{
 		st_Row[nRowNum].nKind	= PLOT_LEG_DOT;
 		st_Row[nRowNum].color	= PLOT_COLOR_PLOT;
-		st_Row[nRowNum].st_Name	= (isTrackMode != 0) ? _T("플롯 (큰 점은 지금 스캔)") : _T("플롯");
+		st_Row[nRowNum].st_Name	= _T("플롯 (큰 점은 지금 스캔)");
 		nRowNum++;
 	}
 
@@ -487,7 +491,7 @@ static INT32 f_Plot_LegendRows(ST_LegendRow *st_Row, INT32 isShowTrue, INT32 isS
 		nRowNum++;
 	}
 
-	if ((isTrackMode != 0) && (isShowTrack != 0))
+	if (isShowTrack != 0)
 	{
 		st_Row[nRowNum].nKind	= PLOT_LEG_TRACKS;
 		st_Row[nRowNum].color	= UI_COLOR_TEXT;
@@ -509,10 +513,9 @@ BEGIN_MESSAGE_MAP(CTrajectoryPlot, CStatic)
 	ON_WM_CAPTURECHANGED()
 END_MESSAGE_MAP()
 
-// 궤적 그림. 결과 버퍼는 대화상자 소유, 여기서는 읽기만.
+// 2D 그림. 결과 버퍼는 대화상자 소유, 여기서는 읽기만.
 CTrajectoryPlot::CTrajectoryPlot() noexcept
 	: st_Result(nullptr)
-	, st_Compare(nullptr)
 	, st_Measure(nullptr)
 	, st_Track(nullptr)
 	, isShowTrue(1)
@@ -545,37 +548,23 @@ VOID CTrajectoryPlot::f_SetDpi(INT32 newDpi)
 	dpi = newDpi;
 }
 
-// 그릴 결과 교체 후 다시 그리기. 재계산, 비교 켜기 / 끄기마다 호출. 비교 결과는 크기가 같을 때만 씀.
-VOID CTrajectoryPlot::f_SetResult(const CSimResult *st_NewResult, const CSimResult *st_NewCompare)
+// 그릴 결과 교체 후 다시 그리기. 측정 모의, 트랙 결과는 st_NewResult 와 같은 실행의 것이어야 함.
+VOID CTrajectoryPlot::f_SetData(const CSimResult *st_NewResult, const CPlotResult *st_NewMeasure, const CTrackResult *st_NewTrack)
 {
 	st_Result	= st_NewResult;
-	st_Compare	= nullptr;
-
-	if ((st_NewCompare != nullptr) && (st_NewCompare->f_GetSampleNum() == st_NewResult->f_GetSampleNum())
-		&& (st_NewCompare->f_GetObjectNum() == st_NewResult->f_GetObjectNum()))
-	{
-		st_Compare = st_NewCompare;
-	}
+	st_Measure	= st_NewMeasure;
+	st_Track	= st_NewTrack;
 
 	Invalidate(FALSE);
 }
 
-// 측정 모의 결과와 표시 여부 (참값 궤적, 플롯, 클러터) 교체 후 다시 그리기. 결과는 st_Result 와 같은 실행의 것이어야 함.
-VOID CTrajectoryPlot::f_SetMeasure(const CPlotResult *st_NewMeasure, INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter)
+// 표시 여부 (참값, 플롯, 클러터, 트랙) 교체 후 다시 그리기.
+VOID CTrajectoryPlot::f_SetShow(INT32 isNewShowTrue, INT32 isNewShowPlot, INT32 isNewShowClutter, INT32 isNewShowTrack)
 {
-	st_Measure		= st_NewMeasure;
 	isShowTrue		= isNewShowTrue;
 	isShowPlot		= isNewShowPlot;
 	isShowClutter	= isNewShowClutter;
-
-	Invalidate(FALSE);
-}
-
-// 트랙 결과와 트랙 표시 여부 교체 후 다시 그리기.
-VOID CTrajectoryPlot::f_SetTrack(const CTrackResult *st_NewTrack, INT32 isNewShowTrack)
-{
-	st_Track	= st_NewTrack;
-	isShowTrack	= isNewShowTrack;
+	isShowTrack		= isNewShowTrack;
 
 	Invalidate(FALSE);
 }
@@ -712,7 +701,7 @@ VOID CTrajectoryPlot::OnPaint(VOID)
 	st_OldBitmap = st_MemDc.SelectObject(&st_Bitmap);
 	st_MemDc.FillSolidRect(&st_Client, UI_COLOR_CARD);
 
-	if ((st_Result != nullptr) && (st_Client.Width() > 0) && (st_Client.Height() > 0))
+	if ((st_Result != nullptr) && (st_Measure != nullptr) && (st_Track != nullptr) && (st_Client.Width() > 0) && (st_Client.Height() > 0))
 	{
 		f_ComputeLayout(st_Client);
 		f_ComputeView();
@@ -736,7 +725,8 @@ VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 		st_Client.right - f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi), st_Client.bottom - f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi));
 }
 
-// 모든 점이 들어가는 축척, 중심, 눈금 간격 계산. 참값 궤적은 숨겨도 범위에 넣어 켜고 끌 때 축척이 바뀌지 않게 함.
+// 모든 점이 들어가는 축척, 중심, 눈금 간격 계산. 참값 궤적은 숨겨도 범위에 넣어 켜고 끌 때 축척이 바뀌지 않게 하고,
+// 플롯, 클러터는 지금 스캔이 아니라 전체 스캔을 넣어 스캔을 바꿔도 축척이 그대로이게 함.
 // 휠로 확대한 배율, 끌어 옮긴 양은 이 처음 보기에 곱하고 더함.
 VOID CTrajectoryPlot::f_ComputeView(VOID)
 {
@@ -745,9 +735,6 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	const FLOAT64			width = static_cast<FLOAT64>(st_MapArea.Width());
 	const FLOAT64			height = static_cast<FLOAT64>(st_MapArea.Height());
 	const FLOAT64			scale = static_cast<FLOAT64>(f_Ui_Scale(100, dpi)) / 100.0;
-	const CSimResult		*st_Source[2] = { st_Result, st_Compare };
-	const INT32				nSourceNum = (st_Compare != nullptr) ? 2 : 1;
-	const ST_PlotPoint		*st_Point;
 	FLOAT64					minEast = 0.0;
 	FLOAT64					maxEast = 0.0;
 	FLOAT64					minNorth = 0.0;
@@ -759,42 +746,31 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 	STRUCT_Coord_Lla		st_Center;
 	STRUCT_Coord_Lla		st_Low;
 	STRUCT_Coord_Lla		st_High;
-	INT32					nSource;
 	INT32					nStep;
 	INT32					nObject;
 	INT32					nScan;
 	INT32					nIndex;
 
-	// 원점(플랫폼 초기 위치)은 항상 포함. 비교 결과가 있으면 함께 포함.
-	for (nSource = 0; nSource < nSourceNum; nSource++)
+	// 원점(플랫폼 초기 위치)은 항상 포함.
+	for (nStep = 0; nStep < nSampleNum; nStep++)
 	{
-		for (nStep = 0; nStep < nSampleNum; nStep++)
+		for (nObject = 0; nObject < nObjectNum; nObject++)
 		{
-			for (nObject = 0; nObject < nObjectNum; nObject++)
-			{
-				st_Point	= st_Source[nSource]->f_GetPoint(nStep, nObject);
-				minEast		= fmin(minEast, st_Point->east);
-				maxEast		= fmax(maxEast, st_Point->east);
-				minNorth	= fmin(minNorth, st_Point->north);
-				maxNorth	= fmax(maxNorth, st_Point->north);
-			}
+			f_Plot_Include(st_Result->f_GetPoint(nStep, nObject), &minEast, &maxEast, &minNorth, &maxNorth);
 		}
 	}
 
-	// 보이는 측정 모의 점도 포함. 클러터를 보이면 FOV 부채꼴이 다 들어옴.
-	if (st_Measure != nullptr)
+	// 보이는 플롯, 클러터도 포함. 클러터를 보이면 FOV 부채꼴이 다 들어옴.
+	for (nScan = 0; nScan < st_Measure->f_GetScanNum(); nScan++)
 	{
-		for (nScan = 0; nScan < st_Measure->f_GetScanNum(); nScan++)
+		for (nIndex = 0; (isShowPlot != 0) && (nIndex < st_Measure->f_GetTargetNum()); nIndex++)
 		{
-			for (nIndex = 0; (isShowPlot != 0) && (nIndex < st_Measure->f_GetTargetNum()); nIndex++)
-			{
-				f_Plot_Include(st_Measure->f_GetPlotPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
-			}
+			f_Plot_Include(st_Measure->f_GetPlotPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
+		}
 
-			for (nIndex = 0; (isShowClutter != 0) && (nIndex < st_Measure->f_GetScan(nScan)->nClutterNum); nIndex++)
-			{
-				f_Plot_Include(st_Measure->f_GetClutterPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
-			}
+		for (nIndex = 0; (isShowClutter != 0) && (nIndex < st_Measure->f_GetScan(nScan)->nClutterNum); nIndex++)
+		{
+			f_Plot_Include(st_Measure->f_GetClutterPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
 		}
 	}
 
@@ -857,8 +833,8 @@ ST_PlotPoint CTrajectoryPlot::f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const
 	return st_Point;
 }
 
-// 동-북 평면: 위경도 격자, 궤적, 시작점 그리기. 참값 궤적을 숨기면 플랫폼 (레이다) 시작점만 그림.
-// 트랙 결과가 있으면 (과제 5) 맨 위에 지금 스캔의 참값 위치, 받은 플롯, 트랙을 그림.
+// 동-북 평면: 위경도 격자, 시작점 이름표, 지난 스캔 플롯 · 클러터, 참값 궤적 (지금 스캔 뒤는 옅게), 시작점을 깔고 맨 위에 지금 스캔의 참값 위치, 받은 플롯, 트랙을 그림.
+// 참값을 숨기면 시작점은 플랫폼 (레이다) 만 그림.
 VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -869,11 +845,6 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	Gdiplus::Pen				st_FramePen(f_Plot_Color(UI_COLOR_BORDER, 255), 1.0F);
 	const Gdiplus::Rect			st_Clip(st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
 	const INT32					nStartNum = (isShowTrue != 0) ? st_Result->f_GetObjectNum() : 1;	// 시작점을 그릴 객체 수 (0 = 플랫폼)
-	const INT32					isPlotShown = ((st_Measure != nullptr) && (isShowPlot != 0)) ? 1 : 0;
-	const INT32					isClutterShown = ((st_Measure != nullptr) && (isShowClutter != 0)) ? 1 : 0;
-	const INT32					isTrackMode = (st_Track != nullptr) ? 1 : 0;
-	const INT32					isTrackShown = ((isTrackMode != 0) && (isShowTrack != 0)) ? 1 : 0;
-	const INT32					isLegendShown = ((isTrackMode != 0) || (isPlotShown != 0) || (isClutterShown != 0)) ? 1 : 0;
 	const FLOAT64				halfEast = (0.5 * static_cast<FLOAT64>(st_MapArea.Width())) / pixelPerMeter;
 	const FLOAT64				halfNorth = (0.5 * static_cast<FLOAT64>(st_MapArea.Height())) / pixelPerMeter;
 	ST_PlotPoint				st_Point;
@@ -925,22 +896,12 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 
 	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_MapArea.left, st_MapArea.top, st_MapArea.Width(), st_MapArea.Height());
 
-	f_Plot_Text(st_Graphics, &st_Bold, f_Plot_MapTitle(isShowTrue, isPlotShown, isClutterShown, isTrackShown),
+	f_Plot_Text(st_Graphics, &st_Bold, f_Plot_MapTitle(isShowTrue, isShowPlot, isShowClutter, isShowTrack),
 		static_cast<FLOAT64>(st_MapArea.left), static_cast<FLOAT64>(st_MapArea.top) - 5.0, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT);
 	f_Plot_Text(st_Graphics, &st_Font, CString(_T("Lon [deg]")), static_cast<FLOAT64>(st_MapArea.right) - 6.0, static_cast<FLOAT64>(st_MapArea.bottom) - 4.0,
 		Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT_OFF);
 	f_Plot_Text(st_Graphics, &st_Font, CString(_T("Lat [deg]")), static_cast<FLOAT64>(st_MapArea.left) + 6.0, static_cast<FLOAT64>(st_MapArea.top) + 4.0,
 		Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_OFF);
-
-	if ((isShowTrue != 0) && (st_Compare != nullptr))
-	{
-		f_Plot_Text(st_Graphics, &st_Font, CString(_T("점선 = 플랫폼 기준")), static_cast<FLOAT64>(st_MapArea.right), static_cast<FLOAT64>(st_MapArea.top) - 5.0,
-			Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT_SUB);
-	}
-	else
-	{
-		// 덧붙일 말 없음
-	}
 
 	// 확대 중이면 평면 왼쪽 위 안쪽 (Lat 글자 아래) 에 배율. 제목, 범례와 겹치지 않는 자리
 	if (zoom > 1.0)
@@ -954,23 +915,18 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	(VOID)st_Graphics->SetClip(st_Clip);
 
-	// 측정 모의 점은 궤적 아래에 깔아 참값 선이 가려지지 않게 함.
-	f_DrawMapMeasure(st_Graphics);
-
-	// 참값 궤적. 비교 결과는 점선으로 위에 겹침 (평면에서는 거의 같은 자리).
-	if (isShowTrue != 0)
-	{
-		f_DrawMapTrack(st_Graphics, st_Result, 0);
-
-		if (st_Compare != nullptr)
-		{
-			f_DrawMapTrack(st_Graphics, st_Compare, 1);
-		}
-	}
-
-	// 시작점. 이름표의 흰 바탕이 시작점 원을 가리지 않게 이름표를 먼저 그림.
+	// 시작점 이름표는 맨 먼저 깔아, 흰 바탕이 시작점 원이나 그 근처를 지나는 다른 표적의 궤적, 플롯, 트랙을 가리지 않게 함.
 	f_DrawStartLabels(st_Graphics, &st_Font, nStartNum);
 
+	// 지난 스캔 플롯, 클러터는 궤적 아래에 깔아 참값 선이 가려지지 않게 함.
+	f_DrawMapHistory(st_Graphics);
+
+	if (isShowTrue != 0)
+	{
+		f_DrawMapTruth(st_Graphics);
+	}
+
+	// 시작점 원
 	for (nObject = 0; nObject < nStartNum; nObject++)
 	{
 		const FLOAT32		radius = 5.0F * scale;
@@ -982,89 +938,90 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 		(VOID)st_Graphics->DrawEllipse(&st_Ring, static_cast<FLOAT32>(x) - radius, static_cast<FLOAT32>(y) - radius, 2.0F * radius, 2.0F * radius);
 	}
 
-	if (isTrackMode != 0)
-	{
-		f_DrawMapScan(st_Graphics, &st_Font);
-	}
-
-	if (isLegendShown != 0)
-	{
-		f_DrawMeasureLegend(st_Graphics, &st_Font);
-	}
+	f_DrawMapScan(st_Graphics, &st_Font);
+	f_DrawMapLegend(st_Graphics, &st_Font);
 
 	(VOID)st_Graphics->ResetClip();
 }
 
-// 평면에 결과 하나의 궤적 그리기.
-VOID CTrajectoryPlot::f_DrawMapTrack(Gdiplus::Graphics *st_Graphics, const CSimResult *st_Source, INT32 isCompare) const
+// 평면에 참값 궤적 그리기. 객체 색 선, 꺾이는 곳은 둥글게. 지금 스캔까지는 진하게, 그 뒤 (앞으로 갈 길) 는 옅게.
+VOID CTrajectoryPlot::f_DrawMapTruth(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32					scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
-	const INT32						nSampleNum = st_Source->f_GetSampleNum();
+	const INT32						nSampleNum = st_Result->f_GetSampleNum();
+	const INT32						nNow = std::min(std::max(nCurScan, 0), nSampleNum - 1);		// 지금 스캔의 표본
 	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
 	FLOAT64							x = 0.0;
 	FLOAT64							y = 0.0;
 	INT32							nObject;
 	INT32							nSample;
 
-	for (nObject = 0; nObject < st_Source->f_GetObjectNum(); nObject++)
+	for (nObject = 0; nObject < st_Result->f_GetObjectNum(); nObject++)
 	{
-		Gdiplus::Pen st_TrackPen(f_Plot_TrackColor(nObject, isCompare), ((isCompare != 0) ? 1.4F : 2.0F) * scale);
+		Gdiplus::Pen st_TruthPen(f_Plot_Color(f_Ui_ObjectColor(nObject), 255), 2.0F * scale);
+		Gdiplus::Pen st_FuturePen(f_Plot_Color(f_Ui_ObjectColor(nObject), PLOT_FUTURE_ALPHA), 1.4F * scale);
 
-		f_Plot_SetTrackStyle(&st_TrackPen, isCompare);
+		(VOID)st_TruthPen.SetLineJoin(Gdiplus::LineJoinRound);
+		(VOID)st_FuturePen.SetLineJoin(Gdiplus::LineJoinRound);
 
 		for (nSample = 0; nSample < nSampleNum; nSample++)
 		{
-			f_MapToPixel(st_Source->f_GetPoint(nSample, nObject), &x, &y);
+			f_MapToPixel(st_Result->f_GetPoint(nSample, nObject), &x, &y);
 			st_Line[static_cast<UINT64>(nSample)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
 		}
 
-		(VOID)st_Graphics->DrawLines(&st_TrackPen, st_Line.data(), nSampleNum);
+		if (nNow < (nSampleNum - 1))
+		{
+			(VOID)st_Graphics->DrawLines(&st_FuturePen, st_Line.data() + nNow, nSampleNum - nNow);
+		}
+
+		if (nNow > 0)
+		{
+			(VOID)st_Graphics->DrawLines(&st_TruthPen, st_Line.data(), nNow + 1);
+		}
 	}
 }
 
-// 평면에 측정 모의 점 그리기. 클러터를 먼저, 플롯을 그 위에.
-// 트랙 결과가 있으면 (과제 5) 지금 스캔까지만 옅게 그림. 지금 스캔은 f_DrawMapScan 이 받은 플롯으로 따로 그림.
-VOID CTrajectoryPlot::f_DrawMapMeasure(Gdiplus::Graphics *st_Graphics) const
+// 평면에 지금 스캔까지의 플롯, 클러터를 옅게 그림. 클러터를 먼저, 플롯을 그 위에.
+// 지금 스캔은 f_DrawMapScan 이 데이터 처리 쪽이 받은 플롯으로 따로 강조함.
+VOID CTrajectoryPlot::f_DrawMapHistory(Gdiplus::Graphics *st_Graphics) const
 {
-	const FLOAT32		scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
-	const FLOAT32		clutterRadius = PLOT_CLUTTER_RADIUS * scale;
-	const FLOAT32		plotRadius = PLOT_PLOT_RADIUS * scale;
-	const INT32			alpha = (st_Track != nullptr) ? PLOT_HISTORY_ALPHA : 255;
-	Gdiplus::SolidBrush	st_ClutterBrush(f_Plot_Color(PLOT_COLOR_CLUTTER, alpha));
-	Gdiplus::SolidBrush	st_PlotBrush(f_Plot_Color(PLOT_COLOR_PLOT, alpha));
-	FLOAT64				x = 0.0;
-	FLOAT64				y = 0.0;
-	INT32				nScanEnd;
-	INT32				nScan;
-	INT32				nIndex;
+	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
+	const FLOAT32				clutterRadius = PLOT_CLUTTER_RADIUS * scale;
+	const FLOAT32				plotRadius = PLOT_PLOT_RADIUS * scale;
+	const INT32					nScanEnd = std::min(nCurScan + 1, st_Measure->f_GetScanNum());
+	std::vector<Gdiplus::RectF>	st_Dot;
+	FLOAT64						x = 0.0;
+	FLOAT64						y = 0.0;
+	INT32						nScan;
+	INT32						nIndex;
 
-	if (st_Measure != nullptr)
+	for (nScan = 0; (isShowClutter != 0) && (nScan < nScanEnd); nScan++)
 	{
-		nScanEnd = (st_Track != nullptr) ? std::min(nCurScan + 1, st_Measure->f_GetScanNum()) : st_Measure->f_GetScanNum();
-
-		for (nScan = 0; (isShowClutter != 0) && (nScan < nScanEnd); nScan++)
+		for (nIndex = 0; nIndex < st_Measure->f_GetScan(nScan)->nClutterNum; nIndex++)
 		{
-			for (nIndex = 0; nIndex < st_Measure->f_GetScan(nScan)->nClutterNum; nIndex++)
-			{
-				f_MapToPixel(st_Measure->f_GetClutterPoint(nScan, nIndex), &x, &y);
-				(VOID)st_Graphics->FillEllipse(&st_ClutterBrush, static_cast<FLOAT32>(x) - clutterRadius, static_cast<FLOAT32>(y) - clutterRadius,
-					2.0F * clutterRadius, 2.0F * clutterRadius);
-			}
-		}
-
-		for (nScan = 0; (isShowPlot != 0) && (nScan < nScanEnd); nScan++)
-		{
-			for (nIndex = 0; nIndex < st_Measure->f_GetTargetNum(); nIndex++)
-			{
-				f_MapToPixel(st_Measure->f_GetPlotPoint(nScan, nIndex), &x, &y);
-				(VOID)st_Graphics->FillEllipse(&st_PlotBrush, static_cast<FLOAT32>(x) - plotRadius, static_cast<FLOAT32>(y) - plotRadius,
-					2.0F * plotRadius, 2.0F * plotRadius);
-			}
+			f_MapToPixel(st_Measure->f_GetClutterPoint(nScan, nIndex), &x, &y);
+			st_Dot.push_back(Gdiplus::RectF(static_cast<FLOAT32>(x) - clutterRadius, static_cast<FLOAT32>(y) - clutterRadius, 2.0F * clutterRadius,
+				2.0F * clutterRadius));
 		}
 	}
+
+	f_Plot_FillDots(st_Graphics, PLOT_COLOR_CLUTTER, st_Dot);
+	st_Dot.clear();
+
+	for (nScan = 0; (isShowPlot != 0) && (nScan < nScanEnd); nScan++)
+	{
+		for (nIndex = 0; nIndex < st_Measure->f_GetTargetNum(); nIndex++)
+		{
+			f_MapToPixel(st_Measure->f_GetPlotPoint(nScan, nIndex), &x, &y);
+			st_Dot.push_back(Gdiplus::RectF(static_cast<FLOAT32>(x) - plotRadius, static_cast<FLOAT32>(y) - plotRadius, 2.0F * plotRadius, 2.0F * plotRadius));
+		}
+	}
+
+	f_Plot_FillDots(st_Graphics, PLOT_COLOR_PLOT, st_Dot);
 }
 
-// 지금 스캔 (과제 5): 데이터 처리 쓰레드가 받은 플롯 (큰 점), 참값 위치 (객체 색 마름모), 트랙 (상태 사각형 + 속도 선 + ID).
+// 지금 스캔: 데이터 처리 쓰레드가 받은 플롯 (큰 점), 참값 위치 (객체 색 마름모), 트랙 (상태 사각형 + 속도 선 + ID).
 VOID CTrajectoryPlot::f_DrawMapScan(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
 {
 	const FLOAT32		scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -1104,29 +1061,27 @@ VOID CTrajectoryPlot::f_DrawMapScan(Gdiplus::Graphics *st_Graphics, const Gdiplu
 	}
 }
 
-// 범례 (평면 오른쪽 위 안쪽). 참값은 객체 색 선, 플롯과 클러터는 점, 트랙은 상태별 사각형. 보이는 것만 적음.
-VOID CTrajectoryPlot::f_DrawMeasureLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
+// 범례. 참값은 객체 색 선, 플롯과 클러터는 점, 트랙은 상태별 사각형. 보이는 것만 적음.
+// 표적이 많은 북쪽을 가리지 않게 평면 오른쪽 아래 안쪽에 둠.
+VOID CTrajectoryPlot::f_DrawMapLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
 {
 	const FLOAT32	scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
-	const INT32		isTrackMode = (st_Track != nullptr) ? 1 : 0;
 	ST_LegendRow	st_Row[PLOT_LEG_MAX];
 	INT32			nRowNum;
 
-	nRowNum = f_Plot_LegendRows(st_Row, isShowTrue, ((st_Measure != nullptr) && (isShowPlot != 0)) ? 1 : 0,
-		((st_Measure != nullptr) && (isShowClutter != 0)) ? 1 : 0, isShowTrack, isTrackMode);
+	nRowNum = f_Plot_LegendRows(st_Row, isShowTrue, isShowPlot, isShowClutter, isShowTrack);
 
-	// 트랙 결과가 있으면 표적이 많은 북쪽을 가리지 않게 오른쪽 아래에 둠
 	if (nRowNum > 0)
 	{
-		f_Plot_Legend(st_Graphics, st_Font, st_Row, nRowNum, st_MapArea, isTrackMode, scale);
+		f_Plot_Legend(st_Graphics, st_Font, st_Row, nRowNum, st_MapArea, 1, scale);
 	}
 }
 
-// 시작점 이름표 (앞 nStartNum 객체). 출발 방향 반대쪽에 표시. 측정 모의 점을 보일 때는 흰 바탕을 깔아 읽히게 함.
+// 시작점 이름표 (앞 nStartNum 객체). 출발 방향 반대쪽에 표시. 플롯, 클러터를 보일 때는 흰 바탕을 깔아 읽히게 함.
 VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, INT32 nStartNum) const
 {
 	const FLOAT64				gap = PLOT_LABEL_GAP_PX * static_cast<FLOAT64>(f_Ui_Scale(100, dpi)) / 100.0;
-	const INT32					isBacked = ((st_Measure != nullptr) && ((isShowPlot != 0) || (isShowClutter != 0))) ? 1 : 0;
+	const INT32					isBacked = ((isShowPlot != 0) || (isShowClutter != 0)) ? 1 : 0;
 	Gdiplus::StringAlignment	alignX;
 	Gdiplus::StringAlignment	alignY;
 	FLOAT64						x = 0.0;
@@ -1364,7 +1319,7 @@ VOID CTrackView3D::OnPaint(VOID)
 	st_OldBitmap = st_MemDc.SelectObject(&st_Bitmap);
 	st_MemDc.FillSolidRect(&st_Client, UI_COLOR_CARD);
 
-	if ((st_Result != nullptr) && (st_Client.Width() > 0) && (st_Client.Height() > 0))
+	if ((st_Result != nullptr) && (st_Measure != nullptr) && (st_Track != nullptr) && (st_Client.Width() > 0) && (st_Client.Height() > 0))
 	{
 		f_ComputeView(st_Client);
 
@@ -1380,7 +1335,8 @@ VOID CTrackView3D::OnPaint(VOID)
 	(VOID)st_MemDc.SelectObject(st_OldBitmap);
 }
 
-// 장면 범위 (참값 궤적, 보이는 플롯 · 클러터) 와, 그 상자가 지금 보는 방향에서 그림 영역에 들어가는 축척 계산.
+// 장면 범위 (바닥은 참값 궤적과 보이는 표적 플롯, 고도는 참값 궤적) 와, 그 상자가 지금 보는 방향에서 그림 영역에 들어가는 축척 계산.
+// 클러터는 고각 30 도까지 퍼져 7 km 넘게 올라가므로 범위에 넣지 않음 (넣으면 고도가 늘 1 배가 됨).
 VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 {
 	const INT32		nSampleNum = st_Result->f_GetSampleNum();
@@ -1393,6 +1349,7 @@ VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 	FLOAT64			x = 0.0;
 	FLOAT64			y = 0.0;
 	FLOAT64			upMax = 0.0;
+	FLOAT64			upStep;
 	INT32			nStep;
 	INT32			nObject;
 	INT32			nScan;
@@ -1416,21 +1373,11 @@ VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 		}
 	}
 
-	if (st_Measure != nullptr)
+	for (nScan = 0; (isShowPlot != 0) && (nScan < st_Measure->f_GetScanNum()); nScan++)
 	{
-		for (nScan = 0; nScan < st_Measure->f_GetScanNum(); nScan++)
+		for (nIndex = 0; nIndex < st_Measure->f_GetTargetNum(); nIndex++)
 		{
-			for (nIndex = 0; (isShowPlot != 0) && (nIndex < st_Measure->f_GetTargetNum()); nIndex++)
-			{
-				f_Plot_Include(st_Measure->f_GetPlotPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
-				upMax = fmax(upMax, st_Measure->f_GetPlotPoint(nScan, nIndex)->up);
-			}
-
-			for (nIndex = 0; (isShowClutter != 0) && (nIndex < st_Measure->f_GetScan(nScan)->nClutterNum); nIndex++)
-			{
-				f_Plot_Include(st_Measure->f_GetClutterPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
-				upMax = fmax(upMax, st_Measure->f_GetClutterPoint(nScan, nIndex)->up);
-			}
+			f_Plot_Include(st_Measure->f_GetPlotPoint(nScan, nIndex), &minEast, &maxEast, &minNorth, &maxNorth);
 		}
 	}
 
@@ -1447,7 +1394,8 @@ VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 		maxNorth = minNorth + TRK3D_MIN_SPAN;
 	}
 
-	maxUp		= fmax(upMax, TRK3D_MIN_UP);
+	upStep		= f_Plot_NiceStepMeter(fmax(upMax, TRK3D_MIN_UP), 4.0);
+	maxUp		= ceil(fmax(upMax, TRK3D_MIN_UP) / upStep) * upStep;		// 고도 기둥 맨 위 눈금이 가장 높은 참값 위에 오게
 	gridStep	= f_Plot_NiceStepMeter(fmax(maxEast - minEast, maxNorth - minNorth), 6.0);
 	upScale		= floor(fmax(1.0, fmin(TRK3D_UP_SCALE_MAX, (TRK3D_UP_RATIO * fmax(maxEast - minEast, maxNorth - minNorth)) / maxUp)) + 0.5);
 	centerEast	= 0.5 * (minEast + maxEast);
@@ -1484,6 +1432,14 @@ VOID CTrackView3D::f_Project(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT6
 
 	*pt_X = (static_cast<FLOAT64>(st_Area.left) + (0.5 * static_cast<FLOAT64>(st_Area.Width()))) + (across * pixelPerMeter);
 	*pt_Y = (static_cast<FLOAT64>(st_Area.top) + (0.5 * static_cast<FLOAT64>(st_Area.Height()))) - (((up * cos(viewPitch)) + (depth * sin(viewPitch))) * pixelPerMeter);
+}
+
+// 점이 장면 상자 (그려진 바닥 격자 범위, 고도 maxUp 아래) 안이면 1. 클러터를 그릴지 고를 때 씀.
+INT32 CTrackView3D::f_IsInBox(const ST_PlotPoint *st_Point) const
+{
+	return ((st_Point->east >= (floor(minEast / gridStep) * gridStep)) && (st_Point->east <= (ceil(maxEast / gridStep) * gridStep)) &&
+		(st_Point->north >= (floor(minNorth / gridStep) * gridStep)) && (st_Point->north <= (ceil(maxNorth / gridStep) * gridStep)) &&
+		(st_Point->up <= maxUp)) ? 1 : 0;
 }
 
 // 바닥 격자 (고도 0), 방위 글자 (N, E), 고도 눈금 기둥 (플랫폼 시작 위치).
@@ -1560,7 +1516,7 @@ VOID CTrackView3D::f_DrawGround(Gdiplus::Graphics *st_Graphics, const Gdiplus::F
 	}
 }
 
-// 장면: 바닥, 지난 스캔 플롯 (옅게), 참값 궤적, 플랫폼, 지금 스캔의 받은 플롯 · 참값 위치 (바닥까지 점선) · 트랙, 범례.
+// 장면: 바닥, 참값 궤적 바닥 그림자, 지난 스캔 플롯 (옅게), 참값 궤적 (지금 스캔 뒤는 옅게), 플랫폼, 지금 스캔의 받은 플롯 · 참값 위치 (바닥까지 점선) · 트랙, 범례.
 VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 {
 	static const Gdiplus::REAL		s_Dash[2] = { 3.0F, 3.0F };
@@ -1569,13 +1525,13 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 	const Gdiplus::Font				st_Font(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
 	const Gdiplus::Font				st_Bold(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
 	const INT32						nSampleNum = st_Result->f_GetSampleNum();
-	const INT32						nIndex = (st_Track != nullptr) ? st_Track->f_FindScan(nCurScan) : -1;
-	const INT32						nScanEnd = (st_Measure != nullptr) ? std::min(nCurScan + 1, st_Measure->f_GetScanNum()) : 0;
+	const INT32						nIndex = st_Track->f_FindScan(nCurScan);
+	const INT32						nScanEnd = std::min(nCurScan + 1, st_Measure->f_GetScanNum());
+	const INT32						nNow = std::min(std::max(nCurScan, 0), nSampleNum - 1);		// 지금 스캔의 표본
 	const FLOAT32					plotRadius = PLOT_PLOT_RADIUS * scale;
 	const FLOAT32					clutterRadius = PLOT_CLUTTER_RADIUS * scale;
 	std::vector<Gdiplus::PointF>	st_Line(static_cast<UINT64>(nSampleNum));
-	Gdiplus::SolidBrush				st_PlotBrush(f_Plot_Color(PLOT_COLOR_PLOT, PLOT_HISTORY_ALPHA));
-	Gdiplus::SolidBrush				st_ClutterBrush(f_Plot_Color(PLOT_COLOR_CLUTTER, PLOT_HISTORY_ALPHA));
+	std::vector<Gdiplus::RectF>		st_Dot;
 	Gdiplus::Pen					st_DropPen(f_Plot_Color(UI_COLOR_TEXT_OFF, 255), 1.0F);
 	ST_LegendRow					st_Row[PLOT_LEG_MAX];
 	ST_PlotPoint					st_Ground;
@@ -1605,30 +1561,58 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 
 	f_DrawGround(st_Graphics, &st_Font);
 
-	// 지난 스캔 플롯, 클러터 (옅게)
-	for (nScan = 0; nScan < nScanEnd; nScan++)
+	// 참값 궤적의 바닥 그림자 (지금 스캔까지, 회색). 궤적과 그림자 사이가 고도. 표적 색으로 옅게 그리는 앞으로 갈 길과 헷갈리지 않게 회색
+	for (nObject = 1; (isShowTrue != 0) && (nNow > 0) && (nObject < st_Result->f_GetObjectNum()); nObject++)
 	{
-		for (nItem = 0; (isShowClutter != 0) && (nItem < st_Measure->f_GetScan(nScan)->nClutterNum); nItem++)
+		Gdiplus::Pen st_ShadowPen(f_Plot_Color(UI_COLOR_TEXT_OFF, TRK3D_SHADOW_ALPHA), 1.2F * scale);
+
+		for (nStep = 0; nStep <= nNow; nStep++)
 		{
-			f_Project(st_Measure->f_GetClutterPoint(nScan, nItem), &x, &y);
-			(VOID)st_Graphics->FillEllipse(&st_ClutterBrush, static_cast<FLOAT32>(x) - clutterRadius, static_cast<FLOAT32>(y) - clutterRadius,
-				2.0F * clutterRadius, 2.0F * clutterRadius);
+			st_Ground		= *st_Result->f_GetPoint(nStep, nObject);
+			st_Ground.up	= 0.0;
+			f_Project(&st_Ground, &x, &y);
+			st_Line[static_cast<UINT64>(nStep)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
 		}
 
-		for (nItem = 0; (isShowPlot != 0) && (nItem < st_Measure->f_GetTargetNum()); nItem++)
+		(VOID)st_Graphics->DrawLines(&st_ShadowPen, st_Line.data(), nNow + 1);
+	}
+
+	// 지난 스캔 플롯, 클러터 (옅게). 클러터는 상자 안 것만
+	for (nScan = 0; (isShowClutter != 0) && (nScan < nScanEnd); nScan++)
+	{
+		for (nItem = 0; nItem < st_Measure->f_GetScan(nScan)->nClutterNum; nItem++)
 		{
-			f_Project(st_Measure->f_GetPlotPoint(nScan, nItem), &x, &y);
-			(VOID)st_Graphics->FillEllipse(&st_PlotBrush, static_cast<FLOAT32>(x) - plotRadius, static_cast<FLOAT32>(y) - plotRadius,
-				2.0F * plotRadius, 2.0F * plotRadius);
+			if (f_IsInBox(st_Measure->f_GetClutterPoint(nScan, nItem)) != 0)
+			{
+				f_Project(st_Measure->f_GetClutterPoint(nScan, nItem), &x, &y);
+				st_Dot.push_back(Gdiplus::RectF(static_cast<FLOAT32>(x) - clutterRadius, static_cast<FLOAT32>(y) - clutterRadius, 2.0F * clutterRadius,
+					2.0F * clutterRadius));
+			}
 		}
 	}
 
-	// 참값 궤적
+	f_Plot_FillDots(st_Graphics, PLOT_COLOR_CLUTTER, st_Dot);
+	st_Dot.clear();
+
+	for (nScan = 0; (isShowPlot != 0) && (nScan < nScanEnd); nScan++)
+	{
+		for (nItem = 0; nItem < st_Measure->f_GetTargetNum(); nItem++)
+		{
+			f_Project(st_Measure->f_GetPlotPoint(nScan, nItem), &x, &y);
+			st_Dot.push_back(Gdiplus::RectF(static_cast<FLOAT32>(x) - plotRadius, static_cast<FLOAT32>(y) - plotRadius, 2.0F * plotRadius, 2.0F * plotRadius));
+		}
+	}
+
+	f_Plot_FillDots(st_Graphics, PLOT_COLOR_PLOT, st_Dot);
+
+	// 참값 궤적. 지금 스캔까지는 진하게, 그 뒤 (앞으로 갈 길) 는 옅게
 	for (nObject = 0; (isShowTrue != 0) && (nObject < st_Result->f_GetObjectNum()); nObject++)
 	{
-		Gdiplus::Pen st_TrackPen(f_Plot_TrackColor(nObject, 0), 1.8F * scale);
+		Gdiplus::Pen st_TruthPen(f_Plot_Color(f_Ui_ObjectColor(nObject), 255), 1.8F * scale);
+		Gdiplus::Pen st_FuturePen(f_Plot_Color(f_Ui_ObjectColor(nObject), PLOT_FUTURE_ALPHA), 1.2F * scale);
 
-		f_Plot_SetTrackStyle(&st_TrackPen, 0);
+		(VOID)st_TruthPen.SetLineJoin(Gdiplus::LineJoinRound);
+		(VOID)st_FuturePen.SetLineJoin(Gdiplus::LineJoinRound);
 
 		for (nStep = 0; nStep < nSampleNum; nStep++)
 		{
@@ -1636,7 +1620,15 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 			st_Line[static_cast<UINT64>(nStep)] = Gdiplus::PointF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y));
 		}
 
-		(VOID)st_Graphics->DrawLines(&st_TrackPen, st_Line.data(), nSampleNum);
+		if (nNow < (nSampleNum - 1))
+		{
+			(VOID)st_Graphics->DrawLines(&st_FuturePen, st_Line.data() + nNow, nSampleNum - nNow);
+		}
+
+		if (nNow > 0)
+		{
+			(VOID)st_Graphics->DrawLines(&st_TruthPen, st_Line.data(), nNow + 1);
+		}
 	}
 
 	// 플랫폼 (레이다)
@@ -1655,7 +1647,7 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 	{
 		st_Plot = st_Track->f_GetPlot(nIndex, nItem);
 
-		if (((st_Plot->nSource == 0) && (isShowClutter != 0)) || ((st_Plot->nSource != 0) && (isShowPlot != 0)))
+		if (((st_Plot->nSource == 0) && (isShowClutter != 0) && (f_IsInBox(&st_Plot->st_Point) != 0)) || ((st_Plot->nSource != 0) && (isShowPlot != 0)))
 		{
 			f_Project(&st_Plot->st_Point, &x, &y);
 			f_Plot_ScanDot(st_Graphics, x, y, st_Plot->nSource, scale);
@@ -1682,8 +1674,7 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 		f_Plot_TrackSymbol(st_Graphics, &st_Font, &st_Item->st_View, x, y, leadX, leadY, scale);
 	}
 
-	nRowNum = f_Plot_LegendRows(st_Row, isShowTrue, ((st_Measure != nullptr) && (isShowPlot != 0)) ? 1 : 0, ((st_Measure != nullptr) && (isShowClutter != 0)) ? 1 : 0,
-		isShowTrack, (st_Track != nullptr) ? 1 : 0);
+	nRowNum = f_Plot_LegendRows(st_Row, isShowTrue, isShowPlot, isShowClutter, isShowTrack);
 
 	if ((nRowNum > 0) && (isShowLegend != 0))
 	{

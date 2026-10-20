@@ -322,6 +322,34 @@ def excerpt(rel, parts, dedent=0):
     return out
 
 
+def annotate(rows, notes):
+    """발표용 줄 주석. notes: [(찾을 글자, 주석)] 또는 [(찾을 글자, 주석, 'above')], 코드 순서대로.
+    줄 끝에 '// 주석' 을 붙이고, 'above' 면 그 줄 위에 주석만 있는 줄 (번호 없음) 을 넣음.
+    찾을 글자는 탭을 공백 두 칸으로 바꾼 뒤의 글자로 찾음."""
+    out = list(rows)
+    pos = 0
+    for note in notes:
+        needle, com = note[0], note[1]
+        i = row_of(out, needle, pos)
+        num, code = out[i]
+        if len(note) > 2 and note[2] == 'above':
+            ind = len(code) - len(code.lstrip(' '))
+            out.insert(i, (None, ' ' * ind + '// ' + com))
+            i += 1
+        else:
+            out[i] = (num, code + '  // ' + com)
+        pos = i + 1
+    return out
+
+
+def row_width(lab, code, size):
+    """코드 한 줄의 폭 [in]. Consolas 글자 폭 0.5498 em, 주석 (맑은 고딕) 은 글꼴로 잼"""
+    wd = len(lab) * 0.5498 * size / 72.0
+    for t, c, f in colorize(code):
+        wd += len(t) * 0.5498 * size / 72.0 if f == CODE else FONT_REG.getlength(t) / 100.0 * size / 72.0
+    return wd
+
+
 def code_box(slide, x, y, w, rows, bands=(), size=9.0, step=11.5, markers=True, pad=0.09):
     """rows: [(줄 번호, 글자)], bands: [(첫 행, 행 수, 색 번호, 표시 번호)]
     PowerPoint 가 고정 줄 간격을 1 pt 단위로 맞춤. 그래서 step 도 정수 pt 로 맞춰야 띠가 줄과 어긋나지 않음"""
@@ -340,16 +368,21 @@ def code_box(slide, x, y, w, rows, bands=(), size=9.0, step=11.5, markers=True, 
     tf = tb.text_frame
     body_zero(tf, 't', wrap=False)
     width = max(len(str(r[0])) for r in rows if r[0] is not None)
+    badge_rows = {b[0] for b in bands if markers and b[3]}
     for i, (num, code) in enumerate(rows):
+        room = w - 0.25 - (0.26 if i in badge_rows else 0.0)
         p = tf.paragraphs[0] if i == 0 else tf.add_paragraph()
         para_spacing(p, lnspc_pt=step)
         lab = (str(num).rjust(width) if num is not None else ' ' * width) + '  '
         set_run(p.add_run(), lab, size, LNUM, False, CODE)
-        if num is None:
+        if num is None and code.strip() == '...':
             set_run(p.add_run(), code, size, MUTE, False, CODE)
         else:
             for t, c, f in colorize(code):
                 set_run(p.add_run(), t, size, c, False, f)
+        wd = row_width(lab, code, size)
+        if wd > room:
+            print('  [폭 넘침] %.2f > %.2f in : %s' % (wd, room, code.strip()[:70]))
     return h
 
 
@@ -456,10 +489,15 @@ class Deck:
         self._notes(s)
         return s
 
-    def content(self, section, title, subtitle, path=None):
+    def content(self, section, title, subtitle, path=None, tag=None):
+        """tag: 이 장이 답하는 과제 항목. 머리띠 오른쪽 끝에 씀"""
         s = self._new('CONTENT')
+        if text_width(subtitle, 12.5) > 11.43:
+            print('  [부제 넘침] %.2f in : %s' % (text_width(subtitle, 12.5), title))
         for el, t in zip(self.proto['content_ph'], (section, title, subtitle)):
             el_set_text(clone(s, el), t)
+        if tag:
+            text(s, 8.45, 0.62, 4.0, 0.62, [[('과제  ', 10, '8FA3C4', False), (tag, 10.5, 'D5DEEC', True)]], anchor='m', align='r')
         if path:
             text(s, 7.30, 1.33, 5.33, 0.48, [[(path, 10, MUTE, False, CODE)]], anchor='m', align='r')
         clone(s, self.proto['content_num'])
@@ -509,6 +547,42 @@ def table(slide, x, y, w, col_w, rows, head_size=9.5, size=9.0, row_h=0.27):
     return gt
 
 
+def grid_table(slide, x, y, col_w, row_h, cells):
+    """칸마다 바탕색과 여러 줄 글자를 따로 주는 표. cells[i][j] = (바탕색, [(글자, 크기, 색, 굵게, 글꼴), ...]), row_h 는 행마다"""
+    nr, nc = len(cells), len(cells[0])
+    gt = slide.shapes.add_table(nr, nc, Inches(x), Inches(y), Inches(sum(col_w)), Inches(sum(row_h)))
+    tbl = gt.table
+    tbl.first_row = False
+    tbl.horz_banding = False
+    for j, cw in enumerate(col_w):
+        tbl.columns[j].width = Inches(cw)
+    for i in range(nr):
+        tbl.rows[i].height = Inches(row_h[i])
+        for j in range(nc):
+            fill, paras = cells[i][j]
+            c = tbl.cell(i, j)
+            c.margin_left = c.margin_right = Inches(0.05)
+            c.margin_top = c.margin_bottom = Inches(0.02)
+            c.vertical_anchor = MSO_ANCHOR.MIDDLE
+            c.fill.solid()
+            c.fill.fore_color.rgb = RGBColor.from_string(fill)
+            tf = c.text_frame
+            for k, spec in enumerate(paras):
+                p = tf.paragraphs[0] if k == 0 else tf.add_paragraph()
+                p.alignment = PP_ALIGN.CENTER
+                t, size, color, bold, font = (list(spec) + [10, NAVY, False, KO][len(spec) - 1:])[:5]
+                set_run(p.add_run(), t, size, color, bold, font)
+    return gt
+
+
+def check_fit(paras, w):
+    """한 줄 글자 폭이 상자 폭을 넘는지 확인 (넘으면 알림만)"""
+    for para in paras:
+        wd = sum(text_width(sp[0], sp[1], len(sp) > 3 and sp[3]) for sp in para)
+        if wd > w:
+            print('  [글자 넘침] %.2f > %.2f in : %s' % (wd, w, ''.join(sp[0] for sp in para)[:60]))
+
+
 def build(template, fig, shots, out):
     F = lambda n: os.path.join(fig, n)
     S = lambda n: os.path.join(shots, n)
@@ -517,7 +591,7 @@ def build(template, fig, shots, out):
 
     # 1 표지, 2 목차
     d.cover('레이다 SW 학습 과제 5', '트랙 개시 · 관리', 'Track Initiation and Management', 'Janghwan Kim (Harley)')
-    d.index('트랙 개시 · 관리', 'TrackMgr', 'Janghwan Kim (Harley)', [('01', '트랙 개시', 3), ('02', '트랙 관리', 9), ('03', '구현', 13), ('04', '결과', 22)])
+    d.index('트랙 개시 · 관리', 'TrackMgr', 'Janghwan Kim (Harley)', [('01', '트랙 개시', 3), ('02', '트랙 관리', 9), ('03', '구현', 14), ('04', '결과', 22)])
 
     # 3 간지 01
     d.divider('01. 트랙 개시', '트랙이 무엇인지 보고, 플롯 두 개로 트랙을 시작하는 2 Point 개시와 속도 게이트를 설명합니다.',
@@ -525,7 +599,8 @@ def build(template, fig, shots, out):
                ('1.4', '속도 게이팅', 7), ('1.5', '측정 공분산을 VC-NED 로 옮기기', 8)])
 
     # 4  1.1
-    s = d.content(sec1, '1.1 트랙과 트랙 개시', '트랙은 같은 표적의 플롯을 시간 순서로 이어 위치와 속도를 추정한 것입니다. 이번 과제는 트랙의 개시와 관리입니다.')
+    s = d.content(sec1, '1.1 트랙과 트랙 개시', '트랙은 같은 표적의 플롯을 시간 순서로 이어 위치와 속도를 추정한 것입니다. 이번 과제는 트랙의 개시와 관리입니다.',
+                  tag='1 · 2 · 3 개요')
     text(s, 0.70, 2.46, 5.0, 0.30, [[('레이다 처리 흐름에서의 위치', 12, NAVY, True)]], anchor='m')
     chain = [('표적 궤적 모의', '과제 3 · 시각별 참값 위치', 0), ('측정 모의', '과제 4 · 플롯 · 클러터 생성', 0), ('트랙 개시 · 관리', '과제 5 · 이번 과제', 1),
              ('연관 · 추적 필터', '다음 과제 · 플롯을 트랙에 붙여 추정', 2)]
@@ -540,9 +615,10 @@ def build(template, fig, shots, out):
     text(s, 0.70, 3.80, 6.9, 0.28, [[('스캔마다 들어오는 플롯과 트랙', 11.5, NAVY, True)]], anchor='m')
     picture(s, F('fig_track_concept.png'), 0.70, 4.12, w=6.9)
     tags = [('플롯', '레이다가 표적을 한 번 잰 결과. 거리 · 방위각 · 고각', '1F2937'), ('클러터', '표적이 아닌 것에서 나온 플롯. 같이 섞여 들어온다', '6B7280'),
-            ('트랙 개시', '같은 표적으로 보이는 플롯으로 트랙을 처음 만듦', '2563EB'), ('트랙 관리', '연관 결과로 확정 · 메모리 · 삭제를 정함', '16A34A')]
+            ('트랙 개시', '같은 표적으로 보이는 플롯으로 트랙을 처음 만듦', '2563EB'), ('연관', '이번 스캔 플롯을 기존 트랙에 이어 붙이는 것 (2.1)', '7C3AED'),
+            ('트랙 관리', '연관 결과로 확정 · 메모리 · 삭제를 정함', '16A34A')]
     for i, (t, sub, col) in enumerate(tags):
-        y = 4.12 + i * 0.62
+        y = 4.12 + i * 0.52
         sp = rect(s, 7.95, y, 0.92, 0.30, fill=WHITE, line=col, lw=1.0, shape=MSO_SHAPE.ROUNDED_RECTANGLE)
         body_zero(sp.text_frame, 'm')
         sp.text_frame.paragraphs[0].alignment = PP_ALIGN.CENTER
@@ -550,49 +626,56 @@ def build(template, fig, shots, out):
         text(s, 9.02, y + 0.04, 3.6, 0.3, [[(sub, 11, NAVY)]], anchor='t')
 
     # 5  1.2
-    s = d.content(sec1, '1.2 1-Point 와 2-Point 개시', '플롯 하나로 바로 시작하면 속도를 모르고, 연속 두 스캔의 플롯으로 시작하면 위치 변화로 속도를 구할 수 있습니다.')
+    s = d.content(sec1, '1.2 1-Point 와 2-Point 개시', '플롯 하나로 바로 시작하면 속도를 모르고, 연속 두 스캔 (또는 드웰) 의 플롯으로 시작하면 위치 변화로 속도를 구할 수 있습니다.',
+                  tag='1.1 · 1.2 · 3-1')
     picture(s, F('fig_1p2p.png'), 0.70, 2.55, w=7.3)
     callout(s, 1, 8.30, 2.60, 4.33, '1-Point 개시', ['장점: 플롯 하나로 바로 개시 (빠름)', '단점: 속도를 몰라 초기 속도 오차가 크다'])
-    callout(s, 2, 8.30, 3.70, 4.33, '2-Point 개시', ['장점: 두 플롯의 위치 변화로 속도를 구해', '1-Point 보다 속도 오차가 작다', '단점: 연속 두 스캔이 필요해 개시가 늦다'])
+    callout(s, 2, 8.30, 3.70, 4.33, '2-Point 개시  (이번 과제)', ['장점: 두 플롯의 위치 변화로 속도를 구해', '1-Point 보다 속도 오차가 작다', '단점: 연속 두 스캔 (또는 드웰) 이 필요해 늦다'])
     callout(s, 3, 8.30, 5.05, 4.33, '속도 게이트', ['두 플롯이 같은 표적인지 먼저 거른다 (1.4)'])
-    rect(s, 0.70, 5.95, 11.93, 0.62, fill=BOXF, line=LINE)
-    text(s, 0.90, 5.95, 11.6, 0.62, [[('이번 과제  ', 11.5, '2563EB', True), ('2 Point 트랙 개시,  속도 게이트 V_max = 800 m/s,  트랙 ID 100 ~ 10000,  초기 상태변수 · 오차 공분산의 가속도 항은 0  (과제 값)', 11.5, NAVY, False)]], anchor='m')
 
     # 6  1.3
-    s = d.content(sec1, '1.3 2-Point 초기 상태변수와 오차 공분산', '위치는 이번 플롯, 속도는 두 플롯의 차 / T, 가속도는 0 입니다. 오차 공분산은 두 플롯의 측정 공분산 R 에서 바로 나옵니다.')
-    label(s, 0.70, 2.44, 6.8, '상태변수 9 개  (VC-NED: x 북, y 동, z 아래)')
-    rect(s, 0.70, 2.74, 6.8, 0.50, fill=BOXF, line=LINE)
-    text(s, 0.85, 2.74, 6.6, 0.50, [[('X_k = [ x  x\'  x\'\'   y  y\'  y\'\'   z  z\'  z\'\' ]ᵀ', 14, NAVY, True, EN)]], anchor='m')
-    label(s, 0.70, 3.40, 6.8, '축마다 초기값')
-    rows = [('위치', 'z_k', '이번 스캔 플롯'), ('속도', '( z_k − z_k-1 ) / T', '두 플롯의 차 / 스캔 간격'), ('가속도', '0', '두 점으로는 알 수 없다 (과제 조건)')]
-    for i, (a, b, c) in enumerate(rows):
-        y = 3.72 + i * 0.32
-        badge(s, i + 1, 0.74, y, d=0.24)
-        text(s, 1.08, y - 0.02, 0.9, 0.28, [[(a, 11, NAVY, True)]], anchor='m')
-        text(s, 1.95, y - 0.02, 2.4, 0.28, [[(b, 11.5, NAVY, False, EN)]], anchor='m')
-        text(s, 4.35, y - 0.02, 3.2, 0.28, [[(c, 10.5, SUB)]], anchor='m')
-    label(s, 0.70, 4.78, 6.8, '오차 공분산 (축 a, b 의 3 x 3 칸마다)')
-    rect(s, 0.70, 5.08, 6.8, 1.10, fill=BOXF, line=LINE)
-    text(s, 0.88, 5.14, 3.3, 1.0, [[('P_pp = R_k', 11.5, '2563EB', True, EN)], [('P_pv = P_vp = R_k / T', 11.5, '059669', True, EN)],
-                                   [('P_vv = ( R_k + R_k-1 ) / T²', 11.5, 'D97706', True, EN)]], lnspc=115)
-    text(s, 4.20, 5.14, 3.25, 1.0, [[('위치 오차 = w_k', 10.5, SUB)], [('속도 오차 = ( w_k − w_k-1 ) / T', 10.5, SUB)], [('가속도 행 · 열 = 0', 10.5, SUB)]], lnspc=118)
-    text(s, 0.70, 6.30, 6.8, 0.42, [[('w 는 측정 오차, R = 그 공분산 (1.5).  두 오차를 빼서 T 로 나누기 때문에 속도 분산은 두 R 의 합 / T² 이 된다.', 10, SUB)]])
-    picture(s, F('fig_pmatrix.png'), 7.85, 2.40, w=4.6)
-    text(s, 7.85, 6.52, 4.78, 0.26, [[('표적 5 예 (5.8 km, T = 0.1 s).  단위 m², m²/s, m²/s²', 9.5, MUTE)]], align='c')
+    s = d.content(sec1, '1.3 2-Point 초기 상태변수와 오차 공분산', '상태변수는 두 플롯으로 바로 계산하고, 오차 공분산 P 에는 그 값이 얼마나 틀릴 수 있는지를 적습니다.',
+                  tag='1.2 · 3-1')
+    PB, PG, PO, PZ = 'DCE7FD', 'DDF3EA', 'FDECD7', 'F3F4F7'
+    # ① 상태변수
+    badge(s, 1, 0.70, 2.47, d=0.26)
+    text(s, 1.04, 2.44, 5.8, 0.32, [[('상태변수 X', 11.5, NAVY, True), ('   두 플롯으로 바로 계산 (세 축 x 위치 · 속도 · 가속도 = 9 개)', 9.5, SUB)]], anchor='m')
+    text(s, 0.70, 2.80, 6.15, 0.24, [[('예 (x 축)   앞 스캔 플롯 5,000 m,  이번 스캔 플롯 5,030 m,  스캔 간격 T = 0.1 s', 9.5, SUB)]], anchor='m')
+    C = lambda t, col=NAVY, b=False: (t, col, b, EN)
+    st = [('성분', '식', '예 (x 축)'),
+          ('위치  x', C('z_k'), C('5,030 m')),
+          ('속도  x\'', C('( z_k − z_k-1 ) / T'), C('( 5,030 − 5,000 ) / 0.1 = 300 m/s')),
+          ('가속도  x\'\'', ('0  (과제 조건)', NAVY), C('0'))]
+    table(s, 0.70, 3.08, 6.15, [1.25, 2.05, 2.85], st, head_size=9.5, size=10, row_h=0.29)
+    # ② 한 축의 P (3 x 3)
+    badge(s, 2, 0.70, 4.47, d=0.26)
+    text(s, 1.04, 4.44, 5.8, 0.32, [[('오차 공분산 P', 11.5, NAVY, True), ('   한 축의 3 x 3  (예: 플롯 오차 ±10 m, T = 0.1 s)', 9.5, SUB)]], anchor='m')
+    H = lambda t: ('2B3A55', [(t, 9.5, WHITE, True)])
+    H2 = lambda t, sub: ('2B3A55', [(t, 10, WHITE, True), (sub, 8.5, 'C9D3E6', False)])
+    F2 = lambda fill, f, v: (fill, [(f, 10.5, NAVY, True, EN), (v, 9.5, SUB, False, EN)])
+    Z = (PZ, [('0', 10, MUTE, False, EN)])
+    pc = [[H(''), H('위치'), H('속도'), H('가속도')],
+          [H2('위치', '= 이번 플롯'), F2(PB, 'R_k', '100  (±10 m)'), F2(PG, 'R_k / T', '1,000'), Z],
+          [H2('속도', '= 두 플롯 차 / T'), F2(PG, 'R_k / T', '1,000'), F2(PO, '( R_k + R_k-1 ) / T²', '20,000  (±141 m/s)'), Z],
+          [H2('가속도', '= 0'), Z, Z, Z]]
+    grid_table(s, 0.70, 4.82, [1.40, 1.45, 2.20, 1.10], [0.27, 0.56, 0.56, 0.44], pc)
+    # ③ 9 x 9 전체
+    badge(s, 3, 7.15, 2.47, d=0.26)
+    text(s, 7.49, 2.44, 5.1, 0.32, [[('9 x 9 전체 P', 11.5, NAVY, True), ('   ② 의 블록이 축마다 대각선에 하나씩', 9.5, SUB)]], anchor='m')
+    picture(s, F('fig_pmatrix.png'), 7.15, 2.80, w=5.45)
 
-    # 7  1.4
-    s = d.content(sec1, '1.4 속도 게이팅', '두 플롯이 같은 표적이면 한 스캔 동안 움직인 거리가 V_max · T 를 넘을 수 없습니다. 이 조건을 넘는 쌍으로만 트랙을 개시합니다.')
+    # 7  1.4  (처음 판 구성으로 되돌림. 아래 설명 상자 대신 그림을 키움)
+    s = d.content(sec1, '1.4 속도 게이팅', '두 플롯이 같은 표적이면 한 스캔 동안 움직인 거리가 V_max · T 보다 작아야 합니다. 이 조건을 만족하는 (게이트를 통과한) 쌍으로만 개시합니다.',
+                  tag='속도 게이팅 · 3-1')
     rect(s, 0.70, 2.45, 11.93, 0.62, fill=BOXF, line=LINE)
     text(s, 0.95, 2.45, 5.6, 0.62, [[('| z_(k,i)  −  z_(k-1,j) |  /  ΔT   <   V_max', 15, NAVY, True, EN)]], anchor='m')
     text(s, 6.40, 2.45, 6.1, 0.62, [[('V_max = 800 m/s,  ΔT = 0.1 s  ->  앞 플롯에서 반경 80 m 안', 11.5, '2563EB', True)],
                                     [('i: 이번 스캔 플롯,  j: 앞 스캔 플롯.  거리는 VC-NED 직교좌표로 잰다', 10, SUB)]], anchor='m')
-    picture(s, F('fig_gate.png'), 0.70, 3.20, w=11.93)
-    rect(s, 0.70, 6.25, 11.93, 0.50, fill='FEF3E2', line='D97706', lw=0.75)
-    text(s, 0.90, 6.25, 11.6, 0.50, [[('스캔 간격이 짧아 게이트가 작습니다.  ', 11, 'B45309', True),
-                                     ('가로 방향 잡음은 거리에 비례해서, 멀리 있는 표적은 참 표적 쌍도 자주 게이트를 넘지 못합니다 (4.4).', 11, NAVY)]], anchor='m')
+    picture(s, F('fig_gate.png'), 0.70, 3.25, w=11.93)
 
     # 8  1.5
-    s = d.content(sec1, '1.5 측정 공분산을 VC-NED 로 옮기기', '플롯의 오차는 거리 · 방위각 · 고각에 있어서, 트랙 좌표계 (VC-NED) 의 위치 공분산 R 로 바꿔야 오차 공분산을 채울 수 있습니다.')
+    s = d.content(sec1, '1.5 측정 공분산을 VC-NED 로 옮기기', '트랙은 VC-NED (플랫폼 중심, 북 · 동 · 아래로 고정된 축) 에서 만듭니다. 거리 · 방위각 · 고각의 오차를 VC-NED 위치 오차 R 로 바꿉니다.',
+                  tag='1.2 · 3-1')
     steps = [('측정 표준편차 (과제 4, SNR 20)', 'σ_r = 4.74 m,   σ_az = 0.478°,   σ_el = 0.494°', 1),
              ('안테나 직교좌표로', 'R_ant = J · diag( σ_r², σ_az², σ_el² ) · Jᵀ', 2),
              ('VC-NED 로', 'R = M · R_ant · Mᵀ', 3)]
@@ -603,79 +686,89 @@ def build(template, fig, shots, out):
         rect(s, 1.16, y + 0.33, 6.2, 0.44, fill=BOXF, line=LINE)
         text(s, 1.30, y + 0.33, 6.0, 0.44, [[(f, 12.5, NAVY, False, EN)]], anchor='m')
     text(s, 1.16, 5.35, 6.2, 0.75, [[('J', 10.5, NAVY, True), (': 구좌표 (r, az, el) -> 안테나 직교 (x, y, z) 변환의 미분', 10.5, SUB)],
-                                    [('M', 10.5, NAVY, True), (': 안테나 -> 동체 -> VC-NED 회전 (플랫폼 Roll · Pitch · Yaw)', 10.5, SUB)],
-                                    [('회전만 들어가서 오차 타원의 크기는 그대로, 방향만 바뀐다', 10.5, SUB)]], lnspc=115)
-    rect(s, 0.70, 6.18, 6.7, 0.56, fill='EEF4FF', line='2563EB', lw=0.75)
-    text(s, 0.88, 6.18, 6.45, 0.56, [[('VC-NED  ', 10.5, '2563EB', True), ('플랫폼 무게중심이 원점, 축은 북 · 동 · 아래. 자세가 바뀌어도 축이 돌지 않아 트랙을 이 좌표계에서 만든다', 10, NAVY)]],
-         anchor='m')
-    picture(s, F('fig_rcov.png'), 7.62, 2.40, w=5.0)
+                                    [('M', 10.5, NAVY, True), (': 안테나 -> 동체 -> VC-NED 회전 (플랫폼 Roll · Pitch · Yaw)', 10.5, SUB)]], lnspc=115)
+    picture(s, F('fig_rcov.png'), 7.55, 2.42, w=5.08)
 
     # 9 간지 02
-    d.divider('02. 트랙 관리', '만든 트랙을 확정할지 지울지 정하는 M/N 방식과 트랙 스코어 방식을 설명합니다.',
-              [('2.1', 'M/N 방식', 10), ('2.2', '트랙 스코어 방식', 11), ('2.3', 'Assigned_Flag 에 따른 스코어 변화', 12)])
+    d.divider('02. 트랙 관리', '트랙의 상태와 연관을 보고, 만든 트랙을 확정할지 지울지 정하는 M/N 방식과 트랙 스코어 방식을 설명합니다.',
+              [('2.1', '트랙 상태와 연관', 10), ('2.2', 'M/N 방식', 11), ('2.3', '트랙 스코어 방식', 12), ('2.4', 'Assigned_Flag 에 따른 스코어 변화', 13)])
 
     # 10  2.1
-    s = d.content(sec2, '2.1 M/N 방식', '최근 N 번의 연관 결과 가운데 성공 횟수 M 으로 확정을, 연속 실패 횟수로 삭제를 정합니다.')
+    s = d.content(sec2, '2.1 트랙 상태와 연관', '트랙은 임시로 시작해 확정, 메모리, 삭제 상태를 오갑니다. 상태를 바꾸는 근거는 스캔마다의 연관 결과 (Assigned_Flag) 입니다.',
+                  tag='2 · 3-2 · 3-3')
+    label(s, 0.70, 2.44, 6.2, '연관이란')
+    picture(s, F('fig_assoc.png'), 0.70, 2.74, w=6.2)
+    rect(s, 0.70, 5.45, 6.2, 1.08, fill=BOXF, line=LINE)
+    text(s, 0.88, 5.45, 5.9, 1.08, anchor='m', paras=[[('연관  ', 10.5, NAVY, True), ('이번 스캔 플롯 가운데 하나를 기존 트랙에 이어 붙이는 것', 10.5, NAVY)],
+                                    [('Assigned_Flag  ', 10.5, NAVY, True), ('트랙마다 스캔마다 남기는 연관 결과. 1 성공, 0 실패', 10.5, NAVY)],
+                                    [('이번 과제  ', 10.5, '2563EB', True), ('연관은 다음 과제라 매 스캔 0 으로 둔다 (과제 조건)', 10.5, NAVY)]], lnspc=135)
+    label(s, 7.25, 2.44, 5.38, '트랙 상태 네 가지', 'TrackState')
+    states = [('1  임시', TENT, 'FFF1E6', '막 만든 트랙. 표적인지 아직 확인하는 중', '클러터 두 개가 우연히 이어진 트랙일 수도 있다'),
+              ('2  확정', '16A34A', 'E8F7EE', '연관이 이어져 표적으로 인정한 트랙', '보통 운용자에게 알리는 것은 확정 트랙'),
+              ('3  메모리', '9333EA', 'F5EBFF', '확정 트랙이 이번 스캔에 플롯을 놓친 상태', '바로 지우지 않고 다시 잡히기를 기다린다'),
+              ('4  삭제', '6B7280', 'F1F2F4', '더 쫓지 않기로 한 트랙', '다음 스캔을 시작할 때 트랙 표에서 지운다')]
+    for i, (name, col, fc, l1, l2) in enumerate(states):
+        y = 2.78 + i * 1.0
+        rect(s, 7.25, y, 5.38, 0.86, fill=fc, line=col, lw=1.0, shape=MSO_SHAPE.ROUNDED_RECTANGLE)
+        text(s, 7.42, y, 1.15, 0.86, [[(name, 12, col, True)]], anchor='m')
+        text(s, 8.55, y, 4.0, 0.86, [[(l1, 10.5, NAVY, True)], [(l2, 10, SUB)]], anchor='m', lnspc=115)
+
+    # 11  2.2
+    s = d.content(sec2, '2.2 M/N 방식', '최근 N 번의 연관 결과 가운데 성공 횟수 M 으로 확정을, 연속 실패 횟수로 삭제를 정합니다.', tag='2.1')
     picture(s, F('fig_mn.png'), 0.70, 2.45, w=6.85)
     callout(s, 1, 7.75, 2.60, 4.88, '임시 트랙', ['N 번 중 M 번 트랙 연관에 성공하면 확정', 'M 번 연속 결합에 실패하면 삭제'])
     callout(s, 2, 7.75, 3.65, 4.88, '확정 트랙', ['트랙 연관에 실패하면 메모리 트랙으로 바꿈', '정한 시간 이상 메모리 상태면 삭제'])
-    callout(s, 3, 7.75, 4.70, 4.88, '특징', ['성공 · 실패 횟수만 세어 단순하다', '트랙 상태를 값 하나로 나타내기는 어렵다'])
-    rect(s, 0.70, 6.12, 11.93, 0.55, fill=BOXF, line=LINE)
-    text(s, 0.90, 6.12, 11.6, 0.55, [[('이번 과제는 다음 쪽의 트랙 스코어 방식을 적용했습니다.', 11, NAVY, True)]], anchor='m')
+    callout(s, 3, 7.75, 4.70, 4.88, '특징', ['성공 · 실패 횟수만 세면 되어 단순하다', '최근 N 번의 성공 · 실패 기록을 들고 있어야 한다'])
 
-    # 11  2.2
-    s = d.content(sec2, '2.2 트랙 스코어 방식', '트랙마다 TrackScore 와 MemoryScore 를 두고, 점수가 문턱을 넘으면 상태 (TrackState) 를 바꿉니다.')
+    # 12  2.3
+    s = d.content(sec2, '2.3 트랙 스코어 방식', '트랙마다 TrackScore 와 MemoryScore 를 두고, 점수가 문턱을 넘으면 상태 (TrackState) 를 바꿉니다.', tag='2.2 · 3-2')
     picture(s, F('fig_state.png'), 0.70, 2.45, w=7.0)
     callout(s, 1, 7.95, 2.55, 4.68, 'TrackState (과제 값)', ['1 임시,  2 확정,  3 메모리,  4 삭제'])
     callout(s, 2, 7.95, 3.30, 4.68, '문턱 (과제 값)', ['임시 트랙 확정 5,  임시 트랙 삭제 0', '메모리 트랙 삭제 5'])
     callout(s, 3, 7.95, 4.30, 4.68, '메모리 트랙이 다시 연관되면', ['바로 확정 트랙으로, MemoryScore = 0'])
     callout(s, 4, 7.95, 5.05, 4.68, '과제에 없어 정한 값', ['개시 직후 TrackScore 2 (두 플롯으로 만든 트랙)', '한 번에 올리고 내리는 양 1'])
 
-    # 12  2.3
-    s = d.content(sec2, '2.3 Assigned_Flag 에 따른 스코어 변화', 'Assigned_Flag 는 그 스캔의 트랙 연관 결과입니다 (1 성공, 0 실패). 과제 조건은 연관 기능이 없어 매 스캔 0 입니다.')
-    picture(s, F('fig_score.png'), 0.70, 2.45, w=11.93)
-    callout(s, 1, 0.75, 5.40, 3.85, '처리 순서', ['기존 트랙을 먼저 판정하고', '새 트랙은 그 뒤에 개시', '-> 만든 스캔에서는 감점 없음'])
-    callout(s, 2, 4.85, 5.40, 3.85, '과제 조건 (늘 0)', ['개시 스캔 2, 다음 스캔 1,', '그다음 스캔 0 -> 삭제', '확정 · 메모리는 나오지 않는다'])
-    callout(s, 3, 8.95, 5.40, 3.68, '확정 · 메모리 확인', ['연관 결과를 넣어 보는', '스코어 확인 창으로 확인 (4.3)'])
+    # 13  2.4
+    s = d.content(sec2, '2.4 Assigned_Flag 에 따른 스코어 변화', '왼쪽은 연관 결과를 넣은 예, 오른쪽은 과제 조건 (매 스캔 0) 입니다. 맨 아래 계산 줄이 스캔마다 점수가 바뀐 과정입니다.',
+                  tag='3-2 · 3-3')
+    picture(s, F('fig_score.png'), 0.70, 2.42, w=11.93)
 
-    # 13 간지 03
-    d.divider('03. 구현', '요구사항이 어느 코드에 있는지 정리하고, 쓰레드 · UDP 구조와 트랙 개시 · 관리 코드를 봅니다.',
-              [('3.1', '요구사항과 구현', 14), ('3.2', '쓰레드와 UDP 구조', 15), ('3.3', '플롯 메시지 STRUCT_PlotMsg', 16), ('3.4', '송신: 플롯 메시지 만들기 (f_Lnk_BuildMsg)', 17),
-               ('3.5', '수신: 좌표 변환과 측정 공분산 (f_Lnk_ProcessMsg)', 18), ('3.6', '2 Point 개시: 쌍 고르기 (f_Trk_ProcessScan)', 19),
-               ('3.7', '2 Point 초기화 (f_Trk_TwoPointInit)', 20), ('3.8', '트랙 스코어 로직 (f_Trk_UpdateState)', 21)])
+    # 14 간지 03
+    d.divider('03. 구현', '쓰레드 · UDP 구조와 플롯 메시지를 보고, 송신 · 수신과 트랙 개시 · 관리 코드를 차례로 봅니다.',
+              [('3.1', '쓰레드와 UDP 구조', 15), ('3.2', '플롯 메시지 STRUCT_PlotMsg', 16), ('3.3', '송신: 플롯 메시지 만들기 (f_Lnk_BuildMsg)', 17),
+               ('3.4', '수신: 좌표 변환과 측정 공분산 (f_Lnk_ProcessMsg)', 18), ('3.5', '2 Point 개시: 쌍 고르기 (f_Trk_ProcessScan)', 19),
+               ('3.6', '2 Point 초기화 (f_Trk_TwoPointInit)', 20), ('3.7', '트랙 스코어 로직 (f_Trk_UpdateState)', 21)])
 
-    # 14  3.1
-    s = d.content(sec3, '3.1 요구사항과 구현', '과제 3 장 (구현) 의 항목을 구현한 곳입니다. 트랙 개시 · 관리는 TrackMgr.c, 플롯 메시지 송수신은 PlotLink.c 에 있습니다.')
-    req = [('과제 요구사항', '구현', '파일', '쪽'),
-           ('2 Point 트랙 개시, 상태변수 X_k 9 개', ('f_Trk_TwoPointInit', NAVY, False, CODE), 'TrackMgr.c', '20'),
-           ('mat_EstX, mat_EstP 가속도 항 0', ('Matrix_initialize 후 위치 · 속도 칸만 채움', NAVY), 'TrackMgr.c', '20'),
-           ('속도 게이팅 V_max = 800 m/s', ('f_Trk_ProcessScan,  TRK_VMAX', NAVY, False, CODE), 'TrackMgr.c', '19'),
-           ('트랙 ID 100 ~ 10000', ('f_Trk_NewId', NAVY, False, CODE), 'TrackMgr.c', '19'),
-           ('트랙 스코어: 확정 5, 삭제 0, 메모리 삭제 5', ('f_Trk_UpdateState', NAVY, False, CODE), 'TrackMgr.c', '21'),
-           ('TrackScore, MemoryScore, TrackState (1 ~ 4)', ('ST_Track,  TRK_STATE_*', NAVY, False, CODE), 'TrackMgr.h', '21'),
-           ('안테나 구좌표 플롯 메시지를 수신 쓰레드로', ('STRUCT_PlotMsg,  f_Lnk_TxThread / RxThread', NAVY, False, CODE), 'Idd.h, PlotLink.c', '15 ~ 18'),
-           ('표적 플롯 + 클러터, 플롯 ID 10000 ~ 1000000', ('f_Lnk_BuildMsg', NAVY, False, CODE), 'PlotLink.c', '17'),
-           ('UDP 또는 TCP/IP 전송', ('UDP (과제 1 소켓 함수의 UDP 부분)', NAVY), 'PlotLink.c', '15'),
-           ('매 스캔 Assigned_Flag = 0 (성공 1)', ('f_Trk_ProcessScan 첫 단계', NAVY), 'TrackMgr.c', '19'),
-           ('True, Plot, Track 심볼 2D · 3D 전시', ('CTrajectoryPlot,  CTrackView3D', NAVY, False, CODE), 'TrajectoryPlot.cpp', '23 ~ 24')]
-    table(s, 0.70, 2.45, 11.93, [4.15, 4.55, 2.18, 1.05], req, row_h=0.335)
+    # 15  3.1
+    s = d.content(sec3, '3.1 쓰레드와 UDP 구조', '과제 4 의 측정 모의 결과를 신호처리가 보낸 플롯으로 보고, 송신 쓰레드가 스캔마다 UDP 로 보내면 수신 쓰레드가 받아 처리합니다.',
+                  tag='3-3')
+    picture(s, F('fig_arch.png'), 0.70, 2.42, w=11.93)
+    text(s, 0.70, 5.27, 11.93, 0.30, [[('왜 TCP 가 아니라 UDP 인가', 11.5, NAVY, True), ('   과제는 UDP 또는 TCP/IP 중 하나를 고르게 함', 9.5, SUB)]], anchor='m')
+    U = lambda t: (t, '1D4ED8', False)
+    ut = [('', 'UDP  (이번 과제)', 'TCP'),
+          ('메시지 단위', U('보낸 메시지 1 개 = 받는 메시지 1 개 (스캔 1 개)'), '바이트가 이어서 와서, 메시지를 직접 잘라야 함'),
+          ('지연', U('연결 · 재전송 없이 바로 전달'), '하나가 늦으면 뒤 스캔도 함께 기다림'),
+          ('손실', U('생길 수 있음 -> 스캔 번호로 확인 (1,160 / 1,160, 빠짐 0)'), '없음 (잃으면 다시 보냄)')]
+    table(s, 0.70, 5.60, 11.93, [1.55, 5.40, 4.98], ut, head_size=10, size=10.5, row_h=0.29)
 
-    # 15  3.2
-    s = d.content(sec3, '3.2 쓰레드와 UDP 구조', '과제 4 의 측정 모의 결과를 신호처리가 내보내는 플롯으로 보고, 송신 쓰레드가 스캔마다 UDP 로 보내 수신 쓰레드 (데이터 처리) 가 처리합니다.')
-    picture(s, F('fig_arch.png'), 0.70, 2.45, w=11.93)
-    callout(s, 1, 0.75, 5.35, 3.9, '송신 쓰레드', ['과제 1 에서 Winsock2 로 옮긴 UDP 함수', '스캔 하나 = 데이터그램 하나', '수신 버퍼 8 MB, 밀리면 기다림'])
-    callout(s, 2, 4.85, 5.35, 3.9, '수신 쓰레드', ['수신 대기는 100 ms 마다 끊어', '멈춤 신호를 확인', '스캔 번호로 빠진 스캔을 셈'])
-    callout(s, 3, 8.95, 5.35, 3.68, 'UI', ['50 ms 타이머로 처리된 스캔을', '가져와 그림과 표를 그림', '결과는 잠금 안에서 복사'])
-
-    # 16  3.3
-    s = d.content(sec3, '3.3 플롯 메시지 STRUCT_PlotMsg', '참고 소스 코드의 Idd.h 는 STRUCT_PlotInfo 의 Y_Body 에서 끊겨 있어 나머지와 메시지 구조체를 이어 썼습니다.',
-                  'TargetSimCore/include/Idd.h')
+    # 16  3.2
+    s = d.content(sec3, '3.2 플롯 메시지 STRUCT_PlotMsg', '참고 소스 코드의 Idd.h 는 STRUCT_PlotInfo 의 Y_Body 에서 끊겨 있어 나머지와 메시지 구조체를 이어 썼습니다.',
+                  'TargetSimCore/include/Idd.h', tag='3-3')
     rows = excerpt('TargetSimCore/include/Idd.h', [('typedef struct STRUCT_PlotInfo', '}STRUCT_PlotInfo;')])
+    rows = annotate(rows, [('Id;', '플롯 ID'), ('EmittedDwellNum;', '드웰 번호'), ('EmittedScanNum;', '스캔 번호'), ('EmittedBeamNum;', '빔 번호'),
+                           ('EmittedTimeStamp_s;', '탐지 시각 (초)'), ('EmittedTimeStamp_ns;', '탐지 시각 (나노초)'), ('BeamType;', '빔 종류'),
+                           ('Range_Ant;', '안테나 기준 거리 [m]'), ('Azimuth_Ant;', '안테나 기준 방위각 [rad]'), ('Elevation_Ant;', '안테나 기준 고각 [rad]'),
+                           ('Range_VcNed;', 'VC-NED 기준 거리'), ('Azimuth_VcNed;', 'VC-NED 기준 방위각'), ('Elevation_VcNed;', 'VC-NED 기준 고각'),
+                           ('X_Ant;', '안테나 직교 x [m]'), ('Y_Ant;', '안테나 직교 y'), ('Z_Ant;', '안테나 직교 z'),
+                           ('X_Body;', '동체 직교 x [m]'), ('Y_Body;', '동체 직교 y'), ('Z_Body;', '동체 직교 z'),
+                           ('X_VcNed;', 'VC-NED 북 [m]'), ('Y_VcNed;', 'VC-NED 동'), ('Z_VcNed;', 'VC-NED 아래')])
     i_r = row_of(rows, 'Range_Ant')
     i_z = row_of(rows, 'Z_Body')
     label(s, 0.70, 2.44, 5.7, '플롯 하나', 'STRUCT_PlotInfo')
     code_box(s, 0.70, 2.72, 5.75, rows, bands=[(i_r, 3, 0, 1), (i_z, 4, 1, 2)], size=8.3, step=11)
     rows2 = excerpt('TargetSimCore/include/Idd.h', [('typedef struct STRUCT_PlotMsg', '}STRUCT_PlotMsg;')])
+    rows2 = annotate(rows2, [('MsgId;', '메시지 종류 (플롯 / 끝)'), ('ScanNum;', '스캔 번호'), ('TimeStamp_ns;', '스캔 시각 (나노초)'),
+                             ('st_Platform;', '플랫폼 위치 · 자세'), ('st_Plot[IDD_MAX_PLOT];', '플롯 배열 (최대 64 개)')])
     i_h = row_of(rows2, 'MsgId')
     i_s = row_of(rows2, 'Sigma_Range')
     i_p = row_of(rows2, 'st_Platform;')
@@ -687,38 +780,45 @@ def build(template, fig, shots, out):
     for k, (n, t) in enumerate(notes):
         badge(s, n, 6.80, y + k * 0.29, d=0.22)
         text(s, 7.12, y + k * 0.29 - 0.01, 5.5, 0.25, [[(t, 10, NAVY)]], anchor='m')
-    text(s, 6.75, y + 5 * 0.29 + 0.06, 5.88, 0.25, [[('보내는 크기 = 머리 72 B + 플롯 121 B x 플롯 수  (표적 5 + 클러터 5 -> 1,282 B)', 9.5, SUB)]])
 
-    # 17  3.4
-    s = d.content(sec3, '3.4 송신: 플롯 메시지 만들기 (f_Lnk_BuildMsg)', '표적 플롯과 클러터를 섞어 방위각 순서로 담고, 플롯마다 ID 를 매겨 안테나 구좌표만 채웁니다.',
-                  'TargetSimCore/src/PlotLink.c')
+    # 17  3.3
+    s = d.content(sec3, '3.3 송신: 플롯 메시지 만들기 (f_Lnk_BuildMsg)', '표적 플롯과 클러터를 섞어 방위각 순서로 담고, 플롯마다 ID 를 매겨 안테나 구좌표만 채웁니다.',
+                  'TargetSimCore/src/PlotLink.c', tag='3-3')
     rows = excerpt('TargetSimCore/src/PlotLink.c', [
         ('static UINT32 f_Lnk_BuildMsg', 1),
-        ('for (nIndex = 0; (nIndex < st_Scan->nTargetNum)', 6),
+        ('for (nIndex = 0; (nIndex < st_Scan->nTargetNum)', 4),
+        ('for (nIndex = 0; (nIndex < st_Scan->nClutterNum)', 4),
         ('// 방위각 오름차순', 1),
         ('st_Msg->MsgId', 'st_Msg->PlotNum'),
         ('for (nIndex = 0; nIndex < nPlotNum; nIndex++)', 4),
         ('st_Info->Range_Ant', 'st_Info->Elevation_Ant'),
         ('// 플롯 ID 는 10000', '*pt_PlotId = ')])
+    rows = annotate(rows, [('f_Lnk_BuildMsg(', '스캔 하나의 메시지 만들기'), ('nTargetNum)', '표적 플롯부터'),
+                           ('st_Scan->st_Plot[nIndex];', '거리 · 방위각 · 고각'), ('= nIndex + 1;', '출처: 표적 번호 (송신 쪽 기록용)'),
+                           ('nClutterNum)', '이어서 클러터를 같은 배열에'), ('st_Scan->st_Clutter[nIndex];', '클러터 플롯'), ('= 0;', '출처: 0 은 클러터'),
+                           ('st_Msg->MsgId', '메시지 종류: 플롯'), ('st_Msg->MsgSize', '보낼 바이트 수'), ('st_Msg->ScanNum', '스캔 번호'),
+                           ('st_Msg->TimeStamp_s', '스캔 시각 (초)'), ('st_Msg->TimeStamp_ns', '스캔 시각 (나노초)'), ('st_Msg->PlotNum', '표적 + 클러터 수'),
+                           ('nIndex < nPlotNum;', '정렬된 순서대로 플롯마다'), ('&st_Msg->st_Plot[nIndex];', '메시지의 플롯 칸'), ('st_Info->Id', '플롯 ID'),
+                           ('st_Info->Range_Ant', '안테나 기준 거리'), ('st_Info->Azimuth_Ant', '방위각'), ('st_Info->Elevation_Ant', '고각'),
+                           ('*pt_PlotId = ', '다음 플롯 ID')])
     b1 = row_of(rows, 'nTargetNum)')
     b2 = row_of(rows, '방위각 오름차순')
     b3 = row_of(rows, 'st_Msg->MsgId')
     b4 = row_of(rows, 'st_Info->Id')
     b5 = row_of(rows, 'Range_Ant')
-    b6 = row_of(rows, '// 플롯 ID')
-    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(b1, 6, 0, 1), (b2, 1, 1, 2), (b3, 6, 2, 3), (b4, 1, 3, 4), (b5, 3, 3, None), (b6, 2, 4, 5)],
-             size=8.3, step=10)
-    callout(s, 1, 8.85, 2.50, 3.78, '표적 플롯 + 클러터를 한 배열에', ['클러터도 같은 모양의 반복문으로 붙임', '출처 (표적 k / 클러터) 는 송신 쪽에만 기록'], size=10.5)
+    b6 = row_of(rows, '// 플롯 ID 는')
+    b7 = row_of(rows, 'nClutterNum)')
+    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(b1, 4, 0, 1), (b7, 4, 0, None), (b2, 1, 1, 2), (b3, 6, 2, 3), (b4, 1, 3, 4), (b5, 3, 3, None), (b6, 2, 4, 5)],
+             size=7.6, step=9)
+    callout(s, 1, 8.85, 2.50, 3.78, '표적 플롯 + 클러터를 한 배열에', ['표적 플롯 뒤에 클러터를 이어 붙임', '출처 (표적 k / 클러터) 는 송신 쪽에만 기록'], size=10.5)
     callout(s, 2, 8.85, 3.45, 3.78, '방위각 순서로 정렬', ['빔이 지나가는 순서처럼', '배열 위치로 표적을 알 수 없게'], size=10.5)
     callout(s, 3, 8.85, 4.40, 3.78, '메시지 머리', ['스캔 번호, 시각, 플롯 수'], size=10.5)
     callout(s, 4, 8.85, 5.05, 3.78, '플롯 ID 와 안테나 구좌표', ['거리 · 방위각 · 고각만 채움'], size=10.5)
     callout(s, 5, 8.85, 5.70, 3.78, '플롯 ID 10000 ~ 1000000', ['1000000 다음은 10000 으로'], size=10.5)
-    rect(s, 8.85, 6.30, 3.78, 0.42, fill=BOXF, line=LINE)
-    text(s, 9.00, 6.30, 3.6, 0.42, [[('보내기: 송신 쓰레드가 과제 1 의 ', 9.5, SUB), ('f_SocketSendUDP_IPv4_Normal', 9.5, NAVY, False, CODE)]], anchor='m')
 
-    # 18  3.5
-    s = d.content(sec3, '3.5 수신: 좌표 변환과 측정 공분산 (f_Lnk_ProcessMsg)', '받은 플롯을 VC-NED 로 바꾸고 측정 공분산을 구한 뒤, 트랙 관리와 개시를 한 번에 돌립니다.',
-                  'TargetSimCore/src/PlotLink.c')
+    # 18  3.4
+    s = d.content(sec3, '3.4 수신: 좌표 변환과 측정 공분산 (f_Lnk_ProcessMsg)', '받은 플롯을 VC-NED 로 바꾸고 측정 공분산을 구한 뒤, 트랙 관리와 개시를 한 번에 돌립니다.',
+                  'TargetSimCore/src/PlotLink.c', tag='3-3')
     rows = excerpt('TargetSimCore/src/PlotLink.c', [
         ('static VOID f_Lnk_ProcessMsg', 1),
         ('const FLOAT64\t\t\ttime = ', 1),
@@ -728,6 +828,11 @@ def build(template, fig, shots, out):
         ('f_Trk_MeasCov(st_Plot[nPlot].cov', 1),
         ('f_Trk_MoveOrigin(&s_Link.st_Table', 1),
         ('f_Trk_ProcessScan(&s_Link.st_Table', 1)])
+    rows = annotate(rows, [('f_Lnk_ProcessMsg(', '받은 메시지 하나 처리'), ('time = ', '스캔 시각 [s]'), ('st_Sigma.r', '측정 표준편차: 거리'),
+                           ('st_Sigma.az', '방위각'), ('st_Sigma.el', '고각'), ('st_Att.Roll', '플랫폼 자세'),
+                           ('nPlot < nPlotNum;', '플롯마다'), ('&st_Msg->st_Plot[nPlot];', '받은 플롯'), ('f_Lnk_FillPlotCoord(', '좌표 변환 (아래 세 줄)'),
+                           ('pos[0]', '북'), ('pos[1]', '동'), ('pos[2]', '아래'), ('f_Trk_MeasCov(', '측정 공분산 R (1.5)'),
+                           ('f_Trk_MoveOrigin(', '앞 스캔 값을 이번 원점 기준으로'), ('f_Trk_ProcessScan(', '트랙 관리 + 개시')])
     i1 = row_of(rows, 'st_Sigma.r')
     i2 = row_of(rows, 'f_Lnk_FillPlotCoord(')
     i3 = row_of(rows, 'pos[0]')
@@ -737,72 +842,93 @@ def build(template, fig, shots, out):
     hm = code_box(s, 0.70, 2.45, 7.85, rows, bands=[(i1, 6, 0, 1), (i2, 1, 1, 2), (i3, 3, 2, 3), (i4, 1, 2, None), (i5, 1, 4, 4), (i6, 1, 3, 5)],
                   size=7.9, step=9)
     rowsc = excerpt('TargetSimCore/src/PlotLink.c', [('st_Ant\t= f_Trans_Ant_Sph_To_XYZ(st_Info->Range_Ant', 'st_Ned\t= f_Trans_Body_To_Ned(st_Body.x')], dedent=2)
+    rowsc = annotate(rowsc, [('st_Ant', '구좌표 -> 안테나 직교'), ('st_Body', '안테나 -> 동체'), ('st_Ned', '동체 -> VC-NED (플랫폼 자세)')])
     label(s, 0.70, 2.45 + hm + 0.08, 7.85, '2  f_Lnk_FillPlotCoord 의 변환 세 줄', 'PlotLink.c')
-    code_box(s, 0.70, 2.45 + hm + 0.36, 7.85, rowsc, size=7.4, step=9)
+    code_box(s, 0.70, 2.45 + hm + 0.36, 11.93, rowsc, size=7.4, step=9)
     callout(s, 1, 8.85, 2.50, 3.78, '머리에서 꺼냄', ['시각, 측정 표준편차, 플랫폼 자세'], size=10.5)
     callout(s, 2, 8.85, 3.15, 3.78, '안테나 -> 동체 -> VC-NED', ['아래 세 줄. 비어 있던 좌표 칸도 채움'], size=10.5)
     callout(s, 3, 8.85, 3.80, 3.78, '트랙 개시용 플롯', ['위치 VC-NED, 공분산 f_Trk_MeasCov (1.5)'], size=10.5)
     callout(s, 4, 8.85, 4.45, 3.78, '원점 옮기기', ['플랫폼이 움직이면 앞 스캔 플롯 · 트랙을', '이번 스캔 VC-NED 로 (이번 시나리오는 0)'], size=10.5)
-    callout(s, 5, 8.85, 5.35, 3.78, '트랙 관리 + 2 Point 개시', ['결과는 스캔 단위로 복사해 둠', '(UI 가 가져감)'], size=10.5)
+    callout(s, 5, 8.85, 5.35, 3.78, '트랙 관리 + 2 Point 개시', ['결과는 스캔 단위로 쌓아 둠'], size=10.5)
 
-    # 19  3.6
-    s = d.content(sec3, '3.6 2 Point 개시: 쌍 고르기 (f_Trk_ProcessScan)', '모든 트랙을 Assigned_Flag 0 으로 판정한 뒤, 게이트를 넘는 쌍 가운데 가장 느린 쌍부터 하나씩 골라 트랙을 만듭니다.',
-                  'TargetSimCore/src/TrackMgr.c')
+    # 19  3.5
+    s = d.content(sec3, '3.5 2 Point 개시: 쌍 고르기 (f_Trk_ProcessScan)', '모든 트랙을 Assigned_Flag 0 으로 판정한 뒤, 게이트를 통과한 쌍 가운데 가장 느린 쌍부터 하나씩 골라 트랙을 만듭니다.',
+                  'TargetSimCore/src/TrackMgr.c', tag='3-1 · 3-3')
     rows = excerpt('TargetSimCore/src/TrackMgr.c', [
         ('st_Track->Assigned_Flag\t= 0;', 2),
-        ('bestSpeed\t= TRK_VMAX;', 1),
-        ('if ((st_Table->st_PrevPlot[nPrev].isUsed == 0) && (st_Cur[nCur].isUsed == 0))', 'bestCur\t\t= nCur;'),
+        ('while (isSearching != 0)', 3),
+        ('for (nPrev = 0; nPrev < st_Table->nPrevPlotNum; nPrev++)', 'bestCur\t\t= nCur;'),
         ('st_Table->st_PrevPlot[bestPrev].isUsed\t= 1;', 2),
         ('newId = (st_Table->nTrackNum < TRK_MAX_TRACK)', 1),
         ('f_Trk_TwoPointInit(st_Track, &st_Table->st_PrevPlot[bestPrev]', 1),
         ('st_Track->TrackId\t\t= newId;', 'st_Track->TrackScore\t= TRK_SCORE_INIT;'),
         ('st_Track->PlotId[0]', 'st_Track->PlotId[1]')], dedent=2)
+    rows = annotate(rows, [('Assigned_Flag', '연관 기능이 없어 늘 실패 (과제 조건)'), ('f_Trk_UpdateState(', '스코어로 상태 판정 (3.7)'),
+                           ('while (isSearching', '고를 쌍이 없을 때까지 반복'), ('TRK_VMAX;', 'V_max 에서 시작 = 속도 게이트'),
+                           ('for (nPrev', '앞 스캔 플롯'), ('for (nCur', '이번 스캔 플롯 (모든 쌍)'), ('isUsed == 0) && (', '아직 안 쓴 플롯끼리만'),
+                           ('f_Trk_PairSpeed(', '|z_k - z_k-1| / T'), ('if (speed < bestSpeed)', '지금까지 가장 느린 쌍이면'),
+                           ('bestSpeed  = speed;', '그 쌍을 기억'), ('[bestPrev].isUsed', '고른 두 플롯은 다시 쓰지 않음'),
+                           ('f_Trk_NewId(', '트랙 ID (100 ~ 10000)'), ('f_Trk_TwoPointInit(', '초기 상태변수 · 공분산 (3.6)'),
+                           ('TrackState', '임시 트랙 (1)'), ('TrackScore', '개시 스코어 2'), ('PlotId[0]', '개시에 쓴 플롯 ID')])
     a1 = row_of(rows, 'Assigned_Flag')
-    a2 = row_of(rows, 'bestSpeed')
-    a3 = row_of(rows, 'f_Trk_PairSpeed')
+    a2 = row_of(rows, 'TRK_VMAX;')
+    a3 = row_of(rows, 'for (nPrev')
     a4 = row_of(rows, '[bestPrev].isUsed')
     a5 = row_of(rows, 'f_Trk_NewId')
     a6 = row_of(rows, 'f_Trk_TwoPointInit')
     a7 = row_of(rows, 'TrackId')
-    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(a1, 2, 0, 1), (a2, 1, 1, 2), (a3, 8, 1, None), (a4, 2, 2, 3), (a5, 1, 3, 4), (a6, 1, 4, 5),
-                                               (a7, 3, 4, None)], size=8.0, step=10)
-    callout(s, 1, 8.85, 2.50, 3.78, '트랙 관리 먼저', ['연관이 없어 모든 트랙 Assigned_Flag = 0', 'f_Trk_UpdateState 로 판정 (3.8)'], size=10.5)
+    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(a1, 2, 0, 1), (a2, 1, 1, 2), (a3, 13, 1, None), (a4, 2, 2, 3), (a5, 1, 3, 4), (a6, 1, 4, 5),
+                                               (a7, 3, 4, None)], size=7.6, step=9)
+    callout(s, 1, 8.85, 2.50, 3.78, '트랙 관리 먼저', ['연관이 없어 모든 트랙 Assigned_Flag = 0', 'f_Trk_UpdateState 로 판정 (3.7)'], size=10.5)
     callout(s, 2, 8.85, 3.45, 3.78, '속도 게이트', ['bestSpeed 를 V_max 로 시작', '-> 800 m/s 이상인 쌍은 고르지 않음'], size=10.5)
     callout(s, 3, 8.85, 4.40, 3.78, '쓴 플롯 표시', ['한 플롯은 한 쌍에만'], size=10.5)
     callout(s, 4, 8.85, 5.05, 3.78, '트랙 ID', ['100 부터 차례로, 10000 다음은 100', '쓰는 중인 ID 는 건너뜀'], size=10.5)
-    callout(s, 5, 8.85, 5.95, 3.78, '초기화 (3.7)', ['임시 (1), TrackScore 2, 개시 플롯 ID 2 개'], size=10.5)
+    callout(s, 5, 8.85, 5.95, 3.78, '초기화 (3.6)', ['임시 (1), TrackScore 2, 개시 플롯 ID 2 개'], size=10.5)
 
-    # 20  3.7
-    s = d.content(sec3, '3.7 2 Point 초기화 (f_Trk_TwoPointInit)', '9 x 1 상태변수와 9 x 9 오차 공분산을 0 으로 만든 뒤, 축마다 위치 · 속도 칸만 채웁니다. 가속도 칸은 0 으로 남습니다.',
-                  'TargetSimCore/src/TrackMgr.c')
+    # 20  3.6
+    s = d.content(sec3, '3.6 2 Point 초기화 (f_Trk_TwoPointInit)', '9 x 1 상태변수와 9 x 9 오차 공분산을 0 으로 만든 뒤, 축마다 위치 · 속도 칸만 채웁니다. 가속도 칸은 0 으로 남습니다.',
+                  'TargetSimCore/src/TrackMgr.c', tag='3-1')
     rows = excerpt('TargetSimCore/src/TrackMgr.c', [('VOID f_Trk_TwoPointInit(', 'st_P->e[(3 * nAxis) + 1][(3 * nAxisB) + 1]')])
     rows.append((rows[-1][0] + 1, '    }'))
     rows.append((rows[-1][0] + 1, '  }'))
     rows.append((rows[-1][0] + 1, '}'))
+    rows = annotate(rows, [('f_Trk_TwoPointInit(', '앞 플롯, 이번 플롯'), ('dt = ', '스캔 간격 T [s]'), ('*st_X = ', '상태변수 X (9 x 1)'),
+                           ('*st_P = ', '오차 공분산 P (9 x 9)'), ('nAxis;', '축 a'), ('nAxisB;', '축 b'),
+                           ('Matrix_initialize(st_X', '9 x 1, 모두 0'), ('Matrix_initialize(st_P', '9 x 9, 모두 0'),
+                           ('for (nAxis = 0', '축 a: 0 북, 1 동, 2 아래'), ('st_X->e[(3 * nAxis)][0]', '위치 = 이번 플롯'),
+                           ('st_X->e[(3 * nAxis) + 1][0]', '속도 = 위치 차 / T'), ('st_X->e[(3 * nAxis) + 2][0]', '가속도 = 0'),
+                           ('for (nAxisB = 0', '축 b'), ('st_P->e[(3 * nAxis)][(3 * nAxisB)]', '위치 · 위치 = R_k'),
+                           ('st_P->e[(3 * nAxis)][(3 * nAxisB) + 1]', '위치 · 속도 = R_k / T'), ('st_P->e[(3 * nAxis) + 1][(3 * nAxisB)]', '속도 · 위치 = R_k / T'),
+                           ('st_P->e[(3 * nAxis) + 1][(3 * nAxisB) + 1]', '속도 · 속도 = (R_k + R_k-1) / T²', 'above')])
     c1 = row_of(rows, 'Matrix_initialize(st_X')
     c2 = row_of(rows, 'st_X->e[(3 * nAxis)][0]')
     c3 = row_of(rows, 'st_P->e[(3 * nAxis)][(3 * nAxisB)]')
-    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(c1, 2, 0, 1), (c2, 3, 1, 2), (c3, 4, 2, 3)], size=7.6, step=10)
+    code_box(s, 0.70, 2.45, 7.85, rows, bands=[(c1, 2, 0, 1), (c2, 3, 1, 2), (c3, 5, 2, 3)], size=7.6, step=10)
     callout(s, 1, 8.85, 2.50, 3.78, '0 으로 채운 행렬', ['참고 소스 코드의 Matrix_initialize', '가속도 칸은 손대지 않아 0'], size=10.5)
-    callout(s, 2, 8.85, 3.45, 3.78, '상태변수 (축마다)', ['위치 = 이번 플롯', '속도 = 위치 차 / 시간 차, 가속도 = 0'], size=10.5)
-    callout(s, 3, 8.85, 4.40, 3.78, '오차 공분산 (축 a, b)', ['P_pp = R_k,   P_pv = P_vp = R_k / T', 'P_vv = ( R_k + R_k-1 ) / T²', '축 사이 칸까지 같은 식 (1.3)'],
+    callout(s, 2, 8.85, 3.45, 3.78, '상태변수 (축 a 마다)', ['위치 = 이번 플롯  (3a 번째 칸)', '속도 = 위치 차 / 시간 차  (3a+1)', '가속도 = 0  (3a+2)'], size=10.5)
+    callout(s, 3, 8.85, 4.60, 3.78, '오차 공분산 (1.3 의 3 x 3 표)', ['위치 · 위치 = R_k', '위치 · 속도 = R_k / T', '속도 · 속도 = ( R_k + R_k-1 ) / T²'],
             size=10.5)
-    rect(s, 8.85, 5.55, 3.78, 1.05, fill=BOXF, line=LINE)
-    text(s, 9.00, 5.60, 3.55, 0.95, [[('인덱스', 10, NAVY, True)], [('축 a 의 위치 3a, 속도 3a+1, 가속도 3a+2', 10, SUB)],
-                                     [('x 북 0 ~ 2,  y 동 3 ~ 5,  z 아래 6 ~ 8', 10, SUB)]], lnspc=110)
 
-    # 21  3.8
-    s = d.content(sec3, '3.8 트랙 스코어 로직 (f_Trk_UpdateState)', '상태마다 case 하나씩입니다. 임시는 TrackScore 로, 확정 · 메모리는 MemoryScore 로 다음 상태를 정합니다.',
-                  'TargetSimCore/src/TrackMgr.c')
+    # 21  3.7
+    s = d.content(sec3, '3.7 트랙 스코어 로직 (f_Trk_UpdateState)', '상태마다 case 하나씩입니다. 임시는 TrackScore 로, 확정 · 메모리는 MemoryScore 로 다음 상태를 정합니다.',
+                  'TargetSimCore/src/TrackMgr.c', tag='3-2')
     rows = excerpt('TargetSimCore/src/TrackMgr.c', [('VOID f_Trk_UpdateState(', 'case TRK_STATE_CONFIRMED:')])
     rows = rows[:-1]
+    rows = annotate(rows, [('f_Trk_UpdateState(', '스캔마다 트랙 하나씩'), ('isAssigned = ', '연관 결과 1 / 0'),
+                           ('switch (', '지금 상태에 따라'), ('case TRK_STATE_TENTATIVE:', '임시 트랙'),
+                           ('TrackScore + ', '성공 +1, 실패 -1', 'above'), ('>= TRK_SCORE_CONFIRM', '5 이상이면'), ('= TRK_STATE_CONFIRMED;', '확정'),
+                           ('<= TRK_SCORE_DELETE', '0 이하면'), ('= TRK_STATE_DELETED;', '삭제')])
     d1 = row_of(rows, 'TrackScore + ')
     d2 = row_of(rows, '>= TRK_SCORE_CONFIRM')
     d3 = row_of(rows, '<= TRK_SCORE_DELETE')
     label(s, 0.70, 2.44, 6.0, '임시 트랙')
-    code_box(s, 0.70, 2.72, 6.05, rows, bands=[(d1, 1, 0, 1), (d2, 4, 2, 2), (d3, 4, 4, None)], size=7.6, step=9)
+    code_box(s, 0.70, 2.72, 6.05, rows, bands=[(d1 - 1, 2, 0, 1), (d2, 4, 2, 2), (d3, 4, 4, None)], size=7.6, step=9)
     rows2 = excerpt('TargetSimCore/src/TrackMgr.c', [('case TRK_STATE_CONFIRMED:', 'default:')])
     rows2 = rows2[:-1]
+    rows2 = annotate(rows2, [('case TRK_STATE_CONFIRMED:', '확정 트랙'), ('isAssigned == 0', '연관 실패면'), ('= TRK_STATE_MEMORY;', '메모리로'),
+                             ('MemoryScore + 1;', 'MemoryScore +1'), ('case TRK_STATE_MEMORY:', '메모리 트랙'), ('isAssigned != 0', '연관 성공이면'),
+                             ('= TRK_STATE_CONFIRMED;', '바로 확정'), ('MemoryScore  = 0;', 'MemoryScore 0 으로'), ('else', '연관 실패면'),
+                             ('MemoryScore + 1;', 'MemoryScore +1'), ('>= TRK_MEMORY_DELETE', '5 이상이면'), ('= TRK_STATE_DELETED;', '삭제')])
     e1 = row_of(rows2, 'TRK_STATE_MEMORY;')
     e3 = row_of(rows2, '= 0;')
     e4 = row_of(rows2, '>= TRK_MEMORY_DELETE')
@@ -816,59 +942,47 @@ def build(template, fig, shots, out):
         text(s, x + 0.28, y - 0.03, 2.1, 0.5, [[(t, 9.5, NAVY)]], anchor='t')
 
     # 22 간지 04
-    d.divider('04. 결과', '프로그램 화면과 송수신 결과, 2D · 3D 전시, 트랙 수명, 거리에 따른 개시 결과를 봅니다.',
-              [('4.1', '실행 화면과 송수신 결과', 23), ('4.2', 'True · Plot · Track 2D · 3D 전시', 24), ('4.3', '트랙 수명과 스코어 확인', 25),
-               ('4.4', '거리에 따른 개시 결과', 26)])
+    d.divider('04. 결과', '2D · 3D 전시, 트랙 수명과 스코어 확인, 거리에 따른 개시 결과를 봅니다.',
+              [('4.1', 'True · Plot · Track 2D · 3D 전시', 23), ('4.2', '트랙 수명과 스코어 확인', 24), ('4.3', '거리에 따른 개시 결과', 25)])
 
     # 23  4.1
-    s = d.content(sec4, '4.1 실행 화면과 송수신 결과', '기본 시나리오 + 표적 3 개, 60 s, 스캔 600 개, 스캔당 클러터 5 개 (과제 4 조건). 실행하면 바로 송수신을 시작합니다.')
-    picture(s, S('ui_full.png'), 0.70, 2.45, h=4.30, border=True)
-    callout(s, 1, 8.35, 2.50, 4.28, 'UDP 송수신', ['600 스캔 보냄, 600 스캔 받음, 손실 0', '메시지 1,282 B x 600 = 769,200 B'], size=10.5)
-    callout(s, 2, 8.35, 3.45, 4.28, '트랙 611 개 개시, 607 개 삭제', ['개시 쌍은 모두 같은 표적의 플롯', '클러터끼리 0, 섞임 0 (송신 쪽 기록과 대조)'], size=10.5)
-    callout(s, 3, 8.35, 4.40, 4.28, '스캔 슬라이더', ['고른 스캔의 2D, 3D 그림과 트랙 표', '송신 간격 100 ms 면 실시간으로 따라감'], size=10.5)
-    callout(s, 4, 8.35, 5.35, 4.28, '트랙 표', ['트랙 ID, TrackState, TrackScore,', 'MemoryScore, Assigned_Flag, 위치 · 속도'], size=10.5)
-
-    # 24  4.2
-    s = d.content(sec4, '4.2 True · Plot · Track 2D · 3D 전시', '같은 스캔 (300, 30 s) 을 2D 와 3D 로 그린 화면입니다. 참값, 플롯, 트랙 심볼을 함께 그립니다.')
-    picture(s, S('ui_2d.png'), 0.82, 2.42, w=5.55, border=True)
-    picture(s, S('ui_3d.png'), 6.95, 2.42, w=5.55, border=True)
-    text(s, 0.82, 5.82, 5.55, 0.26, [[('2D (위도 · 경도), 휠로 2.4 배 확대', 10, SUB)]], align='c')
-    text(s, 6.95, 5.82, 5.55, 0.26, [[('3D, 클러터를 끄고 고도 3 배', 10, SUB)]], align='c')
-    leg = [('참값', '선: 궤적,  마름모: 지금 위치 (표적 색)'), ('플롯', '옅은 점: 지난 스캔,  흰 테 큰 점: 지금 스캔'), ('트랙', '빈 주황 사각형: 임시,  회색 X: 삭제,  숫자: ID'),
-           ('속도 선', '트랙 속도로 1 초 동안 가는 거리')]
+    s = d.content(sec4, '4.1 True · Plot · Track 2D · 3D 전시', '1,160 스캔에서 트랙 355 개를 개시했고 (클러터끼리 만든 트랙 3), 아래는 스캔 546 (54.6 s) 의 화면입니다.',
+                  tag='3-3')
+    # 그림 카드 한 장 (스캔 슬라이더 줄 + 2D + 3D). 2D 는 휠로 2 배 확대
+    picture(s, S('ui_view.png'), 1.565, 2.42, w=10.2, border=True)
+    leg = [('참값', '선: 궤적 (지금 뒤는 옅게),  원: 출발점,  마름모: 지금 위치'), ('플롯', '옅은 점: 지난 스캔,  흰 테 큰 점: 지금 스캔,  회색: 클러터'),
+           ('트랙', '빈 주황 사각형: 임시,  회색 X: 삭제,  숫자: ID'), ('속도 선', '트랙 속도로 1 초 동안 가는 거리'),
+           ('3D', '고도 3 배,  회색 선: 궤적의 바닥 그림자 (사이가 고도)')]
     for k, (a, b) in enumerate(leg):
         x = 0.70 + (k % 2) * 6.05
-        y = 6.16 + (k // 2) * 0.30
+        y = 6.10 + (k // 2) * 0.25
         text(s, x, y, 1.0, 0.25, [[(a, 10.5, NAVY, True)]], anchor='m')
         text(s, x + 0.85, y, 5.1, 0.25, [[(b, 10.5, NAVY)]], anchor='m')
 
-    # 25  4.3
-    s = d.content(sec4, '4.3 트랙 수명과 스코어 확인', '과제 조건 (Assigned_Flag 늘 0) 에서 트랙은 세 스캔 동안만 보입니다. 확정 · 메모리 상태는 스코어 확인 창으로 확인했습니다.')
-    label(s, 0.70, 2.44, 6.9, '스캔 300 의 트랙 표')
-    picture(s, S('table_s300.png'), 0.70, 2.74, w=6.9, border=True)
-    callout(s, 1, 0.75, 4.30, 6.85, '나이가 다른 트랙 세 개', ['350: 이번 스캔에 개시, TrackScore 2', '349: 한 스캔 전 개시, 1  /  348: 두 스캔 전 개시, 0 -> 삭제 (4)'], size=10.5)
+    # 24  4.2
+    s = d.content(sec4, '4.2 트랙 수명과 스코어 확인', '과제 조건 (Assigned_Flag 늘 0) 에서 트랙은 세 스캔 동안만 보입니다. 확정 · 메모리 상태는 스코어 확인 창으로 확인했습니다.',
+                  tag='3-2 · 3-3')
+    label(s, 0.70, 2.44, 6.9, '스캔 545 의 트랙 표')
+    picture(s, S('table_s545.png'), 0.70, 2.74, w=6.9, border=True)
+    callout(s, 1, 0.75, 4.30, 6.85, '나이가 다른 트랙 세 개', ['242: 이번 스캔에 개시, TrackScore 2', '241: 한 스캔 전 개시, 1  /  240: 두 스캔 전 개시, 0 -> 삭제 (4)'], size=10.5)
     text(s, 7.95, 6.30, 4.68, 0.30, [[('스코어 확인 창: 1 1 1 0 0 1 1 을 넣은 결과', 10, SUB)]], align='c')
-    callout(s, 2, 0.75, 5.25, 6.85, '모든 트랙이 같은 수명', ['개시 2 -> 1 -> 0 (삭제), 다음 스캔에 표에서 빠짐', '611 개 모두 이 순서 (확인: 스캔마다 TrackScore = 2 - 나이)'], size=10.5)
+    callout(s, 2, 0.75, 5.25, 6.85, '모든 트랙이 같은 수명', ['TrackScore 2 -> 1 -> 0 (삭제), 다음 스캔에 표에서 빠짐', '355 개 모두 같은 순서 (끝에 만든 2 개는 1 까지)'], size=10.5)
     picture(s, S('score.png'), 7.95, 2.50, h=3.75, border=True)
 
-    # 26  4.4
-    s = d.content(sec4, '4.4 거리에 따른 개시 결과', '각도 오차는 거리에 비례해 위치 오차가 됩니다. 스캔 간격 0.1 s 에서 게이트 반경은 80 m 라 먼 표적일수록 개시가 드뭅니다.')
-    picture(s, F('fig_rate.png'), 0.70, 2.45, w=6.1)
-    tab = [('표적', '거리 [km]', '게이트 통과', '개시 트랙', '속도 오차 RMS'),
-           ('1', '13.9 ~ 14.1', '11 %', '58', '554 m/s'),
-           ('2', '13.3 -> 1.4', '43 %', '158', '475 m/s'),
-           ('3', '6.1 ~ 10.9', '25 %', '115', '575 m/s'),
-           ('4', '8.4 ~ 13.1', '20 %', '98', '531 m/s'),
-           ('5', '5.8 ~ 6.0', '45 %', '182', '549 m/s')]
-    table(s, 7.10, 2.50, 5.53, [0.55, 1.3, 1.15, 1.1, 1.43], tab, row_h=0.30)
-    text(s, 7.10, 4.40, 5.53, 0.5, [[('게이트 통과: 참 표적 쌍 기준.  개시 트랙: 한 번 쓴 플롯은 다시 쓰지 않아 최대 300.  속도 오차: 개시 순간 추정 속도와 참 속도 차', 9, SUB)]])
-    callout(s, 1, 7.15, 5.05, 5.48, 'SNR 1000 이면', ['모든 표적이 두 스캔마다 개시 (각 300 개)', '정규화 속도 오차 제곱 평균 2.8 ~ 2.9 (이론 3) -> P 가 실제 오차와 맞다'], size=10.5)
-    rect(s, 0.70, 5.75, 6.1, 0.85, fill='FEF3E2', line='D97706', lw=0.75)
-    text(s, 0.88, 5.80, 5.8, 0.78, [[('속도 오차가 큰 이유', 10.5, 'B45309', True)],
-                                    [('위치 오차를 0.1 s 로 나누기 때문. 스캔 간격이 수 초인 탐색 레이다라면', 10, NAVY)],
-                                    [('같은 위치 오차에서 속도 오차가 수십 분의 일로 준다.', 10, NAVY)]], lnspc=110)
+    # 25  4.3
+    s = d.content(sec4, '4.3 거리에 따른 개시 결과', '멀리 있는 표적일수록 같은 표적 쌍도 속도 게이트를 통과하기 어려워, 트랙이 덜 만들어집니다.',
+                  tag='1.2 · 속도 게이팅')
+    picture(s, F('fig_rate.png'), 0.70, 2.50, w=6.9)
+    # 가까운 순. 표적 2 는 13.4 km 에서 4.8 km 까지 다가오므로 거리 구간으로 나눔. 구간마다 머문 스캔 쌍 수가 달라 쌍당 개시 비율로 견줌
+    tab = [('표적', '거리 [km]', '스캔 쌍', '게이트 통과', '개시 트랙', '개시 비율'),
+           ('2', '4.8 ~ 6.5', '308', '45 %', '97', '31 %'),
+           ('2', '6.5 ~ 8.0', '87', '32 %', '21', '24 %'),
+           ('2', '8.0 ~ 10.5', '414', '23 %', '71', '17 %'),
+           ('2', '10.5 ~ 13.4', '350', '15 %', '46', '13 %'),
+           ('1', '13.6 ~ 14.2', '1,159', '12 %', '117', '10 %')]
+    table(s, 7.80, 3.05, 4.83, [0.50, 1.00, 0.70, 0.90, 0.83, 0.90], tab, head_size=10, size=10.5, row_h=0.36)
 
-    # 27 끝
+    # 26 끝
     d.end('감사합니다', '질문 주시면 답변드리겠습니다')
     d.save(out)
     print('saved', out, len(d.prs.slides))

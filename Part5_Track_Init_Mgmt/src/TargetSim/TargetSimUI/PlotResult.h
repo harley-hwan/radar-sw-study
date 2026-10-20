@@ -6,8 +6,8 @@
 #include "PlotSim.h"
 #include "Scenario.h"
 
-// 측정 모의 결과 (과제 4). Part 3 결과의 표본을 스캔마다 재서 만든 플롯, 클러터와 그 통계.
-// 스캔은 0.1 s 구간마다 시작 시각에 한 번이라 60 s 면 600 스캔 (끝 시각 표본은 재지 않음).
+// 측정 모의 결과. 궤적 계산 결과의 표본을 스캔마다 재서 만든 플롯, 클러터 (트랙 개시의 입력).
+// 스캔은 0.1 s 구간마다 시작 시각에 한 번이라 116 s 면 1160 스캔 (끝 시각 표본은 재지 않음).
 class CPlotResult
 {
 public:
@@ -19,10 +19,7 @@ public:
 	const ST_PlotPoint *	f_GetPlotPoint(INT32 nScan, INT32 nTarget) const;
 	const ST_PlotPoint *	f_GetClutterPoint(INT32 nScan, INT32 nClutter) const;
 
-	STRUCT_Coord_Sph		st_Sigma = {};					// 이론 표준편차 p [m, rad]
-	STRUCT_Coord_Sph		st_ErrorStd = {};				// 플롯 오차 (z - x) 의 표준편차 [m, rad]
-	INT32					nPlotNum = 0;
-	INT32					nClutterSum = 0;
+	STRUCT_Coord_Sph		st_Sigma = {};					// 측정 표준편차 p [m, rad]. 플롯 메시지에 실려 받는 쪽 측정 공분산에 쓰임
 
 private:
 	std::vector<ST_PcsScan>		st_ScanBuf;
@@ -44,7 +41,9 @@ private:
 #define TRK_COL_POS				9						// 북, 동, 아래 세 칸
 #define TRK_COL_VEL				12						// 북, 동, 아래 세 칸
 #define TRK_COL_SPEED			15
-#define TRK_COL_NUM				16
+#define TRK_COL_POS_STD			16						// 위치 오차 표준편차: mat_EstP 위치 대각 세 축의 RSS
+#define TRK_COL_VEL_STD			17						// 속도 오차 표준편차: mat_EstP 속도 대각 세 축의 RSS
+#define TRK_COL_NUM				18
 
 #define TRK_SOURCE_MIXED		(-1)					// 개시 플롯 두 개의 참값이 다름
 #define TRK_LEAD_TIME			1.0						// [s] 그림의 속도 선 길이 (이 시간 동안 가는 거리)
@@ -66,7 +65,7 @@ typedef struct
 	ST_PlotPoint			st_Point;
 } ST_RecvPlot;
 
-// 트랙 개시 · 관리 결과 (과제 5). 플롯 메시지 송수신 쓰레드 (Core) 가 처리한 스캔을 타이머로 받아 모아 둠.
+// 트랙 개시 · 관리 결과. 플롯 메시지 송수신 쓰레드 (Core) 가 처리한 스캔을 타이머로 받아 모아 둠.
 // 수신 쪽 위치 (그 스캔 레이다 기준 VC-NED) 는 받을 때 그림 좌표 (플랫폼 초기 위치 기준) 로 바꿔 둠.
 class CTrackResult
 {
@@ -82,12 +81,13 @@ public:
 	const ST_TrackItem *	f_GetTrack(INT32 nIndex, INT32 nTrack) const;
 	INT32					f_GetPlotNum(INT32 nIndex) const;
 	const ST_RecvPlot *		f_GetPlot(INT32 nIndex, INT32 nPlot) const;
+	VOID					f_CountPlot(INT32 nIndex, INT32 *pt_TargetNum, INT32 *pt_ClutterNum) const;
+	VOID					f_CountTo(INT32 nScanNum, INT32 *pt_CreatedNum, INT32 *pt_DeletedNum, INT32 pt_Source[TGT_MAX_TARGET_NUM + 2]) const;
 	VOID					f_FormatCell(INT32 nIndex, INT32 nTrack, INT32 nColumn, INT32 isCsv, CHAR *pt_Buf, INT32 bufSize) const;
 	INT32					f_WriteCsv(const CString &st_Path) const;
 
 	ST_LnkStatus			st_Status = {};
 	INT32					nScanTotal = 0;										// 보낼 스캔 수
-	INT32					nSourceCount[TGT_MAX_TARGET_NUM + 2] = {};			// 만든 트랙의 참값별 수. [0] 클러터, [k] 표적 k, 마지막 칸 섞임
 
 private:
 	VOID					f_AddScan(const ST_LnkScan *st_Scan);
