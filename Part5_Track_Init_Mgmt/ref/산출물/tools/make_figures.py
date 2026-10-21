@@ -400,7 +400,7 @@ def fig_life():
 
 
 def crop_ui():
-    # 4.2 · 4.3 슬라이드용 확대 캡처 (capture_agent 로 찍은 큰 창 캡처를 자름)
+    # 4.2 · 4.3 · 4.5 슬라이드용 확대 캡처 (capture_agent 로 찍은 큰 창 캡처를 자름)
     from PIL import Image
     a = os.path.join(OUT, 'ui_big_s701_2d.png'); b = os.path.join(OUT, 'ui_big_s701_3d.png')
     if os.path.exists(a) and os.path.exists(b):
@@ -409,6 +409,12 @@ def crop_ui():
         im.crop((640, 955, 1625, 1062)).save(os.path.join(OUT, 'ui_crop_table.png'))
         Image.open(b).crop((645, 140, 1845, 900)).save(os.path.join(OUT, 'ui_crop_3d.png'))
         print('saved ui_crop_*.png')
+    # 4.5 전체 궤적: 마지막 스캔 (1159) 큰 창 캡처
+    a = os.path.join(OUT, 'ui_big_s1159_2d.png'); b = os.path.join(OUT, 'ui_big_s1159_3d.png')
+    if os.path.exists(a) and os.path.exists(b):
+        Image.open(a).crop((690, 140, 1890, 905)).save(os.path.join(OUT, 'ui_crop_full_2d.png'))
+        Image.open(b).crop((645, 140, 1845, 900)).save(os.path.join(OUT, 'ui_crop_full_3d.png'))
+        print('saved ui_crop_full_*.png')
 
 
 # ---------------------------------------------------------------- 2.1 track association (Assigned_Flag)

@@ -17,6 +17,8 @@ NAVY = '1B2740'; SUB = '4A5A7A'; MUTED = '8794AC'; LIGHT = 'AEB9CC'; BORDER = 'D
 BLUE = '2563EB'; RED = 'DC2626'; ORANGE = 'D97706'; GREEN = '059669'; PURPLE = '7C3AED'; NUM = 'B45309'; WHITE = 'FFFFFF'
 F_GRAY = 'F7F9FC'; F_BLUE = 'EBF2FE'; F_RED = 'FDEEEE'; F_ORANGE = 'FEF5E7'; F_GREEN = 'E8F6F0'; F_PURPLE = 'F3E8FF'
 KO = '맑은 고딕'; EN = 'Arial'; MONO = 'Consolas'
+FULL_T1 = '━ 표적 1 대함 30 m/s'
+FULL_T2 = '━ 표적 2 대공 200 m/s'
 MARK = {1: RED, 2: ORANGE, 3: GREEN, 4: BLUE, 5: PURPLE}
 MARK_F = {1: F_RED, 2: F_ORANGE, 3: F_GREEN, 4: F_BLUE, 5: F_PURPLE}
 
@@ -508,70 +510,116 @@ tb(s, 0.9, 5.62, 7.3, 1.15, [('과제 적용 조건', dict(size=12, bold=True, a
 note(s, 's12')
 
 # 13 간지 03
-s = divider('03. 구현', '과제 4 프로그램 (TargetSim) 에 플롯 메시지 송수신과 트랙 개시 · 관리를 넣은 구조와 코드를 봅니다.',
-            [('3.1', '전체 구조와 데이터 흐름', 14), ('3.2', '플롯 메시지 STRUCT_PlotMsg', 15), ('3.3', '트랙 자료구조와 스캔 처리 순서', 16),
+s = divider('03. 구현', '과제 4 프로그램 (TargetSim) 에 플롯 메시지 송수신과 트랙 개시 · 관리를 넣었습니다. 코드마다 맡은 역할과 처리 순서, 계산 방법을 봅니다.',
+            [('3.1', '전체 구조와 데이터 흐름', 14), ('3.2', '플롯 메시지 송수신 순서', 15), ('3.3', '트랙 자료구조와 스캔 처리 순서 (f_Trk_ProcessScan)', 16),
              ('3.4', '2-Point 개시와 R 계산 (f_Trk_TwoPointInit)', 17), ('3.5', '트랙 스코어 로직 (f_Trk_UpdateState)', 18)])
 note(s, 'div3')
 
 # 14 전체 구조
 s = content('03. 구현', '3.1 전체 구조와 데이터 흐름', '한 프로그램 안에 신호처리 역할의 송신 쓰레드와 데이터 처리 역할의 수신 쓰레드를 두고, 스캔마다 플롯 메시지를 UDP 로 주고받습니다.')
-rect(s, 0.7, 2.5, 11.93, 3.3, F_GRAY, 'E3E8F0', radius=0.03)
+rect(s, 0.7, 2.5, 11.93, 3.38, F_GRAY, 'E3E8F0', radius=0.03)
 tb(s, 0.9, 2.56, 5, 0.28, 'TargetSimCore.dll  (C)', size=11, bold=True, color=SUB, font=EN)
-B = [(1.0, 2.95, '궤적 계산  (과제 3)', 'TargetSim.c · 0.1 s 마다 플랫폼 · 표적 상태', NAVY, WHITE),
-     (4.75, 2.95, '측정 모의  (과제 4)', 'PlotSim.c · 표적 플롯 + 클러터 5 개 / 스캔', NAVY, WHITE),
-     (8.5, 2.95, '송신 쓰레드  (신호처리 역할)', 'f_Lnk_TxThread · STRUCT_PlotMsg, 플롯 ID', BLUE, F_BLUE),
-     (8.5, 4.65, '수신 쓰레드  (데이터 처리 역할)', 'f_Lnk_RxThread · 구좌표 → VC-NED, R', BLUE, F_BLUE),
-     (4.75, 4.65, '트랙 개시 · 관리', 'TrackMgr.c · f_Trk_ProcessScan', ORANGE, F_ORANGE),
-     (1.0, 4.65, '결과 버퍼', '스캔마다 플롯 · 트랙 표 · 처리 기록', NAVY, WHITE)]
-for x, y, a, b, c, f in B:
-    rect(s, x, y, 3.3, 0.85, f, c, radius=0.1, lw=1.1)
-    tb(s, x, y + 0.1, 3.3, 0.3, a, size=12, bold=True, color=c, align='c')
-    tb(s, x, y + 0.45, 3.3, 0.3, b, size=9.5, color=SUB, align='c')
-for x1, y1, x2, y2 in ((4.32, 3.37, 4.73, 3.37), (8.07, 3.37, 8.48, 3.37), (8.48, 5.07, 8.07, 5.07), (4.73, 5.07, 4.32, 5.07)):
+B = [(1.0, 2.92, '궤적 계산  (과제 3)', '0.1 s 마다 플랫폼 · 표적 위치 계산', 'TargetSim.c', NAVY, WHITE),
+     (4.75, 2.92, '측정 모의  (과제 4)', '스캔마다 표적 플롯 + 클러터 5 개 생성', 'PlotSim.c', NAVY, WHITE),
+     (8.5, 2.92, '송신 쓰레드  (신호처리 역할)', '스캔의 플롯을 메시지로 묶어 보냄', 'PlotLink.c', BLUE, F_BLUE),
+     (8.5, 4.68, '수신 쓰레드  (데이터 처리 역할)', '좌표 변환, 플롯마다 R 계산', 'PlotLink.c', BLUE, F_BLUE),
+     (4.75, 4.68, '트랙 개시 · 관리', '트랙 표 갱신 (개시 · 상태 관리)', 'TrackMgr.c', ORANGE, F_ORANGE),
+     (1.0, 4.68, '결과 버퍼', '스캔마다 플롯 · 트랙 결과 저장', 'PlotLink.c', NAVY, WHITE)]
+for x, y, a, b, f_, c, f in B:
+    rect(s, x, y, 3.3, 0.98, f, c, radius=0.1, lw=1.1)
+    tb(s, x, y + 0.08, 3.3, 0.3, a, size=12, bold=True, color=c, align='c')
+    tb(s, x, y + 0.41, 3.3, 0.28, b, size=10, color=NAVY, align='c')
+    tb(s, x, y + 0.67, 3.3, 0.24, f_, size=8.5, color=MUTED, align='c', font=MONO)
+for x1, y1, x2, y2 in ((4.32, 3.41, 4.73, 3.41), (8.07, 3.41, 8.48, 3.41), (8.48, 5.17, 8.07, 5.17), (4.73, 5.17, 4.32, 5.17)):
     line(s, x1, y1, x2, y2, color=SUB, width=1.25, arrow=True)
-line(s, 10.15, 3.82, 10.15, 4.63, color=BLUE, width=2.0, arrow=True)
-tb(s, 10.25, 3.93, 2.4, 0.6, ['UDP 127.0.0.1:50505', '스캔마다 메시지 1 개 (919 B)'], size=10, color=BLUE, bold=True)
-line(s, 2.65, 5.52, 2.65, 5.98, color=SUB, width=1.25, arrow=True)
-rect(s, 0.7, 6.0, 11.93, 0.8, WHITE, NAVY, radius=0.1, lw=1.1)
-tb(s, 0.95, 6.03, 11.5, 0.75, [('TargetSimUI.exe  (MFC)', dict(size=12, bold=True, after=2)),
-                              ('50 ms 타이머로 처리된 스캔을 가져와  True · Plot · Clutter · Track 2D / 3D 그림,  지금 스캔의 트랙 표,  송수신 · 트랙 요약을 보여 줌  (스코어 확인 창, CSV 저장)', dict(size=10.5, color=SUB))])
+line(s, 10.15, 3.92, 10.15, 4.66, color=BLUE, width=2.0, arrow=True)
+tb(s, 10.27, 4.06, 2.3, 0.5, ['UDP', '스캔마다 메시지 1 개'], size=10, color=BLUE, bold=True)
+line(s, 2.65, 5.68, 2.65, 6.03, color=SUB, width=1.25, arrow=True)
+rect(s, 0.7, 6.05, 11.93, 0.78, WHITE, NAVY, radius=0.1, lw=1.1)
+tb(s, 0.95, 6.09, 11.5, 0.72, [('TargetSimUI.exe  (MFC 화면)', dict(size=12, bold=True, after=2)),
+                              ('결과 버퍼에서 처리된 스캔을 가져와  True · Plot · Clutter · Track 2D / 3D 그림,  지금 스캔의 트랙 표,  송수신 · 트랙 요약으로 보여 줌', dict(size=10.5, color=SUB))])
 note(s, 's14')
 
-# 15 플롯 메시지
-s = content('03. 구현', '3.2 플롯 메시지 STRUCT_PlotMsg', '스캔 하나 = 메시지 하나. 표적 플롯과 클러터를 섞어, 안테나 구좌표 (거리 · 방위각 · 고각) 성분으로만 채워 보냅니다.')
-h1 = code_panel(s, 0.7, 2.75, 7.0, 'TargetSimCore/include/Idd.h', 'typedef struct STRUCT_PlotMsg', 14, title=('플롯 메시지', 'Idd.h'),
-                highlights={1: ('PlotNum;', 1), 2: ('Sigma_Range;', 3), 4: ('st_Platform;', 2)}, size=8.6, lh=0.158)
-y2 = 2.75 + h1 + 0.42
-KEEP = ('st_Info->Id', 'Range_Ant	', 'Azimuth_Ant	', 'Elevation_Ant	', '// 플롯 ID', '*pt_PlotId = (')
-code_panel(s, 0.7, y2, 7.0, 'TargetSimCore/src/PlotLink.c', 'st_Info->Id', 24, title=('송신 쪽이 채우는 칸', 'PlotLink.c  f_Lnk_BuildMsg'),
-           keep=lambda t: any(k in t for k in KEEP), highlights={3: ('st_Info->Range_Ant', 3), 5: ('*pt_PlotId = (', 1)}, size=8.6, lh=0.158)
-callout(s, 8.05, 2.5, 4.6, 1, '플롯 수 = 표적 2 + 클러터 5', ['보낼 때는 머리 72 B + 플롯 121 B × 7 = 919 B'])
-callout(s, 8.05, 3.25, 4.6, 2, 'R 을 만들 측정잡음 표준편차', ['과제 값 10 m, 0.2°, 0.2° 를 실어 보냄', '받는 쪽은 이 값으로 R 을 계산'])
-callout(s, 8.05, 4.22, 4.6, 3, '안테나 구좌표만 채움', ['VC-NED 등 나머지 좌표는 받는 쪽이 계산', '표적 / 클러터 꼬리표 없이 방위각 순서로 섞음'])
-callout(s, 8.05, 5.19, 4.6, 4, '스캔 시각의 플랫폼 정보 + 플롯 배열', ['PlotNum 개만큼만 보냄'])
-callout(s, 8.05, 5.9, 4.6, 5, '플롯 ID 10000 ~ 1000000 (과제 조건)', ['1 씩 늘리고 1000000 다음은 10000'])
+# 15 플롯 메시지 송수신 순서
+s = content('03. 구현', '3.2 플롯 메시지 송수신 순서', '송신 쓰레드는 스캔마다 플롯을 메시지 하나로 묶어 보내고, 수신 쓰레드는 받은 플롯을 트랙 계산에 쓸 수 있는 형태로 바꿔 넘깁니다.')
+
+
+def flow_lane(slide, y, title, func, steps, col, fill, w_total=8.25, gap=0.3, h=1.12):
+    tb(slide, 0.7, y, 6.0, 0.3, [title], size=12, bold=True, color=col)
+    t = slide.shapes[-1].text_frame.paragraphs[0]
+    r = t.add_run(); r.text = '    ' + func; _style_run(r, 9.5, MUTED, font=MONO)
+    n = len(steps)
+    w = (w_total - gap * (n - 1)) / n
+    yy = y + 0.38
+    for i, (num, head, body, fn) in enumerate(steps):
+        x = 0.7 + i * (w + gap)
+        rect(slide, x, yy, w, h, fill, col, radius=0.08, lw=1.0)
+        dot = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x + 0.1), Inches(yy + 0.1), Inches(0.25), Inches(0.25))
+        dot.fill.solid(); dot.fill.fore_color.rgb = rgb(col); dot.line.fill.background(); dot.shadow.inherit = False
+        dtf = dot.text_frame; dtf.margin_left = dtf.margin_right = dtf.margin_top = dtf.margin_bottom = 0; dtf.vertical_anchor = MSO_ANCHOR.MIDDLE
+        dp = dtf.paragraphs[0]; dp.alignment = PP_ALIGN.CENTER; dr = dp.add_run(); dr.text = num; _style_run(dr, 9.5, WHITE, True)
+        tb(slide, x + 0.42, yy + 0.08, w - 0.5, 0.3, [head], size=11.5, bold=True, color=col)
+        tb(slide, x + 0.1, yy + 0.4, w - 0.2, 0.45, body.split('\n'), size=9.8, color=NAVY)
+        if fn:
+            tb(slide, x + 0.1, yy + h - 0.27, w - 0.2, 0.22, fn, size=8, color=MUTED, font=MONO)
+        if i < n - 1:
+            line(slide, x + w + 0.03, yy + h / 2, x + w + gap - 0.03, yy + h / 2, color=col, width=1.25, arrow=True)
+    return yy, w, h
+
+
+TX = [('1', '플롯 모으기', '표적 플롯 2 + 클러터 5\n방위각 순서로 섞음', 'f_Lnk_BuildMsg'),
+      ('2', '메시지 만들기', '플롯마다 ID 부여\n거리 · 방위각 · 고각 + R σ', 'f_Lnk_BuildMsg'),
+      ('3', '보내기', '스캔 순서대로\n메시지 1 개씩 UDP 전송', 'f_Lnk_TxThread')]
+RX = [('4', '좌표 변환', '구좌표 →\nVC-NED 직교 좌표', 'f_Lnk_FillPlotCoord'),
+      ('5', 'R 계산', '플롯마다\n측정잡음 공분산', 'f_Trk_MeasCov'),
+      ('6', '트랙 처리', '개시 · 상태 관리\n(다음 장)', 'f_Trk_ProcessScan'),
+      ('7', '결과 저장', '플롯 · 트랙 표 저장\n→ 화면이 가져감', 'f_Lnk_ProcessMsg')]
+y_tx, w_tx, h_tx = flow_lane(s, 2.5, '송신 쓰레드  (신호처리 역할)', 'PlotLink.c  f_Lnk_TxThread', TX, BLUE, F_BLUE, gap=0.4)
+y_rx, w_rx, h_rx = flow_lane(s, 4.62, '수신 쓰레드  (데이터 처리 역할)', 'PlotLink.c  f_Lnk_RxThread', RX, GREEN, F_GREEN, gap=0.3)
+# ③ → ④ (UDP)
+x3 = 0.7 + 2 * (w_tx + 0.4) + w_tx / 2
+ym = y_rx + h_rx / 2
+line(s, x3, y_tx + h_tx, x3, 4.44, color=BLUE, width=1.6)
+line(s, x3, 4.44, 0.48, 4.44, color=BLUE, width=1.6)
+line(s, 0.48, 4.44, 0.48, ym, color=BLUE, width=1.6)
+line(s, 0.48, ym, 0.68, ym, color=BLUE, width=1.6, arrow=True)
+tb(s, x3 - 2.7, y_tx + h_tx + 0.08, 2.6, 0.25, 'UDP  (스캔마다 메시지 1 개)', size=10, bold=True, color=BLUE, align='r')
+# 메시지 내용 카드
+cx, cy, cw = 9.35, 2.5, 3.28
+rect(s, cx, cy, cw, 3.85, WHITE, BORDER, radius=0.04)
+tb(s, cx + 0.2, cy + 0.12, cw - 0.4, 0.3, '메시지 한 개에 담는 내용', size=12, bold=True)
+tb(s, cx + 0.2, cy + 0.42, cw - 0.4, 0.25, 'STRUCT_PlotMsg (Idd.h)', size=8.5, color=MUTED, font=MONO)
+ITEMS = [('스캔 번호 · 시각', ''), ('플랫폼 위치 · 자세', '좌표 변환에 사용'), ('R 표준편차', 'σr 10 m, σaz 0.2°, σel 0.2°'),
+         ('플롯 7 개', '플롯 ID (10000 ~ 1000000)\n거리 · 방위각 · 고각')]
+yy = cy + 0.82
+for head, body in ITEMS:
+    rect(s, cx + 0.2, yy + 0.06, 0.07, 0.2, BLUE)
+    paras = [(head, dict(size=10.5, bold=True, after=1))] + [(b, dict(size=9.5, color=SUB)) for b in body.split('\n') if b]
+    tb(s, cx + 0.38, yy, cw - 0.55, 0.62, paras)
+    yy += 0.33 + 0.2 * len([b for b in body.split('\n') if b]) + 0.12
+tb(s, cx + 0.2, cy + 3.42, cw - 0.4, 0.3, '표적 / 클러터 구분 정보는 넣지 않음', size=9.5, color=ORANGE, bold=True)
 note(s, 's15')
 
 # 16 자료구조와 처리 순서
-s = content('03. 구현', '3.3 트랙 자료구조와 스캔 처리 순서', '트랙 변수 이름은 과제 명세 그대로 두었고, 수신 쓰레드가 메시지를 받을 때마다 f_Trk_ProcessScan 이 아래 네 단계를 돌립니다.')
+s = content('03. 구현', '3.3 트랙 자료구조와 스캔 처리 순서', '수신 쓰레드가 메시지를 받을 때마다 f_Trk_ProcessScan 이 아래 네 단계를 차례로 수행합니다. 트랙 변수 이름은 과제 명세 그대로입니다.')
 code_panel(s, 0.7, 2.75, 6.3, 'TargetSimCore/include/TrackMgr.h', 'typedef struct', 13, title=('트랙 하나 ST_Track', 'TrackMgr.h'), start_after=find_line(src_lines('TargetSimCore/include/TrackMgr.h'), '트랙 하나. 변수 이름은'),
-           highlights={1: ('TrackId;', 1), 2: ('TrackState;', 4), 3: ('mat_EstX;', 2)}, size=8.6, lh=0.15)
+           size=8.6, lh=0.15)
 CONST = ('TRK_VMAX', 'TRK_SCORE_CONFIRM', 'TRK_SCORE_DELETE', 'TRK_MEMORY_DELETE', 'TRK_SCORE_INIT', 'TRK_R_SIGMA_RANGE', 'TRK_R_SIGMA_AZIMUTH', 'TRK_R_SIGMA_ELEVATION')
 code_panel(s, 0.7, 5.25, 6.3, 'TargetSimCore/include/TrackMgr.h', '#define TRK_VMAX', 40, title=('과제 조건 상수', 'TrackMgr.h'), keep=lambda t: t.startswith('#define') and t.split()[1] in CONST, size=8.6, lh=0.15)
-steps = [('삭제 트랙 정리', '앞 스캔에 삭제 (4) 가 된 트랙을 표에서 뺌.\n삭제 트랙은 한 스캔 동안 화면에 보인 뒤 사라짐'),
-         ('트랙 관리 (스코어 로직)', '연관 기능이 아직 없으므로 모든 트랙\nAssigned_Flag = 0 → f_Trk_UpdateState'),
-         ('2-Point 개시', '속도 게이트 → 속력 작은 쌍부터 → 트랙 ID 부여\n(100 ~ 10000 순환, 표에 남은 ID 는 건너뜀)'),
-         ('개시 후보 보관', '이번 스캔 플롯을 다음 스캔 후보로.\n개시에 쓴 플롯은 표시해 두고 후보에서 뺌')]
+steps = [('삭제 트랙 정리', '앞 스캔에서 삭제 (4) 가 된 트랙을\n트랙 표에서 지움'),
+         ('트랙 관리  →  3.5', '모든 트랙에 Assigned_Flag = 0 (연관 기능 없음)\n스코어 로직으로 상태 갱신'),
+         ('2-Point 개시  →  3.4', '앞 · 이번 스캔 플롯 쌍 중 속도 게이트 통과 쌍으로\n가까운 쌍부터 새 트랙 생성, 트랙 ID 부여'),
+         ('개시 후보 보관', '이번 스캔 플롯을 다음 스캔의 개시 후보로 보관\n(트랙을 만드는 데 쓴 플롯은 제외)')]
 for i, (h, b) in enumerate(steps):
     yy = 2.5 + i * 1.08
-    rect(s, 7.35, yy, 5.28, 0.95, F_BLUE if i == 2 else F_GRAY, None, radius=0.1)
+    rect(s, 7.35, yy, 5.28, 0.95, F_BLUE if i in (1, 2) else F_GRAY, None, radius=0.1)
     tb(s, 7.45, yy + 0.08, 0.45, 0.45, ['①②③④'[i]], size=20, bold=True, color=BLUE)
     tb(s, 8.0, yy + 0.08, 4.5, 0.3, h, size=12, bold=True)
     tb(s, 8.0, yy + 0.4, 4.6, 0.55, b.split('\n'), size=10, color=SUB)
 note(s, 's16')
 
 # 17 2-Point 개시 코드
-s = content('03. 구현', '3.4 2-Point 개시와 R 계산', 'f_Trk_TwoPointInit 이 mat_EstX · mat_EstP 를 채우고, 그 안의 R 은 과제 값 표준편차로 f_Trk_MeasCov 가 만듭니다.')
+s = content('03. 구현', '3.4 2-Point 개시와 R 계산', '두 플롯으로 트랙의 첫 상태 mat_EstX 와 오차 공분산 mat_EstP 를 채웁니다. 시간 차를 구한 뒤 x · y · z 축마다 같은 계산을 반복합니다.')
 code_panel(s, 0.7, 2.75, 7.55, 'TargetSimCore/src/TrackMgr.c', 'VOID f_Trk_TwoPointInit(', 26, title=('2-Point 초기화', 'TrackMgr.c'),
            highlights={1: ('st_X->e[(3 * nAxis)][0]', 1), 2: ('st_X->e[(3 * nAxis) + 1][0]', 1), 3: ('st_X->e[(3 * nAxis) + 2][0]', 1), 4: ('st_P->e[(3 * nAxis)][(3 * nAxisB)]', 4)},
            size=7.8, lh=0.148, skip={''})
@@ -579,13 +627,13 @@ code_panel(s, 8.5, 2.75, 4.13, 'TargetSimCore/src/TrackMgr.c', 'VOID f_Trk_GetMe
            highlights={5: ('st_Sigma->r', 3)}, size=7.4, lh=0.148, maxw=60)
 callout(s, 8.5, 4.0, 4.13, 1, '위치 = 이번 플롯 z_{k}', [])
 callout(s, 8.5, 4.4, 4.13, 2, '속도 = (z_{k} − z_{k−1}) / T', [])
-callout(s, 8.5, 4.8, 4.13, 3, '가속도 = 0 (P 의 가속도 칸도 0 유지)', [])
-callout(s, 8.5, 5.2, 4.13, 4, 'P 블록: R_{k},  R_{k}/T,  (R_{k}+R_{k−1})/T^{2}', ['Matrix_initialize 가 0 으로 채운 뒤 위치 · 속도 칸만 씀'])
-callout(s, 8.5, 5.95, 4.13, 5, 'σ 10 m, 0.2°, 0.2° → R', ['f_Trk_MeasCov: J · diag(σ²) · Jᵀ 를 NED 로 회전'])
+callout(s, 8.5, 4.8, 4.13, 3, '가속도 = 0 (과제 조건)', [])
+callout(s, 8.5, 5.2, 4.13, 4, 'P = R_{k},  R_{k}/T,  (R_{k}+R_{k−1})/T^{2}', ['위치 · 위치-속도 · 속도 칸, 가속도 칸은 0'])
+callout(s, 8.5, 5.95, 4.13, 5, 'σ 10 m, 0.2°, 0.2°', ['이 값으로 플롯마다 R 계산 (1.4 의 식)'])
 note(s, 's17')
 
 # 18 스코어 로직 코드
-s = content('03. 구현', '3.5 트랙 스코어 로직 (f_Trk_UpdateState)', '과제 2.2 규칙을 switch 문 하나로 옮겼습니다. 문턱치는 TrackMgr.h 의 상수 (5, 0, 5) 를 그대로 씁니다.')
+s = content('03. 구현', '3.5 트랙 스코어 로직 (f_Trk_UpdateState)', '트랙마다 매 스캔 한 번 불려, 현재 상태와 연관 결과 (Assigned_Flag) 에 따라 점수와 상태를 바꿉니다. 과제 2.2 규칙을 그대로 옮겼습니다.')
 code_panel(s, 0.7, 2.75, 5.85, 'TargetSimCore/src/TrackMgr.c', 'VOID f_Trk_UpdateState(', 22, title=('임시 트랙', 'TrackMgr.c'),
            highlights={1: ('st_Track->TrackScore = st_Track->TrackScore +', 1), 2: ('if (st_Track->TrackScore >= TRK_SCORE_CONFIRM)', 3), 3: ('else if (st_Track->TrackScore <= TRK_SCORE_DELETE)', 3)},
            size=7.6, lh=0.158, skip={''}, maxw=82)
@@ -602,9 +650,9 @@ for n, t in legend:
 note(s, 's18')
 
 # 19 간지 04
-s = divider('04. 결과', '프로그램을 실행한 결과 화면과 수치로 개시 · 관리 동작을 확인하고, 과제 요구사항을 항목별로 점검합니다.',
-            [('4.1', '시뮬레이션 조건과 결과 화면', 20), ('4.2', 'True · Plot · Track 동시 표시 (2D · 3D)', 21), ('4.3', '한 스캔 확대: 트랙이 만들어지는 모습', 22),
-             ('4.4', '트랙 수명과 스코어 로직 확인', 23), ('4.5', '과제 요구사항 점검', 24)])
+s = divider('04. 결과', '프로그램을 실행한 결과 화면과 수치로 트랙 개시 · 관리 동작을 확인합니다.',
+            [('4.1', '시뮬레이션 조건과 결과 화면', 20), ('4.2', 'True · Plot · Track 동시 표시 (스캔 701)', 21), ('4.3', '한 스캔 확대: 트랙이 만들어지는 모습', 22),
+             ('4.4', '트랙 수명과 스코어 로직 확인', 23), ('4.5', '전체 궤적 (시뮬레이션 마지막 화면)', 24)])
 note(s, 'div4')
 
 # 20 조건과 결과 화면
@@ -623,13 +671,13 @@ picture(s, 'ui_s701_both.png', 5.63, 2.5, w=7.0, border=True)
 tb(s, 5.35, 7.0 - 0.18, 7.28, 0.25, '', size=9)
 note(s, 's20')
 
-# 21 2D 3D
-s = content('04. 결과', '4.2 True · Plot · Track 동시 표시 (2D · 3D)', '스캔 701 (70.1 s) 화면. 참값 궤적과 지금 위치, 지금까지의 플롯 · 클러터, 지금 스캔의 트랙 심볼을 한 그림에 겹쳐 그립니다.')
+# 21 2D 3D (스캔 701)
+s = content('04. 결과', '4.2 True · Plot · Track 동시 표시 (스캔 701)', '스캔 701 (70.1 s) 화면. 참값 궤적, 지금까지의 플롯 · 클러터, 지금 스캔의 트랙 심볼을 한 그림에 겹쳐 그립니다.')
 picture(s, 'ui_crop_2d.png', 0.7, 2.5, w=5.85, border=True)
 picture(s, 'ui_crop_3d.png', 6.78, 2.5, w=5.85, border=True)
 tb(s, 0.7, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '2D: 위경도 격자 위 동-북 평면', size=10, color=SUB)
 tb(s, 6.78, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '3D: 동-북-고도 (고도 2 배), 끌어서 회전', size=10, color=SUB)
-leg = [('━ 참값 궤적 · ○ 지금 위치', NAVY), ('● 플롯 (큰 점 = 지금 스캔)', NAVY), ('· 클러터', '6B7280'), ('□ 임시', ORANGE), ('■ 확정', GREEN), ('⬚ 메모리', PURPLE), ('⊠ 삭제', '6B7280')]
+leg = [('━ 참값 궤적 · ○ 시작점', NAVY), ('● 플롯 (큰 점 = 지금 스캔)', NAVY), ('· 클러터', '6B7280'), ('□ 임시', ORANGE), ('■ 확정', GREEN), ('⬚ 메모리', PURPLE), ('⊠ 삭제', '6B7280')]
 xx = 0.7
 for t, c in leg:
     w = 0.13 * len(t) + 0.3
@@ -660,41 +708,21 @@ picture(s, 'ui_score_p2.png', 8.3, 2.5, w=4.33, border=True)
 tb(s, 8.3, 2.5 + 4.33 * 602 / 751 + 0.06, 4.33, 0.5, ['스코어 확인 창: Flag 1 1 1 0 0 1 1', '임시 → 확정 (5) → 메모리 → 다시 확정 (MemoryScore 0)'], size=10, color=SUB)
 note(s, 's23')
 
-# 25 요구사항 점검
-s = content('04. 결과', '4.5 과제 요구사항 점검', '과제 5 의 구현 항목을 하나씩 코드 위치와 확인 방법에 맞춰 봤습니다. 전 항목 충족입니다.')
-req = [('구분', '요구사항', '구현 (파일 · 함수)', '확인'),
-       ('개시', '상태 변수 X = [x x\' x\'\' y y\' y\'\' z z\' z\'\']ᵀ', 'TrackMgr.h  TRK_STATE_DIM 9, ST_Track', '단위 시험 9×1, 9×9'),
-       ('', '2-Point 개시, 속도 게이트 V_max = 800 m/s', 'TrackMgr.c  f_Trk_ProcessScan', '799 m/s 통과, 801 m/s 탈락'),
-       ('', 'mat_EstX · mat_EstP 가속도 항 0', 'f_Trk_TwoPointInit', '가속도 행 · 열 0 확인'),
-       ('', 'R: σr 10 m, σaz 0.2°, σel 0.2°', 'f_Trk_GetMeasSigma, f_Trk_MeasCov', '초기 P 위치 대각 = R'),
-       ('', '트랙 ID 100 ~ 10000', 'f_Trk_NewId', '9999 → 10000 → 100 순환'),
-       ('관리', '확정 5, 임시 삭제 0, 메모리 삭제 5', 'TrackMgr.h 상수, f_Trk_UpdateState', '스코어 확인 창 · 단위 시험'),
-       ('', '메모리 → 연관 성공 시 바로 확정, MemoryScore 0', 'f_Trk_UpdateState', 'Flag 1 1 1 0 0 1 결과'),
-       ('', 'TrackScore · MemoryScore · TrackState (1 ~ 4)', 'ST_Track (명세 이름 그대로)', '트랙 표 · CSV'),
-       ('시뮬레이션', '안테나 구좌표 플롯 메시지 (STRUCT_PlotMsg) 를 수신 쓰레드로', 'Idd.h, PlotLink.c  송신 · 수신 쓰레드', '1,160 보냄 = 받음'),
-       ('', '표적 + 클러터, 스캔마다 플롯 ID 10000 ~ 1000000', 'f_Lnk_BuildMsg', 'ID 10000 ~ 18119'),
-       ('', 'UDP 또는 TCP/IP', 'UDP 127.0.0.1:50505', '손실 0'),
-       ('', 'Assigned_Flag 매 스캔 0 (실패)', 'f_Trk_ProcessScan ②', '모든 트랙 · 스캔 0'),
-       ('', 'True · Plot · Track 동시 표시 (3D, 2D)', 'TrajectoryPlot.cpp  2D · 3D 그림', '4.2 화면')]
-cw = [1.05, 4.35, 3.6, 2.93]
-tbl = s.shapes.add_table(len(req), 4, Inches(0.7), Inches(2.45), Inches(sum(cw)), Inches(0.29 * len(req))).table
-for j, w in enumerate(cw):
-    tbl.columns[j].width = Inches(w)
-for i, row in enumerate(req):
-    tbl.rows[i].height = Inches(0.29)
-    for j, t in enumerate(row):
-        cell = tbl.cell(i, j)
-        cell.margin_left = cell.margin_right = Inches(0.06); cell.margin_top = cell.margin_bottom = Inches(0.01)
-        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
-        cell.fill.solid(); cell.fill.fore_color.rgb = rgb(NAVY if i == 0 else (F_GRAY if i % 2 == 0 else WHITE))
-        tf = cell.text_frame; tf.text = ''
-        p = tf.paragraphs[0]
-        add_runs(p, t, 10 if i else 10.5, WHITE if i == 0 else (BLUE if j == 0 else (GREEN if j == 3 else NAVY)), bold=(i == 0 or j == 0))
-tblpr = s.shapes[-1]._element.graphic.graphicData.tbl.tblPr
-tblpr.set('firstRow', '0'); tblpr.set('bandRow', '0')
-note(s, 's25')
+# 24 전체 궤적
+s = content('04. 결과', '4.5 전체 궤적 (시뮬레이션 마지막 화면)', '스캔 1159 (115.9 s), 116 초를 끝까지 돌린 화면입니다. 두 표적의 참값 궤적 전체와 그동안 받은 플롯 · 클러터가 모두 그려져 있습니다.')
+picture(s, 'ui_crop_full_2d.png', 0.7, 2.5, w=5.85, border=True)
+picture(s, 'ui_crop_full_3d.png', 6.78, 2.5, w=5.85, border=True)
+tb(s, 0.7, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '2D: 위경도 격자 위 동-북 평면', size=10, color=SUB)
+tb(s, 6.78, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '3D: 동-북-고도 (고도 2 배)', size=10, color=SUB)
+leg = [(FULL_T1, BLUE), (FULL_T2, RED), ('○ 시작점', NAVY), ('● 플롯', NAVY), ('· 클러터', '6B7280'), ('□ 임시 트랙', ORANGE)]
+xx = 0.7
+for t, c in leg:
+    w = sum(0.16 if ord(ch) > 0x1100 else 0.085 for ch in t) + 0.38
+    tb(s, xx, 6.56, w, 0.26, t, size=10.5, color=c, bold=True)
+    xx += w
+note(s, 's21full')
 
-# 26 끝
+# 25 끝
 s = add_slide('END')
 tb(s, 4.6, 3.05, 7.4, 0.8, '감사합니다', size=36, bold=True, color=WHITE, align='r')
 line(s, 8.6, 4.02, 12.0, 4.02, color=MUTED, width=0.75)

@@ -196,3 +196,121 @@
 23:59:51 done: kill
 23:59:53 request: quit
 23:59:53 bye
+03:07:06 agent started, root C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim
+03:07:10 agent started, root C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim
+03:07:15 request: run
+03:07:15 started
+03:07:15 done: run
+03:08:12 request: scan 1159
+03:08:12 ui scan 1159 (main 1773342)
+03:08:12 done: scan 1159
+03:09:05 request: capture s1159_both
+03:09:05 done: capture s1159_both
+03:09:57 request: size 2540 1400
+03:09:57 ui size 2540 1400 (main 1773342)
+03:09:57 done: size 2540 1400
+03:10:27 request: capture t1
+03:10:27 capture: no process
+03:10:27 done: capture t1
+03:10:33 request: run
+03:10:33 started
+03:10:33 done: run
+03:10:41 request: capture t2
+03:10:41 captured ui_t2.png (1656 x 1019)
+03:10:41 done: capture t2
+03:10:42 request: scan 1159
+03:10:42 ui scan 1159 (main 1379694)
+03:10:42 done: scan 1159
+03:10:45 request: capture s1159_both
+03:10:45 captured ui_s1159_both.png (1656 x 1019)
+03:10:45 done: capture s1159_both
+03:12:15 request: size 2540 1400
+03:12:15 ui size 2540 1400 (main 1379694)
+03:12:15 done: size 2540 1400
+03:12:18 request: view 1
+03:12:18 ui view 1 (main 1379694)
+03:12:18 done: view 1
+03:12:20 request: capture big_s1159_2d
+03:12:20 done: capture big_s1159_2d
+03:12:21 request: view 2
+03:12:22 ui view 2 (main 1379694)
+03:12:22 done: view 2
+03:12:24 request: capture big_s1159_3d
+03:12:24 done: capture big_s1159_3d
+03:12:25 request: size 1656 1019
+03:12:25 ui size 1656 1019 (main 1379694)
+03:12:25 done: size 1656 1019
+03:12:28 request: view 0
+03:12:28 ui view 0 (main 1379694)
+03:12:28 done: view 0
+03:12:44 request: kill
+03:12:44 killed
+03:12:44 done: kill
+03:12:45 request: run
+03:12:45 started
+03:12:45 done: run
+03:12:52 request: size 2540 1400
+03:12:52 ui size 2540 1400 (main 12388706)
+03:12:52 done: size 2540 1400
+03:12:55 request: view 1
+03:12:55 ui view 1 (main 12388706)
+03:12:55 done: view 1
+03:12:58 request: capture big_s1159_2d
+03:12:58 done: capture big_s1159_2d
+03:12:59 request: view 2
+03:12:59 ui view 2 (main 12388706)
+03:12:59 done: view 2
+03:13:01 request: capture big_s1159_3d
+03:13:01 done: capture big_s1159_3d
+03:13:02 request: size 1656 1019
+03:13:02 ui size 1656 1019 (main 12388706)
+03:13:02 done: size 1656 1019
+03:13:05 request: view 0
+03:13:05 ui view 0 (main 12388706)
+03:13:05 done: view 0
+03:13:19 request: capture t3
+03:13:19 done: capture t3
+03:13:20 request: capture t4
+03:13:20 done: capture t4
+03:13:22 request: capture t5
+03:13:22 done: capture t5
+03:13:23 request: capture t6
+03:13:23 done: capture t6
+03:13:36 request: kill
+03:13:36 killed
+03:13:36 done: kill
+03:13:37 request: run
+03:13:37 started
+03:13:37 done: run
+03:13:44 request: capture a1
+03:13:44 captured ui_a1.png (1656 x 1019)
+03:13:44 done: capture a1
+03:13:45 request: capture a1
+03:13:46 captured ui_a1.png (1656 x 1019)
+03:13:46 done: capture a1
+03:14:39 request: capture a2
+03:14:39 captured ui_a2.png (1656 x 1019)
+03:14:39 done: capture a2
+03:14:40 request: size 2540 1400
+03:14:40 ui size 2540 1400 (main 1837392)
+03:14:40 done: size 2540 1400
+03:14:43 request: capture a3
+03:14:43 captured ui_a3.png (2540 x 1400)
+03:14:43 done: capture a3
+03:14:55 request: view 1
+03:14:55 ui view 1 (main 1837392)
+03:14:55 done: view 1
+03:14:59 request: capture big_s1159_2d
+03:14:59 captured ui_big_s1159_2d.png (2540 x 1400)
+03:14:59 done: capture big_s1159_2d
+03:15:02 request: view 2
+03:15:02 ui view 2 (main 1837392)
+03:15:02 done: view 2
+03:15:06 request: capture big_s1159_3d
+03:15:06 captured ui_big_s1159_3d.png (2540 x 1400)
+03:15:06 done: capture big_s1159_3d
+03:15:15 request: kill
+03:15:15 killed
+03:15:15 done: kill
+03:15:16 request: quit
+03:15:16 bye
