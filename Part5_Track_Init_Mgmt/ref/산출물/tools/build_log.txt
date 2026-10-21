@@ -1,0 +1,27 @@
+﻿
+  CoordinateTransform.c
+  matrixCalcLib.c
+  PlotLink.c
+  PlotSim.c
+  TargetSim.c
+  TrackMgr.c
+  NoiseGeneration.c
+     Creating library C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim\build\x64\Release\TargetSimCore.lib and object C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim\build\x64\Release\TargetSimCore.exp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 79 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  TargetSimCore.vcxproj -> C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim\build\x64\Release\TargetSimCore.dll
+  pch.cpp
+  PlotResult.cpp
+  Scenario.cpp
+  ScoreDlg.cpp
+  TargetSimUI.cpp
+  TargetSimUIDlg.cpp
+  TrajectoryPlot.cpp
+  Generating code
+  Previous IPDB not found, fall back to full compilation.
+  All 1049 functions were compiled because no usable IPDB/IOBJ from previous compilation was found.
+  Finished generating code
+  TargetSimUI.vcxproj -> C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim\build\x64\Release\TargetSimUI.exe
+exit=0

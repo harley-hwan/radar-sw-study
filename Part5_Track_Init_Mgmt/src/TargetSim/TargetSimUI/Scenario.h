@@ -1,3 +1,9 @@
+//
+// @file	Scenario.h
+// @brief	고정 시나리오 (과제 5 시뮬레이션 조건) 와 궤적 계산 결과 (CSimResult)
+// @author	hwan
+// @date	2026.10.21.
+//
 #pragma once
 
 #include <vector>

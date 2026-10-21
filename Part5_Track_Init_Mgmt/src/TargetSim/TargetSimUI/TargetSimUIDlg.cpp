@@ -1,3 +1,9 @@
+//
+// @file	TargetSimUIDlg.cpp
+// @brief	주 화면 구현: 시나리오 실행, 플롯 메시지 송수신 시작, True · Plot · Track 그림 (2D, 3D), 트랙 표, 요약
+// @author	hwan
+// @date	2026.10.21.
+//
 #include "pch.h"
 #include "framework.h"
 
@@ -29,7 +35,7 @@
 #define UI_VIEW_MODE_WIDTH		110						// 그림 보기 선택 너비
 #define UI_TRK_GAP_NUM			3						// 송신 간격 고르기 수
 #define UI_TRK_GAP_WIDTH		128						// 송신 간격 선택 너비
-#define UI_SUMMARY_LINES		9						// 트랙 카드 요약 줄 수
+#define UI_SUMMARY_LINES		10						// 트랙 카드 요약 줄 수
 #define UI_FRAMED_NUM			3						// 테두리를 그리는 컨트롤 수
 #define UI_TIMER_TRACK			1						// 수신 결과를 가져오는 타이머
 #define UI_TIMER_TRACK_MS		50
@@ -43,7 +49,7 @@ static const LPCTSTR	s_ViewName[UI_VIEW_NUM] = { _T("2D + 3D"), _T("2D"), _T("3D
 static const INT32		s_ShowId[UI_SHOW_NUM] = { IDC_SHOW_TRUE, IDC_SHOW_PLOT, IDC_SHOW_CLUTTER, IDC_SHOW_TRACK };
 
 // 트랙 카드 요약의 항목 이름. 줄마다 하나, 빈 칸은 윗줄 항목이 이어지는 줄 (f_UpdateTrackSummary 의 줄 순서와 같음)
-static const LPCTSTR	s_SummaryLabel[UI_SUMMARY_LINES] = { _T("송수신"), _T(""), _T("누적 트랙"), _T(""), _T("지금 스캔"), _T(""), _T(""), _T("조건"), _T("") };
+static const LPCTSTR	s_SummaryLabel[UI_SUMMARY_LINES] = { _T("송수신"), _T(""), _T("누적 트랙"), _T(""), _T("지금 스캔"), _T(""), _T(""), _T("조건"), _T(""), _T("") };
 
 // 컨트롤 위치, 크기 변경. 창이 최소 크기보다 작아도 너비, 높이는 0 아래로 내려가지 않음.
 static VOID f_Ui_Move(CWnd *st_Dlg, INT32 ctrlId, INT32 left, INT32 top, INT32 width, INT32 height)
@@ -608,8 +614,12 @@ VOID CTargetSimUIDlg::f_UpdateTrackList(VOID)
 	st_TrackList.Invalidate(FALSE);
 }
 
-// 트랙 카드 요약 (s_SummaryLabel 의 줄 순서): 송수신 (UDP 주소, 보냄, 받음, 손실, 처리), 누적 트랙 (개시 플롯의 참값별),
-// 지금 스캔의 처리 기록 (받은 플롯, 2 Point 개시 후보 · 쌍 · 게이트, 상태 전이), 조건.
+//
+// @brief	트랙 카드 요약 (s_SummaryLabel 의 줄 순서): 송수신 (UDP 주소, 보냄, 받음, 손실, 처리), 누적 트랙 (개시 플롯의 참값별),
+//			지금 스캔의 처리 기록 (받은 플롯, 2 Point 개시 후보 · 쌍 · 게이트, 상태 전이), 조건 (V_max, 문턱치, R 표준편차)
+// @return	없음
+// @author	hwan
+//
 VOID CTargetSimUIDlg::f_UpdateTrackSummary(VOID)
 {
 	const ST_LnkStatus	*st_Status = &st_TrackResult.st_Status;
@@ -686,6 +696,7 @@ VOID CTargetSimUIDlg::f_UpdateTrackSummary(VOID)
 	// 조건: 과제 값, 개시 스코어는 정한 값
 	st_Line[7].Format(_T("V_max %.0f m/s, 개시 스코어 %d, Assigned_Flag 0 고정"), TRK_VMAX, TRK_SCORE_INIT);
 	st_Line[8].Format(_T("확정 %d, 삭제 %d, 메모리 삭제 %d"), TRK_SCORE_CONFIRM, TRK_SCORE_DELETE, TRK_MEMORY_DELETE);
+	st_Line[9].Format(_T("R 표준편차: σr %g m, σaz %g°, σel %g°"), TRK_R_SIGMA_RANGE, TRK_R_SIGMA_AZIMUTH, TRK_R_SIGMA_ELEVATION);
 
 	for (nLine = 0; nLine < UI_SUMMARY_LINES; nLine++)
 	{

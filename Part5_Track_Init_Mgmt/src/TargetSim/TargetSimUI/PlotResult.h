@@ -1,3 +1,9 @@
+//
+// @file	PlotResult.h
+// @brief	측정 모의 결과 (CPlotResult) 와 트랙 개시 · 관리 결과 (CTrackResult) 보관
+// @author	hwan
+// @date	2026.10.21.
+//
 #pragma once
 
 #include <vector>
@@ -19,7 +25,7 @@ public:
 	const ST_PlotPoint *	f_GetPlotPoint(INT32 nScan, INT32 nTarget) const;
 	const ST_PlotPoint *	f_GetClutterPoint(INT32 nScan, INT32 nClutter) const;
 
-	STRUCT_Coord_Sph		st_Sigma = {};					// 측정 표준편차 p [m, rad]. 플롯 메시지에 실려 받는 쪽 측정 공분산에 쓰임
+	STRUCT_Coord_Sph		st_Sigma = {};					// 플롯 모의 잡음 표준편차 p [m, rad] (과제 4 식, SNR 20). 트랙 초기화 R 은 따로 과제 값 (TRK_R_SIGMA_*) 을 씀
 
 private:
 	std::vector<ST_PcsScan>		st_ScanBuf;

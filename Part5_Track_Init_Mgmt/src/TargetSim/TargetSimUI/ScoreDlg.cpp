@@ -1,3 +1,9 @@
+//
+// @file	ScoreDlg.cpp
+// @brief	트랙 스코어 확인 창 구현. Core 의 f_Trk_UpdateState 를 그대로 부름
+// @author	hwan
+// @date	2026.10.21.
+//
 #include "pch.h"
 #include "framework.h"
 

@@ -1,0 +1,198 @@
+﻿22:46:55 agent started, root C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim
+22:47:24 request: build
+22:47:24 msbuild: C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe
+22:47:29 build exit 0
+22:47:29 done: build
+22:48:36 request: run
+22:48:36 started
+22:48:36 done: run
+22:48:42 request: capture first
+22:48:42 captured ui_first.png (1656 x 1019)
+22:48:42 done: capture first
+22:49:12 request: scan 701
+22:49:12 ui scan 701 (main 199444)
+22:49:12 done: scan 701
+22:49:13 request: capture s701_both
+22:49:14 captured ui_s701_both.png (1656 x 1019)
+22:49:14 done: capture s701_both
+22:49:15 request: view 1
+22:49:15 ui view 1 (main 199444)
+22:49:15 done: view 1
+22:49:16 request: capture s701_2d
+22:49:17 captured ui_s701_2d.png (1656 x 1019)
+22:49:17 done: capture s701_2d
+22:49:18 request: view 2
+22:49:18 ui view 2 (main 199444)
+22:49:18 done: view 2
+22:49:20 request: capture s701_3d
+22:49:20 captured ui_s701_3d.png (1656 x 1019)
+22:49:20 done: capture s701_3d
+22:49:21 request: view 0
+22:49:21 ui view 0 (main 199444)
+22:49:21 done: view 0
+22:49:23 request: scan 1085
+22:49:23 ui scan 1085 (main 199444)
+22:49:23 done: scan 1085
+22:49:24 request: capture s1085_both
+22:49:24 captured ui_s1085_both.png (1656 x 1019)
+22:49:24 done: capture s1085_both
+22:49:48 request: size 2540 1400
+22:49:48 ui size 2540 1400 (main 199444)
+22:49:48 done: size 2540 1400
+22:49:51 request: view 1
+22:49:51 ui view 1 (main 199444)
+22:49:51 done: view 1
+22:49:52 request: scan 701
+22:49:52 ui scan 701 (main 199444)
+22:49:52 done: scan 701
+22:49:54 request: capture big_s701_2d
+22:49:54 captured ui_big_s701_2d.png (2540 x 1400)
+22:49:54 done: capture big_s701_2d
+22:49:55 request: view 2
+22:49:55 ui view 2 (main 199444)
+22:49:55 done: view 2
+22:49:57 request: capture big_s701_3d
+22:49:57 captured ui_big_s701_3d.png (2540 x 1400)
+22:49:57 done: capture big_s701_3d
+22:49:58 request: scan 1085
+22:49:58 ui scan 1085 (main 199444)
+22:49:58 done: scan 1085
+22:50:00 request: view 1
+22:50:00 ui view 1 (main 199444)
+22:50:00 done: view 1
+22:50:01 request: capture big_s1085_2d
+22:50:01 captured ui_big_s1085_2d.png (2540 x 1400)
+22:50:01 done: capture big_s1085_2d
+22:50:03 request: size 1656 1019
+22:50:03 ui size 1656 1019 (main 199444)
+22:50:03 done: size 1656 1019
+22:50:06 request: view 0
+22:50:06 ui view 0 (main 199444)
+22:50:06 done: view 0
+22:50:07 request: scan 701
+22:50:07 ui scan 701 (main 199444)
+22:50:07 done: scan 701
+22:50:09 request: score
+22:50:09 ui score  (main 199444)
+22:50:09 done: score
+22:50:11 request: capture score_p2
+22:50:11 captured ui_score_p2.png (751 x 602)
+22:50:11 captured ui_score_p2_1.png (1656 x 1019)
+22:50:11 done: capture score_p2
+22:50:13 request: preset 0
+22:50:13 ui preset 0 (main 199444)
+22:50:13 done: preset 0
+22:50:14 request: capture score_p0
+22:50:14 captured ui_score_p0.png (751 x 602)
+22:50:14 captured ui_score_p0_1.png (1656 x 1019)
+22:50:14 done: capture score_p0
+22:50:16 request: preset 3
+22:50:16 ui preset 3 (main 199444)
+22:50:16 done: preset 3
+22:50:17 request: capture score_p3
+22:50:17 captured ui_score_p3.png (751 x 602)
+22:50:17 captured ui_score_p3_1.png (1656 x 1019)
+22:50:17 done: capture score_p3
+22:50:19 request: preset 1
+22:50:19 ui preset 1 (main 199444)
+22:50:19 done: preset 1
+22:50:20 request: capture score_p1
+22:50:20 captured ui_score_p1.png (751 x 602)
+22:50:20 captured ui_score_p1_1.png (1656 x 1019)
+22:50:20 done: capture score_p1
+22:50:22 request: closescore
+22:50:22 ui closescore  (main 199444)
+22:50:22 done: closescore
+23:13:40 request: kill
+23:13:40 killed
+23:13:40 done: kill
+23:13:42 request: quit
+23:13:42 bye
+23:46:27 agent started, root C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim
+23:52:10 agent started, root C:\Users\harley\Documents\GitHub\radar-sw-study\Part5_Track_Init_Mgmt\src\TargetSim
+23:52:10 request: build
+23:52:10 msbuild: C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe
+23:52:16 build exit 0
+23:52:16 done: build
+23:52:34 request: run
+23:52:34 started
+23:52:34 done: run
+23:52:41 request: scan 701
+23:52:41 ui scan 701 (main 2099676)
+23:52:41 done: scan 701
+23:52:42 request: capture s701_both
+23:52:43 captured ui_s701_both.png (1656 x 1019)
+23:52:43 done: capture s701_both
+23:52:44 request: size 2540 1400
+23:52:44 ui size 2540 1400 (main 2099676)
+23:52:44 done: size 2540 1400
+23:52:47 request: view 2
+23:52:47 ui view 2 (main 2099676)
+23:52:47 done: view 2
+23:52:48 request: capture big_s701_3d
+23:52:49 captured ui_big_s701_3d.png (2540 x 1400)
+23:52:49 done: capture big_s701_3d
+23:52:50 request: view 1
+23:52:50 ui view 1 (main 2099676)
+23:52:50 done: view 1
+23:52:51 request: capture big_s701_2d
+23:52:52 captured ui_big_s701_2d.png (2540 x 1400)
+23:52:52 done: capture big_s701_2d
+23:52:53 request: size 1656 1019
+23:52:53 ui size 1656 1019 (main 2099676)
+23:52:53 done: size 1656 1019
+23:52:56 request: view 0
+23:52:56 ui view 0 (main 2099676)
+23:52:56 done: view 0
+23:53:25 request: kill
+23:53:25 killed
+23:53:25 done: kill
+23:53:27 request: build
+23:53:27 msbuild: C:\Program Files\Microsoft Visual Studio\2022\Professional\MSBuild\Current\Bin\MSBuild.exe
+23:53:33 build exit 0
+23:53:33 done: build
+23:53:41 request: run
+23:53:41 started
+23:53:41 done: run
+23:53:47 request: scan 701
+23:53:47 ui scan 701 (main 527640)
+23:53:47 done: scan 701
+23:53:49 request: capture s701_both
+23:53:49 captured ui_s701_both.png (1656 x 1019)
+23:53:49 done: capture s701_both
+23:53:51 request: size 2540 1400
+23:53:51 ui size 2540 1400 (main 527640)
+23:53:51 done: size 2540 1400
+23:53:53 request: view 2
+23:53:53 ui view 2 (main 527640)
+23:53:53 done: view 2
+23:53:55 request: capture big_s701_3d
+23:53:55 captured ui_big_s701_3d.png (2540 x 1400)
+23:53:55 done: capture big_s701_3d
+23:53:56 request: view 1
+23:53:56 ui view 1 (main 527640)
+23:53:56 done: view 1
+23:53:58 request: capture big_s701_2d
+23:53:58 captured ui_big_s701_2d.png (2540 x 1400)
+23:53:58 done: capture big_s701_2d
+23:54:00 request: size 1656 1019
+23:54:00 ui size 1656 1019 (main 527640)
+23:54:00 done: size 1656 1019
+23:54:02 request: view 0
+23:54:02 ui view 0 (main 527640)
+23:54:02 done: view 0
+23:54:04 request: score
+23:54:04 ui score  (main 527640)
+23:54:04 done: score
+23:54:06 request: capture score_p2
+23:54:06 captured ui_score_p2.png (751 x 602)
+23:54:06 captured ui_score_p2_1.png (1656 x 1019)
+23:54:06 done: capture score_p2
+23:54:08 request: closescore
+23:54:08 ui closescore  (main 527640)
+23:54:08 done: closescore
+23:59:51 request: kill
+23:59:51 killed
+23:59:51 done: kill
+23:59:53 request: quit
+23:59:53 bye

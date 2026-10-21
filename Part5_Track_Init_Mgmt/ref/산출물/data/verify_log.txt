@@ -1,0 +1,36 @@
+[unit] score logic
+    flag 1 -> state 1 score 3 mem 0
+    flag 1 -> state 1 score 4 mem 0
+    flag 1 -> state 2 score 5 mem 0
+    flag 0 -> state 3 score 5 mem 1
+    flag 0 -> state 3 score 5 mem 2
+    flag 1 -> state 2 score 5 mem 0
+    flag 0 -> state 3 score 5 mem 1
+    flag 0 -> state 3 score 5 mem 2
+    flag 0 -> state 3 score 5 mem 3
+    flag 0 -> state 3 score 5 mem 4
+    flag 0 -> state 4 score 5 mem 5
+  PASS: tentative->confirmed(score>=5)->memory(mem+1)->confirmed(mem=0)->...->deleted(mem>=5)
+  PASS: flag 0 always: score 2 -> 1 (tentative) -> 0 (deleted, <= 0)
+[unit] 2-point init
+  PASS: X: pos = z_k, vel = (z_k - z_k-1)/T  (x' = 100, y' = -100 m/s)
+  PASS: acceleration rows/cols of mat_EstX, mat_EstP are 0
+  PASS: P: Ppp = R_k (400), Ppv = R_k/T (4000), Pvv = (R_k + R_k-1)/T^2 (50000), cross-axis too
+  PASS: dims 9x1, 9x9
+[unit] velocity gate + track id
+  PASS: |dz|/T = 799 m/s < 800 -> track created, first ID 100
+  PASS: |dz|/T = 801 m/s >= 800 -> rejected
+    created ids in order: 9999 10000 100
+  PASS: ID wraps 9999 -> 10000 -> 100
+[unit] R sigma
+  PASS: R sigma = 10 m, 0.2 deg, 0.2 deg
+[sim] samples 1161, scans 1160, plot noise sigma r 4.740 m az 0.4781 deg el 0.4939 deg
+[icd] sizeof(STRUCT_PlotInfo) 121, head 72, msg with 7 plots 919 B
+[link] port 50505 sent 1160 recv 1160 lost 0 bad 0 proc 1160 err 0 bytes 1066040/1066112 created 355 deleted 353 full 0
+  PASS: all 1160 plot messages sent / received / processed over UDP
+  PASS: plot IDs within 10000..1000000 (got 10000..18119)
+  PASS: track IDs within 100..10000 (got 100..454)
+  PASS: Assigned_Flag == 0 for every track every scan
+  PASS: TrackState in 1..4
+  PASS: track initial P position std == sqrt(diag R) with R from 10 m / 0.2 deg / 0.2 deg (max err 3.82e-07 m)
+FAILURES: 0

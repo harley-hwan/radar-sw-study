@@ -1,3 +1,9 @@
+//
+// @file	ScoreDlg.h
+// @brief	트랙 스코어 확인 창: Assigned_Flag 순서를 넣어 TrackScore, MemoryScore, TrackState 변화를 표로 확인
+// @author	hwan
+// @date	2026.10.21.
+//
 #pragma once
 
 #include "TrackMgr.h"

@@ -1,3 +1,9 @@
+//
+// @file	TrajectoryPlot.cpp
+// @brief	결과 그림 (CTrajectoryPlot 2D, CTrackView3D 3D) 구현 (GDI+)
+// @author	hwan
+// @date	2026.10.21.
+//
 #include "pch.h"
 
 #include <math.h>
@@ -55,7 +61,8 @@ namespace Gdiplus
 
 // 3D 그림
 #define TRK3D_UP_SCALE_MAX		5.0						// 고도를 늘려 그리는 최대 배율
-#define TRK3D_UP_RATIO			0.4						// 늘린 고도가 바닥 폭의 이 비율쯤 되게 배율을 고름
+#define TRK3D_UP_RATIO			0.55					// 늘린 고도가 바닥 폭의 이 비율쯤 되게 배율을 고름
+#define TRK3D_UP_HEADROOM		2.0						// 고도 축 = 가장 높은 참값의 이 배수. 대공 표적이 상자 가운데 높이에 오고 그 위아래 클러터도 보이게
 #define TRK3D_YAW_DEG			(-25.0)					// 처음 보기 방위 [deg]
 #define TRK3D_PITCH_DEG			35.0					// 처음 보기 내려다보는 각 [deg]
 #define TRK3D_TITLE_HEIGHT		26						// [px @96dpi]
@@ -1335,8 +1342,10 @@ VOID CTrackView3D::OnPaint(VOID)
 	(VOID)st_MemDc.SelectObject(st_OldBitmap);
 }
 
-// 장면 범위 (바닥은 참값 궤적과 보이는 표적 플롯, 고도는 참값 궤적) 와, 그 상자가 지금 보는 방향에서 그림 영역에 들어가는 축척 계산.
-// 클러터는 고각 30 도까지 퍼져 7 km 넘게 올라가므로 범위에 넣지 않음 (넣으면 고도가 늘 1 배가 됨).
+// 장면 범위 (바닥은 참값 궤적과 보이는 표적 플롯, 고도는 가장 높은 참값의 TRK3D_UP_HEADROOM 배) 와,
+// 그 상자가 지금 보는 방향에서 그림 영역에 들어가는 축척 계산.
+// 고도 축을 참값 높이에 딱 맞추면 대공 표적이 상자 맨 위 (클러터를 그리는 경계) 에 붙어 주변 클러터가 아래쪽에만 보이므로,
+// 두 배로 잡아 표적이 가운데 높이에 오게 함. 클러터는 고각 30 도까지 퍼져 7 km 넘게 올라가므로 범위를 정할 때는 넣지 않음.
 VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 {
 	const INT32		nSampleNum = st_Result->f_GetSampleNum();
@@ -1394,8 +1403,8 @@ VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 		maxNorth = minNorth + TRK3D_MIN_SPAN;
 	}
 
-	upStep		= f_Plot_NiceStepMeter(fmax(upMax, TRK3D_MIN_UP), 4.0);
-	maxUp		= ceil(fmax(upMax, TRK3D_MIN_UP) / upStep) * upStep;		// 고도 기둥 맨 위 눈금이 가장 높은 참값 위에 오게
+	upStep		= f_Plot_NiceStepMeter(fmax(upMax * TRK3D_UP_HEADROOM, TRK3D_MIN_UP), 4.0);
+	maxUp		= ceil(fmax(upMax * TRK3D_UP_HEADROOM, TRK3D_MIN_UP) / upStep) * upStep;		// 가장 높은 참값이 고도 축 가운데쯤에 오게
 	gridStep	= f_Plot_NiceStepMeter(fmax(maxEast - minEast, maxNorth - minNorth), 6.0);
 	upScale		= floor(fmax(1.0, fmin(TRK3D_UP_SCALE_MAX, (TRK3D_UP_RATIO * fmax(maxEast - minEast, maxNorth - minNorth)) / maxUp)) + 0.5);
 	centerEast	= 0.5 * (minEast + maxEast);

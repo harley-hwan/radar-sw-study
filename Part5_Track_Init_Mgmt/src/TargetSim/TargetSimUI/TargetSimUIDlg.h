@@ -1,3 +1,9 @@
+//
+// @file	TargetSimUIDlg.h
+// @brief	트랙 개시 · 관리 결과 주 화면 (과제 5)
+// @author	hwan
+// @date	2026.10.21.
+//
 #pragma once
 
 #include "PlotResult.h"

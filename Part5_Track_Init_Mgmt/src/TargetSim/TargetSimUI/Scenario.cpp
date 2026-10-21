@@ -1,3 +1,9 @@
+//
+// @file	Scenario.cpp
+// @brief	고정 시나리오 값 -> Core 입력, 궤적 계산 실행과 그림 좌표 계산
+// @author	hwan
+// @date	2026.10.21.
+//
 #include "pch.h"
 
 #include "Scenario.h"

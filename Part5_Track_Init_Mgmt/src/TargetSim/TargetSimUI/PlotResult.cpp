@@ -1,3 +1,9 @@
+//
+// @file	PlotResult.cpp
+// @brief	측정 모의 실행, 플롯 메시지 송수신 시작 · 결과 수집, 트랙 표 칸 글자 · CSV 저장
+// @author	hwan
+// @date	2026.10.21.
+//
 #include "pch.h"
 
 #include <math.h>
@@ -103,7 +109,15 @@ static const CHAR *f_Trk_StateName(INT32 nState)
 	return ((nState >= TRK_STATE_TENTATIVE) && (nState <= TRK_STATE_DELETED)) ? s_Name[nState] : s_Name[0];
 }
 
-// 플롯 메시지 송수신 시작. 측정 모의 결과의 전체 스캔을 보냄. 지난 결과는 비움. 시작하면 1.
+//
+// @brief	플롯 메시지 송수신 시작. 측정 모의 결과의 전체 스캔을 보냄. 지난 결과는 비움.
+//			트랙 초기화 R 의 측정잡음 표준편차 (과제 값 10 m, 0.2 도, 0.2 도) 는 Core 송신 쓰레드가 메시지에 실음
+// @param st_NewSource	궤적 계산 결과 (스캔마다 플랫폼 상태, 그림 좌표 기준)
+// @param st_Measure	측정 모의 결과 (표적 플롯, 클러터)
+// @param sendGapMs		스캔 사이 송신 간격 [ms]
+// @return	1 시작, 0 실패
+// @author	hwan
+//
 INT32 CTrackResult::f_Start(const CSimResult *st_NewSource, const CPlotResult *st_Measure, INT32 sendGapMs)
 {
 	const INT32	nScanNum = st_Measure->f_GetScanNum();
@@ -126,7 +140,7 @@ INT32 CTrackResult::f_Start(const CSimResult *st_NewSource, const CPlotResult *s
 
 	// 스캔이 없어도 불러 Core 의 지난 상태를 지움 (스캔 0 개면 시작하지 않고 0 반환)
 	isOk = f_Lnk_Start((nScanNum > 0) ? st_Measure->f_GetScan(0) : nullptr, (nScanNum > 0) ? st_NewSource->f_GetSample(0) : nullptr, nScanNum,
-		&st_Measure->st_Sigma, sendGapMs);
+		sendGapMs);
 	f_Lnk_GetStatus(&st_Status);
 
 	return isOk;
