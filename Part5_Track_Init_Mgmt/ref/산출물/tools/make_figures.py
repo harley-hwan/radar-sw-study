@@ -517,6 +517,45 @@ def fig_life():
     save(fig, 'fig_life.png')
 
 
+# ---------------------------------------------------------------- 4.4 track life (first 10 s)
+def fig_lifeline(last_init=104):
+    # 처음 10 초 동안 생긴 트랙을 줄 하나씩: 스캔마다 칸 하나 (주황 = 임시, 회색 = 삭제). ID 색 = 개시 플롯 쌍의 표적.
+    # ID 는 표적과 관계없이 만들어진 순서라 이웃 ID 가 다른 표적일 수 있음 → 같은 표적의 이어지는 두 트랙 (간격 2 스캔) 을 하나 짚어 줌
+    from matplotlib.lines import Line2D
+    from matplotlib.patches import Patch
+    T = tk[tk.init_scan <= last_init]
+    ids = sorted(T.track_id.unique())
+    src = {t: (int(g.src_cur.iloc[0]) if g.src_prev.iloc[0] == g.src_cur.iloc[0] else -1) for t, g in T.groupby('track_id')}
+    init = {t: int(g.init_scan.iloc[0]) for t, g in T.groupby('track_id')}
+    cell, del_col = 0.1, '#C9CED6'
+    fig, ax = plt.subplots(figsize=(7.45, 2.85))
+    fig.subplots_adjust(0.015, 0.15, 0.995, 0.87)
+    ax.axhspan(-0.5, 0.5, color=F_BLUE, zorder=0)                      # 트랙 100: 아래 '트랙 100 의 경우' 와 짝
+    for row, t in enumerate(ids):
+        for _, r in T[T.track_id == t].iterrows():
+            ax.add_patch(Rectangle((r.scan * cell + 0.008, row - 0.34), cell - 0.016, 0.68, fc=ORANGE if r.state == 1 else del_col, ec='none', zorder=2))
+        ax.text(init[t] * cell - 0.05, row, str(t), fontsize=7, color=TGT.get(src[t], GRAY), fontweight='bold', ha='right', va='center')
+    # 같은 표적에서 앞 트랙이 삭제되는 스캔에 다음 트랙이 생기는 예 (간격 2 스캔)
+    pair = next((a, b) for a, b in zip(ids, ids[1:]) if src[a] == src[b] and init[b] - init[a] == 2)
+    rb = ids.index(pair[1])
+    xg = init[pair[1]] * cell + cell / 2                                # 앞 트랙의 삭제 칸 = 다음 트랙의 첫 칸 (같은 스캔)
+    ax.plot([xg, xg], [rb - 1.45, rb + 0.45], color=NAVY, lw=0.8, ls=(0, (2, 1.5)), zorder=3)
+    ax.annotate(f'표적 {src[pair[0]]} 의 {pair[0]} → {pair[1]}: 앞 트랙이 삭제되는 스캔에\n다음 트랙 개시 (같은 표적은 빨라도 2 스캔 간격)',
+                xy=(xg + 0.06, rb - 1.2), xytext=(5.6, 3.8), fontsize=8, color=NAVY, ha='left', va='center', linespacing=1.3,
+                arrowprops=dict(arrowstyle='->', color=SUB, lw=0.8, shrinkA=2, shrinkB=2))
+    ax.text(5.6, 1.0, 'ID 는 표적과 관계없이 만들어진 순서대로 붙음', fontsize=8, color=NAVY, ha='left', va='center')
+    ax.set_xlim(0, 10.8); ax.set_ylim(len(ids) - 0.45, -0.6)
+    ax.set_yticks([]); ax.set_xticks(range(0, 11, 2))
+    ax.grid(axis='x', color=GRID, lw=0.8, zorder=0); clean(ax)
+    for side in ('left', 'right', 'top'):
+        ax.spines[side].set_visible(False)
+    ax.set_xlabel('시간 [s]  (칸 하나 = 스캔 하나 = 0.1 s)', fontsize=8.5, color=SUB, labelpad=2)
+    hs = [Patch(color=ORANGE, label='임시 (TrackState 1)'), Patch(color=del_col, label='삭제 (TrackState 4, 다음 스캔에 표에서 빠짐)'),
+          Line2D([], [], ls='none', marker=r'$\mathbf{ID}$', ms=13, color=BLUE, label='표적 1'), Line2D([], [], ls='none', marker=r'$\mathbf{ID}$', ms=13, color=RED, label='표적 2')]
+    fig.legend(handles=hs, loc='upper center', ncol=4, fontsize=8, frameon=False, bbox_to_anchor=(0.5, 1.0), handlelength=1.4, columnspacing=1.4)
+    save(fig, 'fig_lifeline.png', dpi=220)
+
+
 def crop_ui():
     # 4.2 · 4.5 슬라이드용 확대 캡처 (capture_agent 로 찍은 큰 창 캡처를 자름)
     from PIL import Image
@@ -563,4 +602,4 @@ if __name__ == '__main__':
     crop_ui()
     cover('cover_bg.png', True)
     cover('end_bg.png', False)
-    fig_plot_track(); fig_1p2p(); fig_pmatrix(); fig_rcov(); fig_rmatrix(); fig_gate(); fig_states(); fig_assoc(); fig_mn(); fig_score(); fig_zoom(); fig_life()
+    fig_plot_track(); fig_1p2p(); fig_pmatrix(); fig_rcov(); fig_rmatrix(); fig_gate(); fig_states(); fig_assoc(); fig_mn(); fig_score(); fig_zoom(); fig_life(); fig_lifeline()

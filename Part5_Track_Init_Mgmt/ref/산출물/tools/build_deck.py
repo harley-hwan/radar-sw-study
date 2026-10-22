@@ -725,16 +725,30 @@ tblpr.set('firstRow', '0'); tblpr.set('bandRow', '0')
 note(s, 's22')
 
 # 23 수명과 스코어
-s = content('04. 결과', '4.4 트랙 수명과 스코어 로직 확인', '연관이 없어 모든 트랙이 2 → 1 → 0 으로 내려가 개시 두 스캔 뒤 삭제됩니다. 확정 · 메모리 전환은 스코어 확인 창에 Flag 를 넣어 확인했습니다.')
-picture(s, 'fig_life.png', 0.62, 2.45, w=7.4)
-nums = [('355', '만든 트랙'), ('352', '같은 표적 플롯 쌍'), ('3', '클러터끼리 쌍'), ('4', '표의 최대 트랙 수')]
-for i, (a, b) in enumerate(nums):
-    xx = 0.7 + i * 1.85
-    tb(s, xx, 5.4, 1.75, 0.55, a, size=24, bold=True, color=[NAVY, BLUE, '6B7280', ORANGE][i], font=EN)
-    tb(s, xx, 5.95, 1.75, 0.3, b, size=10, color=SUB)
-tb(s, 0.7, 6.32, 7.3, 0.5, ['트랙 ID 100 ~ 454 사용 (과제 범위 100 ~ 10000),  플롯 ID 10000 ~ 18119 사용 (과제 범위 10000 ~ 1000000)'], size=10, color=SUB)
+s = content('04. 결과', '4.4 트랙 수명과 스코어 로직 확인', '트랙 355 개 (표적 1 117 · 표적 2 235 · 클러터끼리 3) 가 모두 같은 일생을 거칩니다: 개시 → 두 스캔 뒤 삭제. 확정 · 메모리 전환은 스코어 확인 창에 Flag 를 넣어 확인했습니다.')
+# 트랙의 일생: 처음 10 초 동안 생긴 트랙 22 개 (make_figures.py fig_lifeline) 와 첫 줄 트랙 100 의 스캔별 변화
+picture(s, 'fig_lifeline.png', 0.66, 2.45, w=7.45)
+tb(s, 0.7, 5.34, 7.4, 0.26, '트랙 100 의 경우  (표적 2, 위 그림의 첫 줄)', size=11, bold=True)
+LIFE = (('스캔 10', 'TrackScore 2', ['두 플롯으로 개시', '(10067 + 10074)'], 1), ('스캔 11', 'TrackScore 1', 'Assigned_Flag 0 → −1', 1),
+        ('스캔 12', 'TrackScore 0', '0 이하라 삭제 상태 (4)', 4), ('스캔 13', '표에 없음', '처리 시작 때 표에서 뺌', 0))
+cw = (7.45 - 3 * 0.22) / 4
+for i, (scan_txt, score_txt, body, state) in enumerate(LIFE):
+    xx, yy = 0.66 + i * (cw + 0.22), 5.66
+    col = {1: ORANGE, 4: '6B7280', 0: LIGHT}[state]
+    rect(s, xx, yy, cw, 1.1, WHITE, col, radius=0.08, lw=1.4)
+    if state:
+        rect(s, xx + 0.12, yy + 0.11, 0.2, 0.2, WHITE, col, lw=1.4)
+        if state == 4:
+            line(s, xx + 0.12, yy + 0.11, xx + 0.32, yy + 0.31, color=col, width=1.0)
+            line(s, xx + 0.12, yy + 0.31, xx + 0.32, yy + 0.11, color=col, width=1.0)
+    tb(s, xx + 0.42, yy + 0.07, cw - 0.5, 0.26, scan_txt, size=11, bold=True, anchor='m')
+    tb(s, xx + 0.12, yy + 0.4, cw - 0.2, 0.26, score_txt, size=10.5, bold=True, color=col if state else SUB)
+    tb(s, xx + 0.12, yy + 0.68, cw - 0.2, 0.36, body, size=9, color=SUB)
+    if i < len(LIFE) - 1:
+        line(s, xx + cw + 0.02, yy + 0.55, xx + cw + 0.2, yy + 0.55, color=LIGHT, width=1.2, arrow=True)
 picture(s, 'ui_score_p2.png', 8.3, 2.5, w=4.33, border=True)
-tb(s, 8.3, 2.5 + 4.33 * 602 / 751 + 0.06, 4.33, 0.5, ['스코어 확인 창: Flag 1 1 1 0 0 1 1', '임시 → 확정 (5) → 메모리 → 다시 확정 (MemoryScore 0)'], size=10, color=SUB)
+tb(s, 8.3, 2.5 + 4.33 * 602 / 751 + 0.06, 4.33, 0.7, ['스코어 확인 창: Flag 1 1 1 0 0 1 1', '임시 → 확정 (5) → 메모리 → 다시 확정 (MemoryScore 0)',
+                                                      '트랙 ID 100 ~ 454 · 플롯 ID 10000 ~ 18119 (과제 범위 안)'], size=10, color=SUB)
 note(s, 's23')
 
 # 24 전체 궤적
