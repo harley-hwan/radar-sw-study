@@ -431,25 +431,22 @@ for i, (tag, col, txt) in enumerate((('과제 5 지정값', BLUE, '트랙 초기
     label_box(s, 0.7, yy, 1.08, 0.21, tag, size=9, color=col, line=col)
     tb(s, 1.88, yy, 4.7, 0.21, txt, size=10, color=NAVY if i == 0 else SUB, anchor='m')
 rect(s, 6.85, 2.5, 5.78, 1.32, WHITE, BORDER, radius=0.06)
-# R = C · (시선 기준 오차 크기) · C^T. 코드의 J · diag(σ²) · J^T 와 M · R_ant · M^T 를 합친 것과 같은 식
-# (J 의 열을 길이 1 로 나누면 시선 · 옆 · 위아래 단위 벡터와 배율 1, r cos el, r 로 갈림. C = M · 단위 벡터 = 회전 행렬)
-eq = tb(s, 7.0, 2.56, 5.5, 0.38, '', size=14, anchor='m')
-p = eq.text_frame.paragraphs[0]
-add_runs(p, 'R_{NED} = ', 14, NAVY, True, 'Cambria Math')
-add_runs(p, 'C', 14, GREEN, True, 'Cambria Math')
-add_runs(p, ' · diag( σ_{r}^{2},  (r cos el · σ_{az})^{2},  (r · σ_{el})^{2} ) · ', 14, BLUE, True, 'Cambria Math')
-add_runs(p, 'C^{T}', 14, GREEN, True, 'Cambria Math')
-for i, (tag, col, txt) in enumerate((('오차 크기', BLUE, '레이다 시선 기준 거리 · 옆 · 위아래 오차. 각도 × 거리 = 미터'),
-                                     ('회전 C', GREEN, '시선 기준 축 → 북 · 동 · 아래 축 (안테나 방향 + 플랫폼 자세)'))):
-    yy = 2.99 + i * 0.27
-    label_box(s, 7.0, yy, 0.92, 0.23, tag, size=9.5, color=col, line=col)
-    tb(s, 8.02, yy, 4.55, 0.23, txt, size=10, color=NAVY, anchor='m')
-tb(s, 7.0, 3.55, 5.5, 0.23, '앞뒤로 C 를 곱하면 타원 모양은 그대로, 방향만 북 · 동 · 아래로 돌려 놓음', size=9.5, color=SUB, anchor='m')
+tb(s, 7.0, 2.55, 5.5, 0.28, 'R 이 뜻하는 것', size=11.5, bold=True)
+MEANING = (('R = 플롯이 흩어지는 정도', '같은 표적을 여러 번 잴 때 흩어지는 크기 · 모양'),
+           ('거리는 정확, 방향은 멀수록 퍼짐', '거리 10 m 그대로, 옆 · 위아래 = 거리 × 0.2°'),
+           ('그래서 옆으로 긴 타원', '거리 · 방향이 플롯마다 달라 R 도 플롯마다 계산'))
+for i, (h, b) in enumerate(MEANING):
+    yy = 2.88 + i * 0.3
+    marker(s, 7.0, yy + 0.03, i + 1, d=0.22, size=8.5)
+    p = tb(s, 7.32, yy, 5.25, 0.28, '', size=10.5, anchor='m').text_frame.paragraphs[0]
+    add_runs(p, h + '   ', 10.5, NAVY, True)
+    add_runs(p, b, 9.5, SUB)
 picture(s, 'fig_rcov.png', 0.7, 3.95, w=7.6)
-tb(s, 8.55, 4.05, 4.1, 0.3, 'R 이 뜻하는 것', size=12, bold=True)
-callout(s, 8.55, 4.42, 4.1, 1, 'R = 플롯이 흩어지는 정도', ['같은 표적을 여러 번 잴 때 흩어지는 크기 · 모양'])
-callout(s, 8.55, 5.14, 4.1, 2, '거리는 정확, 방향은 멀수록 퍼짐', ['거리 방향: 10 m (어디서나 같음)', '옆 · 위아래: 거리 × 0.2° (14 km → 49 m)'])
-callout(s, 8.55, 6.08, 4.1, 3, '그래서 옆으로 긴 타원, 플롯마다 계산', ['거리 · 방향이 플롯마다 달라 R 도 다름'])
+# R 계산 행렬식: 위치 변환 (이전 과제 함수) 과 공분산 변환을 나란히. 회전은 같은 행렬, 구좌표 → 직교 함수 s 만 기울기 G (f_Trk_MeasCov 의 mat_J)
+p = tb(s, 8.55, 3.97, 4.1, 0.28, '', size=12, anchor='m').text_frame.paragraphs[0]
+add_runs(p, 'R 계산 행렬식   ', 12, NAVY, True)
+add_runs(p, '이전 과제 좌표 변환과 같은 행렬', 9.5, MUTED)
+picture(s, 'fig_rmatrix.png', 8.48, 4.24, w=4.15)
 note(s, 's7')
 
 # 8 속도 게이팅

@@ -262,6 +262,66 @@ def fig_rcov():
     save(fig, 'fig_rcov.png')
 
 
+# ---------------------------------------------------------------- 1.4 R matrix form
+def fig_rmatrix():
+    # 위치 변환 (이전 과제 함수 그대로) 과 공분산 변환을 나란히: 회전은 같은 행렬, 구좌표 → 직교 함수 s 만 그 기울기 G 로 바꿈.
+    # G 는 TrackMgr.c f_Trk_MeasCov 의 mat_J 와 같은 식. 좌표 단위는 인치 (위에서 아래로)
+    W, H = 4.15, 2.62
+    fig = plt.figure(figsize=(W, H))
+    ax = fig.add_axes([0, 0, 1, 1])
+    ax.set_xlim(0, W); ax.set_ylim(H, 0); ax.axis('off')
+    rend = fig.canvas.get_renderer()
+
+    def pieces(x, y, parts, size, gap=0.03):
+        # (글자, 색[, 글꼴]) 을 왼쪽부터 이어 씀. 수식은 $...$ (STIX)
+        for part in parts:
+            txt, col = part[0], part[1]
+            t = ax.text(x, y, txt, fontsize=size, color=col, ha='left', va='center', math_fontfamily='stix',
+                        fontfamily=part[2] if len(part) > 2 else None)
+            x += t.get_window_extent(renderer=rend).width / fig.dpi + gap
+        return x
+
+    def tag(x, y, text, col):
+        t = ax.text(x + 0.06, y, text, fontsize=8, color=col, fontweight='bold', ha='left', va='center')
+        w = t.get_window_extent(renderer=rend).width / fig.dpi + 0.12
+        ax.add_patch(FancyBboxPatch((x, y - 0.09), w, 0.18, boxstyle='round,pad=0,rounding_size=0.05', fc='white', ec=col, lw=1.0))
+        return x + w + 0.08
+
+    rot = lambda s: (s, GREEN)
+    # 위치: 이전 과제 함수 세 개를 그대로 이음
+    x = tag(0.02, 0.17, '위치', NAVY)
+    pieces(x, 0.17, [(r'$\mathbf{p}_{\mathrm{NED}}\ =$', NAVY), rot(r'$M_{B\to N}$'), (r'$\cdot$', NAVY), rot(r'$M_{A\to B}$'), (r'$\cdot$', NAVY),
+                     (r'$\mathbf{s}(r,\ az,\ el)$', BLUE)], 11.5)
+    pieces(0.06, 0.41, [('이전 과제 함수 f_Trans_ …', MUTED), ('Body_To_Ned · Ant_To_Body · Ant_Sph_To_XYZ', MUTED, 'DejaVu Sans Mono')], 7, gap=0.06)
+    # 공분산: 회전은 같은 행렬을 앞뒤로, s 대신 기울기 G
+    x = tag(0.02, 0.71, '공분산', NAVY)
+    pieces(x, 0.71, [(r'$R_{\mathrm{NED}}\ =\ ($', NAVY), rot(r'$M$'), (r'$G$', BLUE), (r'$)\cdot\mathrm{diag}(\sigma_r^2,\ \sigma_{az}^2,\ \sigma_{el}^2)\cdot($', NAVY),
+                     rot(r'$M$'), (r'$G$', BLUE), (r'$)^T$', NAVY)], 11.5, gap=0.01)
+    pieces(0.06, 0.95, [(r'$M = M_{B\to N}\,M_{A\to B}$', GREEN), (': 위와 같은 회전 행렬,', SUB), ('s', BLUE), ('대신 그 기울기', SUB), ('G', BLUE)], 8.5, gap=0.04)
+
+    # G: 거리 · 방위각 · 고각이 조금 변할 때 위치 (안테나 x, y, z) 가 변하는 양
+    cols = [[r'$\cos el\,\sin az$', r'$\sin el$', r'$\cos el\,\cos az$'],
+            [r'$r\,\cos el\,\cos az$', r'$0$', r'$-r\,\cos el\,\sin az$'],
+            [r'$-r\,\sin el\,\sin az$', r'$r\,\cos el$', r'$-r\,\sin el\,\cos az$']]
+    heads = ['r 이 변할 때', 'az 가 변할 때', 'el 이 변할 때']
+    sizes = [r'크기  $1$', r'크기  $r\,\cos el$', r'크기  $r$']
+    colw = [0.98, 1.16, 1.16]
+    x0, top, rh = 0.62, 1.29, 0.2
+    ax.text(0.06, top + 1.5 * rh, r'$G\ =$', fontsize=11.5, color=BLUE, ha='left', va='center', math_fontfamily='stix')
+    for j, col in enumerate(cols):
+        cx = x0 + sum(colw[:j]) + colw[j] / 2
+        ax.text(cx, top - 0.1, heads[j], fontsize=7, color=MUTED, ha='center', va='center')
+        for i, e in enumerate(col):
+            ax.text(cx, top + (i + 0.5) * rh, e, fontsize=9.5, color=NAVY, ha='center', va='center', math_fontfamily='stix')
+        ax.text(cx, top + 3 * rh + 0.13, sizes[j], fontsize=8, color=BLUE, fontweight='bold', ha='center', va='center', math_fontfamily='stix')
+    for bx, d in ((x0, 1), (x0 + sum(colw), -1)):
+        ax.plot([bx + d * 0.05, bx, bx, bx + d * 0.05], [top, top, top + 3 * rh, top + 3 * rh], color=NAVY, lw=1.0)
+    pieces(0.06, 2.24, [('열마다 = 방향 (길이 1) × 크기   →   각도 오차 × 거리 = 미터 오차', NAVY)], 8.5)
+    pieces(0.06, 2.47, [('14 km 표적:', BLUE), (r'$\sigma_r$', BLUE), ('10 m,', BLUE), (r'$r\,\sigma_{az}$', BLUE), ('≈ 49 m,', BLUE),
+                        (r'$r\,\sigma_{el}$', BLUE), ('≈ 49 m  (그림 ② 의 타원)', BLUE)], 8.5, gap=0.04)
+    save(fig, 'fig_rmatrix.png', dpi=220)
+
+
 # ---------------------------------------------------------------- 1.5 velocity gate
 def fig_gate():
     fig, ax = plt.subplots(figsize=(5.4, 3.75))
@@ -503,4 +563,4 @@ if __name__ == '__main__':
     crop_ui()
     cover('cover_bg.png', True)
     cover('end_bg.png', False)
-    fig_plot_track(); fig_1p2p(); fig_pmatrix(); fig_rcov(); fig_gate(); fig_states(); fig_assoc(); fig_mn(); fig_score(); fig_zoom(); fig_life()
+    fig_plot_track(); fig_1p2p(); fig_pmatrix(); fig_rcov(); fig_rmatrix(); fig_gate(); fig_states(); fig_assoc(); fig_mn(); fig_score(); fig_zoom(); fig_life()
