@@ -1,6 +1,6 @@
 # 과제 5 발표자료 생성 (틀: 과제 4 발표자료의 레이아웃)
-# python build_deck.py <과제4 pptx> <그림 폴더> <소스 폴더 src/TargetSim> <출력 pptx> <대본 md>
-import sys, os, re, copy, unicodedata
+# python build_deck.py <과제4 pptx> <그림 폴더> <소스 폴더 src/TargetSim> <출력 pptx> <대본 md> [결과 데이터 폴더, 기본: 그림 폴더 옆 data]
+import sys, os, re, csv, copy, unicodedata
 from lxml import etree
 from pptx import Presentation
 from pptx.util import Inches, Pt, Emu
@@ -12,6 +12,7 @@ from pptx.oxml.ns import qn
 from notes import NOTES
 
 TEMPLATE, FIG, SRC, OUT, SCRIPT_MD = sys.argv[1:6]
+DATA = sys.argv[6] if len(sys.argv) > 6 else os.path.join(os.path.dirname(os.path.abspath(FIG)), 'data')
 
 NAVY = '1B2740'; SUB = '4A5A7A'; MUTED = '8794AC'; LIGHT = 'AEB9CC'; BORDER = 'D2D9E5'
 BLUE = '2563EB'; RED = 'DC2626'; ORANGE = 'D97706'; GREEN = '059669'; PURPLE = '7C3AED'; NUM = 'B45309'; WHITE = 'FFFFFF'
@@ -754,27 +755,59 @@ note(s, 's22')
 
 # 23 수명과 스코어
 s = content('04. 결과', '4.4 트랙 수명과 스코어 로직 확인', '트랙 355 개 (표적 1 117 · 표적 2 235 · 클러터끼리 3) 가 모두 같은 일생을 거칩니다: 개시 → 두 스캔 뒤 삭제. 확정 · 메모리 전환은 스코어 확인 창에 Flag 를 넣어 확인했습니다.')
-# 트랙의 일생: 처음 10 초 동안 생긴 트랙 22 개 (make_figures.py fig_lifeline) 와 첫 줄 트랙 100 의 스캔별 변화
+# 트랙의 일생: 처음 10 초 동안 생긴 트랙 22 개 (make_figures.py fig_lifeline) 와, 그 그림을 그린 데이터 (tracks.csv 의 트랙 100 줄)
 picture(s, 'fig_lifeline.png', 0.66, 2.45, w=7.45)
-tb(s, 0.7, 5.34, 7.4, 0.26, '트랙 100 의 경우  (표적 2, 위 그림의 첫 줄)', size=11, bold=True)
-src_tag(s, 4.3, 5.36, 'data', '위 그림: tracks.csv 의 처음 10 초로 그림', 3.81)
-LIFE = (('스캔 10', 'TrackScore 2', ['두 플롯으로 개시', '(10067 + 10074)'], 1), ('스캔 11', 'TrackScore 1', 'Assigned_Flag 0 → −1', 1),
-        ('스캔 12', 'TrackScore 0', '0 이하라 삭제 상태 (4)', 4), ('스캔 13', '표에 없음', '처리 시작 때 표에서 뺌', 0))
-cw = (7.45 - 3 * 0.22) / 4
-for i, (scan_txt, score_txt, body, state) in enumerate(LIFE):
-    xx, yy = 0.66 + i * (cw + 0.22), 5.66
-    col = {1: ORANGE, 4: '6B7280', 0: LIGHT}[state]
-    rect(s, xx, yy, cw, 1.1, WHITE, col, radius=0.08, lw=1.4)
-    if state:
-        rect(s, xx + 0.12, yy + 0.11, 0.2, 0.2, WHITE, col, lw=1.4)
-        if state == 4:
-            line(s, xx + 0.12, yy + 0.11, xx + 0.32, yy + 0.31, color=col, width=1.0)
-            line(s, xx + 0.12, yy + 0.31, xx + 0.32, yy + 0.11, color=col, width=1.0)
-    tb(s, xx + 0.42, yy + 0.07, cw - 0.5, 0.26, scan_txt, size=11, bold=True, anchor='m')
-    tb(s, xx + 0.12, yy + 0.4, cw - 0.2, 0.26, score_txt, size=10.5, bold=True, color=col if state else SUB)
-    tb(s, xx + 0.12, yy + 0.68, cw - 0.2, 0.36, body, size=9, color=SUB)
-    if i < len(LIFE) - 1:
-        line(s, xx + cw + 0.02, yy + 0.55, xx + cw + 0.2, yy + 0.55, color=LIGHT, width=1.2, arrow=True)
+# 그림을 그린 데이터: tracks.csv 에서 트랙 100 (그림 첫 줄) 의 줄을 그대로 읽어 표로 씀. CSV 한 줄 = 그림의 칸 하나
+# (가로 위치 = time, 줄 = track_id, 칸 색 = state). 삭제 상태 다음 스캔에는 표에서 빠져 줄이 없음
+with open(os.path.join(DATA, 'tracks.csv'), encoding='utf-8') as f:
+    T100 = [r for r in csv.DictReader(f) if r['track_id'] == '100']
+gone = str(int(T100[-1]['scan']) + 1)
+with open(os.path.join(DATA, 'scanlog.csv'), encoding='utf-8') as f:
+    gone_log = next(r for r in csv.DictReader(f) if r['scan'] == gone)
+assert T100[-1]['state'] == '4' and gone_log['tracks'] == '0', 'tracks.csv: 트랙 100 이 삭제 상태 다음 스캔에 표에서 빠지지 않음'
+COLS = ('scan', 'time', 'track_id', 'state', 'score', 'flag', 'plot_prev', 'plot_cur', 'src_cur')
+TW = (0.45, 0.55, 0.8, 0.52, 0.52, 0.44, 0.82, 0.8, 0.72, 0.35, 1.48)
+CELL_COL = {'1': ORANGE, '4': 'C9CED6'}                               # make_figures.py fig_lifeline 의 칸 색
+GONE_TXT = '트랙 100 줄 없음'
+
+
+def life_meaning(r):
+    if r['scan'] == r['init_scan']:
+        return '두 플롯으로 개시'
+    return 'score ≤ 0 → 삭제 상태' if r['state'] == '4' else 'flag 0 → score −1'
+
+
+TROWS = [COLS + ('칸', '뜻')] + [tuple(r[c] for c in COLS) + ('■', life_meaning(r)) for r in T100] \
+    + [(gone, gone_log['time'], GONE_TXT) + ('',) * 6 + ('–', '처리 시작 때 뺌')]
+label_box(s, 0.7, 5.37, 0.92, 0.22, '결과 데이터', size=8.5, color=WHITE, fill=GREEN, radius=0.5)
+box = tb(s, 1.7, 5.31, 6.4, 0.3, '', anchor='m')
+add_runs(box.text_frame.paragraphs[0], '위 그림을 그린 데이터   ', 11, NAVY, bold=True)
+add_runs(box.text_frame.paragraphs[0], 'tracks.csv 의 트랙 100 (첫 줄) 부분. 한 줄이 그림의 칸 하나', 9.5, SUB)
+tbl = s.shapes.add_table(len(TROWS), len(TW), Inches(0.7), Inches(5.64), Inches(sum(TW)), Inches(0.24 * len(TROWS))).table
+for j, w in enumerate(TW):
+    tbl.columns[j].width = Inches(w)
+for i, row in enumerate(TROWS):
+    tbl.rows[i].height = Inches(0.24)
+    state = row[3] if 0 < i < len(TROWS) - 1 else ''
+    fill = NAVY if i == 0 else {'1': F_ORANGE, '4': F_GRAY}.get(state, WHITE)
+    for j, t in enumerate(row):
+        cell = tbl.cell(i, j)
+        cell.margin_left = cell.margin_right = Inches(0.03); cell.margin_top = cell.margin_bottom = Inches(0.0)
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        cell.fill.solid(); cell.fill.fore_color.rgb = rgb(fill)
+        tf = cell.text_frame; tf.text = ''; tf.word_wrap = False
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.LEFT if j == len(TW) - 1 else PP_ALIGN.CENTER
+        if i == 0:
+            add_runs(p, t, 9, WHITE, bold=True, font=KO if j >= len(COLS) else MONO)
+        elif j == len(COLS):
+            add_runs(p, t, 11, CELL_COL.get(state, MUTED), bold=True)
+        elif j == len(TW) - 1:
+            add_runs(p, t, 9, SUB)
+        else:
+            add_runs(p, t, 9 if t == GONE_TXT else 9.5, NAVY if state else MUTED, font=KO if t == GONE_TXT else MONO)
+tbl.cell(len(TROWS) - 1, 2).merge(tbl.cell(len(TROWS) - 1, len(COLS) - 1))
+tblpr = s.shapes[-1]._element.graphic.graphicData.tbl.tblPr
+tblpr.set('firstRow', '0'); tblpr.set('bandRow', '0')
 picture(s, 'ui_score_p2.png', 8.3, 2.5, w=4.33, border=True)
 yy = 2.5 + 4.33 * 595 / 737 + 0.06
 src_tag(s, 8.3, yy, 'ui', '스코어 확인 창: Flag 1 1 1 0 0 1 1', 4.33)

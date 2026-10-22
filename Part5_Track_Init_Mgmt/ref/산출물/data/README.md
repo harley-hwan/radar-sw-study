@@ -40,5 +40,6 @@
 | --- | --- | --- | --- |
 | 4.3 | `fig_zoom.png` | `truth` 표적 2 궤적, `plots` 표적 2 의 스캔 1153 · 1154, `tracks` 스캔 1154 의 트랙 451 · 450 | `fig_zoom` |
 | 4.3 | 오른쪽 트랙 표 | `tracks` 스캔 1154 두 줄 | `build_deck.py` 가 값을 표로 씀 |
-| 4.4 | `fig_lifeline.png` | `tracks` 중 스캔 0 ~ 104 에 개시된 트랙 100 ~ 121 | `fig_lifeline` |
+| 4.4 | `fig_lifeline.png` | `tracks` 중 스캔 0 ~ 104 에 개시된 트랙 100 ~ 121. 한 줄이 그림의 칸 하나 (가로 = `scan` × 0.1 s, 줄 = `track_id`, 칸 색 = `state`, ID 색 = `src_cur`) | `fig_lifeline` |
+| 4.4 | 그림 아래 '위 그림을 그린 데이터' 표 | `tracks` 의 트랙 100 세 줄 (스캔 10 ~ 12) 과 줄이 없는 스캔 13 (`scanlog` 의 `tracks` 0) | `build_deck.py` 가 CSV 를 읽어 표로 씀 |
 | 4.4 | 부제 · 대본의 숫자 | `tracks` 트랙 355 개를 개시 플롯의 source 로 나눔 (표적 1 117, 표적 2 235, 클러터끼리 3) | - |
