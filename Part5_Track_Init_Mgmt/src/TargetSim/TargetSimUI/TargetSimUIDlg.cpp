@@ -1,6 +1,6 @@
 //
 // @file	TargetSimUIDlg.cpp
-// @brief	주 화면 구현: 시나리오 실행, 플롯 메시지 송수신 시작, True · Plot · Track 그림 (2D, 3D), 트랙 표, 요약
+// @brief	주 화면 구현: 시나리오 실행, 플롯 메시지 송수신 시작, True · Plot · Track 그림 (2D, 3D), 트랙 수명 그림, 트랙 표, 요약
 // @author	hwan
 // @date	2026.10.21.
 //
@@ -36,14 +36,14 @@
 #define UI_TRK_GAP_NUM			3						// 송신 간격 고르기 수
 #define UI_TRK_GAP_WIDTH		128						// 송신 간격 선택 너비
 #define UI_SUMMARY_LINES		10						// 트랙 카드 요약 줄 수
-#define UI_FRAMED_NUM			3						// 테두리를 그리는 컨트롤 수
+#define UI_FRAMED_NUM			4						// 테두리를 그리는 컨트롤 수
 #define UI_TIMER_TRACK			1						// 수신 결과를 가져오는 타이머
 #define UI_TIMER_TRACK_MS		50
 
 // 송신 간격 [ms] 과 이름. 100 ms 가 스캔 간격 (0.1 s) 과 같은 실시간.
 static const INT32		s_GapMs[UI_TRK_GAP_NUM] = { 0, 10, 100 };
 static const LPCTSTR	s_GapName[UI_TRK_GAP_NUM] = { _T("0 ms (바로)"), _T("10 ms (빨리)"), _T("100 ms (실시간)") };
-static const LPCTSTR	s_ViewName[UI_VIEW_NUM] = { _T("2D + 3D"), _T("2D"), _T("3D") };
+static const LPCTSTR	s_ViewName[UI_VIEW_NUM] = { _T("2D + 3D"), _T("2D"), _T("3D"), _T("트랙 수명") };
 
 // 그림 표시 체크 상자. UI_SHOW_* 순서
 static const INT32		s_ShowId[UI_SHOW_NUM] = { IDC_SHOW_TRUE, IDC_SHOW_PLOT, IDC_SHOW_CLUTTER, IDC_SHOW_TRACK };
@@ -127,6 +127,7 @@ VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 	CDialogEx::DoDataExchange(st_Dx);
 	DDX_Control(st_Dx, IDC_PLOT, st_Plot);
 	DDX_Control(st_Dx, IDC_VIEW3D, st_View3D);
+	DDX_Control(st_Dx, IDC_TRACK_LIFE, st_LifeView);
 	DDX_Control(st_Dx, IDC_SCAN_SLIDER, st_ScanSlider);
 	DDX_Control(st_Dx, IDC_VIEW_MODE, st_ViewMode);
 	DDX_Control(st_Dx, IDC_TRK_GAP, st_GapCombo);
@@ -205,6 +206,7 @@ BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 	st_Plot.f_SetShow(isShow[UI_SHOW_TRUE], isShow[UI_SHOW_PLOT], isShow[UI_SHOW_CLUTTER], isShow[UI_SHOW_TRACK]);
 	st_View3D.f_SetDpi(dpi);
 	st_View3D.f_SetShow(isShow[UI_SHOW_TRUE], isShow[UI_SHOW_PLOT], isShow[UI_SHOW_CLUTTER], isShow[UI_SHOW_TRACK]);
+	st_LifeView.f_SetDpi(dpi);
 
 	// 창 크기가 그대로면 WM_SIZE 가 오지 않으므로 배치는 직접 한 번 함
 	f_SetInitialSize();
@@ -306,7 +308,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 		plotHeight = contentBottom - contentTop - gap - trkHeight;
 	}
 
-	// 그림 카드: 머리 줄에 스캔 글자, 스캔 슬라이더, 표시 체크 상자, 보기 선택. 아래는 2D, 3D 그림 (보기에 따라 나란히 또는 하나만)
+	// 그림 카드: 머리 줄에 스캔 글자, 스캔 슬라이더, 표시 체크 상자, 보기 선택. 아래는 2D, 3D 그림 (보기에 따라 나란히 또는 하나만) 또는 트랙 수명 그림
 	st_CardPlot.SetRect(margin, contentTop, st_Client.right - margin, contentTop + plotHeight);
 	x = st_CardPlot.right - pad - viewModeWidth;
 	y = st_CardPlot.top + pad;
@@ -328,8 +330,10 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	viewWidth = (nViewMode == UI_VIEW_BOTH) ? ((st_CardPlot.Width() - (2 * pad) - gap) / 2) : (st_CardPlot.Width() - (2 * pad));
 	f_Ui_Move(this, IDC_PLOT, st_CardPlot.left + pad, y, viewWidth, st_CardPlot.bottom - pad - y);
 	f_Ui_Move(this, IDC_VIEW3D, st_CardPlot.right - pad - viewWidth, y, viewWidth, st_CardPlot.bottom - pad - y);
-	st_Plot.ShowWindow((nViewMode != UI_VIEW_3D) ? SW_SHOWNA : SW_HIDE);
-	st_View3D.ShowWindow((nViewMode != UI_VIEW_2D) ? SW_SHOWNA : SW_HIDE);
+	f_Ui_Move(this, IDC_TRACK_LIFE, st_CardPlot.left + pad, y, st_CardPlot.Width() - (2 * pad), st_CardPlot.bottom - pad - y);
+	st_Plot.ShowWindow(((nViewMode == UI_VIEW_BOTH) || (nViewMode == UI_VIEW_2D)) ? SW_SHOWNA : SW_HIDE);
+	st_View3D.ShowWindow(((nViewMode == UI_VIEW_BOTH) || (nViewMode == UI_VIEW_3D)) ? SW_SHOWNA : SW_HIDE);
+	st_LifeView.ShowWindow((nViewMode == UI_VIEW_LIFE) ? SW_SHOWNA : SW_HIDE);
 	st_View3D.f_SetLegend((nViewMode == UI_VIEW_3D) ? 1 : 0);
 
 	// 아래 카드 너비: 트랙 카드는 비율대로 하되 요약 줄이 잘리지 않는 범위, 나머지는 트랙 표 카드
@@ -399,7 +403,7 @@ VOID CTargetSimUIDlg::f_DrawCard(CDC *st_Dc, const CRect &st_Card) const
 // 페이지 바탕, 카드, 표와 그림 테두리 그리기.
 BOOL CTargetSimUIDlg::OnEraseBkgnd(CDC *st_Dc)
 {
-	static const INT32	s_FramedCtrl[UI_FRAMED_NUM] = { IDC_TRK_LIST, IDC_PLOT, IDC_VIEW3D };
+	static const INT32	s_FramedCtrl[UI_FRAMED_NUM] = { IDC_TRK_LIST, IDC_PLOT, IDC_VIEW3D, IDC_TRACK_LIFE };
 	CBrush				st_Border(UI_COLOR_BORDER);
 	CRect				st_Client;
 	CRect				st_Frame;
@@ -510,6 +514,7 @@ VOID CTargetSimUIDlg::f_RunScenario(VOID)
 
 	st_Plot.f_SetData(&st_Result, &st_PlotResult, &st_TrackResult);
 	st_View3D.f_SetData(&st_Result, &st_PlotResult, &st_TrackResult);
+	st_LifeView.f_SetData(&st_TrackResult);
 	f_RunTrack();
 }
 
@@ -554,7 +559,7 @@ VOID CTargetSimUIDlg::f_SetupTrackColumns(VOID)
 
 // 결과 보이기
 
-// 보일 스캔 바꾸기: 슬라이더, 스캔 글자, 2D, 3D 그림, 트랙 표, 요약의 지금 스캔.
+// 보일 스캔 바꾸기: 슬라이더, 스캔 글자, 2D, 3D, 트랙 수명 그림, 트랙 표, 요약의 지금 스캔.
 VOID CTargetSimUIDlg::f_ShowScan(INT32 nScan)
 {
 	CString st_Text;
@@ -575,6 +580,7 @@ VOID CTargetSimUIDlg::f_ShowScan(INT32 nScan)
 	f_SetText(IDC_SCAN_TEXT, st_Text);
 	st_Plot.f_SetScan(nScan);
 	st_View3D.f_SetScan(nScan);
+	st_LifeView.f_SetScan(nScan);
 	f_UpdateTrackList();
 	f_UpdateTrackSummary();
 }
@@ -790,7 +796,7 @@ VOID CTargetSimUIDlg::OnHScroll(UINT32 code, UINT32 pos, CScrollBar *st_Bar)
 	CDialogEx::OnHScroll(code, pos, st_Bar);
 }
 
-// 휠: 커서가 2D, 3D 그림 위면 그 그림을 확대 · 축소 (포커스가 다른 컨트롤에 있어도).
+// 휠: 커서가 2D, 3D 그림 위면 그 그림을 확대 · 축소, 트랙 수명 그림 위면 가로 구간 길이 바꾸기 (포커스가 다른 컨트롤에 있어도).
 BOOL CTargetSimUIDlg::OnMouseWheel(UINT32 flags, INT16 delta, CPoint st_Point)
 {
 	CRect st_Rect;
@@ -807,6 +813,13 @@ BOOL CTargetSimUIDlg::OnMouseWheel(UINT32 flags, INT16 delta, CPoint st_Point)
 	if ((st_View3D.IsWindowVisible() != FALSE) && (st_Rect.PtInRect(st_Point) != FALSE))
 	{
 		st_View3D.f_Zoom(delta, st_Point);
+	}
+
+	st_LifeView.GetWindowRect(&st_Rect);
+
+	if ((st_LifeView.IsWindowVisible() != FALSE) && (st_Rect.PtInRect(st_Point) != FALSE))
+	{
+		st_LifeView.f_Zoom(delta, st_Point);
 	}
 
 	return CDialogEx::OnMouseWheel(flags, delta, st_Point);
@@ -826,14 +839,21 @@ VOID CTargetSimUIDlg::f_OnShowClicked(VOID)
 	st_View3D.f_SetShow(isShow[UI_SHOW_TRUE], isShow[UI_SHOW_PLOT], isShow[UI_SHOW_CLUTTER], isShow[UI_SHOW_TRACK]);
 }
 
-// 그림 보기 (2D + 3D, 2D, 3D) 바꾸면 배치를 다시 함.
+// 그림 보기 (2D + 3D, 2D, 3D, 트랙 수명) 바꾸면 배치를 다시 함. 표시 체크 상자는 2D, 3D 그림에만 쓰므로 트랙 수명에서는 끔.
 VOID CTargetSimUIDlg::f_OnViewModeChanged(VOID)
 {
-	const INT32 nSel = st_ViewMode.GetCurSel();
+	const INT32	nSel = st_ViewMode.GetCurSel();
+	INT32		nIndex;
 
 	if ((nSel >= 0) && (nSel < UI_VIEW_NUM))
 	{
 		nViewMode = nSel;
+
+		for (nIndex = 0; nIndex < UI_SHOW_NUM; nIndex++)
+		{
+			(VOID)GetDlgItem(s_ShowId[nIndex])->EnableWindow((nViewMode != UI_VIEW_LIFE) ? TRUE : FALSE);
+		}
+
 		f_Layout();
 	}
 }

@@ -10,11 +10,12 @@
 #include "Scenario.h"
 #include "TrajectoryPlot.h"
 
-// 그림 보기 (2D, 3D)
+// 그림 보기 (2D, 3D, 트랙 수명)
 #define UI_VIEW_BOTH			0
 #define UI_VIEW_2D				1
 #define UI_VIEW_3D				2
-#define UI_VIEW_NUM				3
+#define UI_VIEW_LIFE			3						// 트랙 수명 (트랙마다 한 줄, 스캔마다 한 칸)
+#define UI_VIEW_NUM				4
 
 // 그림 표시 (True, Plot, Clutter, Track)
 #define UI_SHOW_TRUE			0
@@ -25,7 +26,7 @@
 
 // 트랙 개시 · 관리 결과 화면 (과제 5).
 // 궤적, 기동, 측정 조건은 고정 시나리오 그대로 한 번 계산해 두고, 측정 모의 결과를 플롯 메시지로 보내 데이터 처리 쪽이 처리한 스캔을
-// True · Plot · Track 그림 (2D, 3D), 지금 스캔의 트랙 표, 송수신 · 트랙 요약으로 보임.
+// True · Plot · Track 그림 (2D, 3D) 또는 트랙 수명 그림, 지금 스캔의 트랙 표, 송수신 · 트랙 요약으로 보임.
 class CTargetSimUIDlg : public CDialogEx
 {
 public:
@@ -81,6 +82,7 @@ private:
 
 	CTrajectoryPlot		st_Plot;
 	CTrackView3D		st_View3D;
+	CTrackLifeView		st_LifeView;
 	CSliderCtrl			st_ScanSlider;
 	CComboBox			st_ViewMode;
 	CComboBox			st_GapCombo;

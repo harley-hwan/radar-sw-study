@@ -16,6 +16,7 @@
 #define IDC_SHOW_PLOT                   1066
 #define IDC_SHOW_CLUTTER                1067
 #define IDC_SHOW_TRACK                  1068
+#define IDC_TRACK_LIFE                  1069
 
 #define IDC_TRK_TITLE                   1110
 #define IDC_TRK_SCORE                   1111

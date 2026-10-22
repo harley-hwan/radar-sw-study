@@ -1,6 +1,6 @@
 //
 // @file	TrajectoryPlot.h
-// @brief	결과 그림: 2D (동-북 평면) 와 3D (동-북-위 정투영) 에 True · Plot · Clutter · Track 심볼을 함께 그림
+// @brief	결과 그림: 2D (동-북 평면) 와 3D (동-북-위 정투영) 에 True · Plot · Clutter · Track 심볼을 함께 그림, 트랙 수명 (트랙마다 한 줄, 스캔마다 한 칸)
 // @author	hwan
 // @date	2026.10.21.
 //
@@ -148,4 +148,61 @@ private:
 	FLOAT64				dragYaw;
 	FLOAT64				dragPitch;
 	CRect				st_Area;
+};
+
+// 트랙 수명 그림의 줄 하나 (트랙 하나). 트랙은 (개시 스캔, ID) 로 구분함 (ID 는 10000 뒤 100 부터 다시 씀)
+typedef struct
+{
+	UINT32				TrackId;
+	INT32				nInitScan;
+	INT32				nSource;						// 개시 플롯 두 개의 참값 (ST_TrackItem 과 같음). ID 글자 색
+	INT32				nFirstScan;						// 가로 구간 안에서 처음 · 마지막으로 트랙 표에 있던 스캔
+	INT32				nLastScan;
+	INT32				isInTable;						// 1 이면 지금 스캔의 트랙 표에 있음 (ID 를 굵게)
+} ST_LifeRow;
+
+// 트랙 수명 그림의 칸 하나 (트랙 하나의 스캔 하나)
+typedef struct
+{
+	INT32				nRow;							// st_RowBuf 자리
+	INT32				nScan;
+	INT32				nState;							// 그 스캔을 처리한 뒤의 TrackState
+} ST_LifeCell;
+
+// 트랙 수명 그림: 트랙마다 한 줄, 스캔마다 한 칸 (칸 색 = 그 스캔을 처리한 뒤의 TrackState). 결과는 대화상자 소유, 받은 트랙 표만 읽음.
+// 가로는 지금 스캔에서 끝나는 nSpan 스캔 (지금 스캔이 그보다 앞이면 스캔 0 부터 채워 나감), 세로는 그 구간에 트랙 표에 있던 트랙을
+// 개시 순서대로 위에서 아래로. ID 는 첫 칸 왼쪽에 개시 플롯의 참값 색으로 씀 (표적 색, 클러터끼리 회색, 섞임 검정).
+// 지금 스캔은 세로 띠로, 지금 트랙 표에 있는 트랙의 ID 는 굵게 보임. 휠로 구간 길이 바꾸기, 두 번 클릭하면 처음 길이.
+class CTrackLifeView : public CStatic
+{
+public:
+	CTrackLifeView() noexcept;
+
+	VOID	f_SetDpi(INT32 newDpi);
+	VOID	f_SetData(const CTrackResult *st_NewTrack);
+	VOID	f_SetScan(INT32 nNewScan);
+	VOID	f_Zoom(INT32 delta, CPoint st_ScreenPoint);
+
+protected:
+	afx_msg VOID	OnPaint(VOID);
+	afx_msg BOOL	OnEraseBkgnd(CDC *st_Dc);
+	afx_msg VOID	OnSize(UINT32 type, INT32 width, INT32 height);
+	afx_msg VOID	OnLButtonDblClk(UINT32 flags, CPoint st_Point);
+
+	DECLARE_MESSAGE_MAP()
+
+private:
+	VOID	f_CollectRows(VOID);
+	VOID	f_DrawLife(Gdiplus::Graphics *st_Graphics) const;
+	VOID	f_DrawLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, FLOAT64 baseY, FLOAT64 minLeft) const;
+	FLOAT64	f_ScanToX(INT32 nScan) const;
+
+	const CTrackResult			*st_Track;
+	INT32						nCurScan;
+	INT32						dpi;
+	INT32						nSpan;							// 가로 구간 길이 [스캔]
+	INT32						nFirstScan;						// 가로 구간 첫 스캔
+	std::vector<ST_LifeRow>		st_RowBuf;						// 구간에 트랙 표에 있던 트랙. 개시 순서
+	std::vector<ST_LifeCell>	st_CellBuf;
+	CRect						st_Area;						// 칸을 그리는 영역
 };

@@ -16,7 +16,8 @@
 | --- | --- |
 | `build` | `src/TargetSim/TargetSim.sln` 을 Release x64 로 다시 빌드 (`build_log.txt`) |
 | `run` | `build/x64/Release/TargetSimUI.exe` 실행 |
-| `view 0/1/2`, `scan <n>`, `size <w> <h>` | 주 화면 보기 · 스캔 · 창 크기 |
+| `view 0/1/2/3`, `scan <n>`, `size <w> <h>` | 주 화면 보기 (2D + 3D / 2D / 3D / 트랙 수명) · 스캔 · 창 크기 |
+| `wheel <x> <y> <delta>` | 창 그림의 (x, y) 에서 휠 (2D · 3D 확대, 트랙 수명은 가로 구간 길이) |
 | `score`, `preset <n>`, `closescore` | 스코어 확인 창 열기 · 예시 고르기 · 닫기 |
 | `capture <이름>` | TargetSimUI 창마다 `figures/ui_<이름>.png` 저장 |
 | `kill`, `quit` | 프로그램 · 도우미 종료 |
@@ -32,6 +33,19 @@
     ./harness ../data
 
 난수는 고정 SEED 의 LCG 라 Windows 실행 결과와 같은 값이 나옵니다 (트랙 355 개, 손실 0).
+
+### 트랙 수명 그림 검증 (`verify/lifeview`)
+
+TargetSimUI 의 트랙 수명 그림 (`TrajectoryPlot.cpp` 의 CTrackLifeView) 을 리눅스에서 돌려 봅니다. MFC · GDI+ 는 `afx_stub.h` 가 흉내 내고,
+`extract.py` 가 실제 소스에서 이 그림 코드와 그것이 부르는 함수를 그대로 잘라 옵니다 (소스를 고치면 다시 실행).
+`data/tracks.csv` 를 CTrackResult 에 같은 순서로 쌓아 줄 · 칸 · 구간 · 휠 · 손실 스캔 · 머리 줄 배치를 검사하고, 그리기 호출을 `out/*.json` 으로 남깁니다.
+
+    cd verify/lifeview
+    S=../../../../../src/TargetSim
+    python extract.py $S/TargetSimUI life_tu.cpp
+    g++ -std=c++17 -Wall -Wextra -Wshadow -I . -I $S/TargetSimUI -I $S/TargetSimCore/include -o lifeview life_tu.cpp harness_main.cpp
+    ./lifeview ../../../data out
+    python render.py out/*.json          # 미리보기 PNG (글꼴 크기 · 글자 폭은 근사. 실제 화면은 Windows 캡처로 확인)
 
 ## 3. 그림과 발표자료 (Python 3, matplotlib, pandas, python-pptx)
 

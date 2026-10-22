@@ -1,6 +1,6 @@
 //
 // @file	TrajectoryPlot.cpp
-// @brief	결과 그림 (CTrajectoryPlot 2D, CTrackView3D 3D) 구현 (GDI+)
+// @brief	결과 그림 (CTrajectoryPlot 2D, CTrackView3D 3D, CTrackLifeView 트랙 수명) 구현 (GDI+)
 // @author	hwan
 // @date	2026.10.21.
 //
@@ -9,6 +9,7 @@
 #include <math.h>
 
 #include <algorithm>
+#include <map>
 namespace Gdiplus
 {
 	using std::min;
@@ -73,6 +74,26 @@ namespace Gdiplus
 #define TRK3D_MIN_UP			1000.0					// [m] 고도 축 최소 길이
 #define TRK3D_SHADOW_ALPHA		170						// 참값 궤적 바닥 그림자 (회색) 의 불투명도
 
+// 트랙 수명 그림
+#define LIFE_SPAN_INIT			110						// 처음 가로 구간 [스캔]. 11 s: 처음 10 초 동안 생긴 트랙이 삭제될 때까지 들어감
+#define LIFE_SPAN_MIN			20
+#define LIFE_MARGIN_X			16						// [px @96dpi]
+#define LIFE_TITLE_HEIGHT		26
+#define LIFE_AXIS_HEIGHT		42						// 시간 눈금 + 축 이름 두 줄
+#define LIFE_ROW_MIN			1.0						// [px @96dpi] 줄 간격. 전체 116 s (트랙 355 개) 도 한 화면에 들어가게. 그래도 넘치면 오래된 줄부터 위로 넘김
+#define LIFE_ROW_MAX			18.0
+#define LIFE_LABEL_ROW_MIN		10.0					// [px @96dpi] 줄 간격이 이보다 좁으면 ID 를 쓰지 않음 (글자가 겹침)
+#define LIFE_CELL_RATIO			0.7						// 줄 간격 가운데 칸 높이
+#define LIFE_CELL_GAP_MIN		4.0						// [px @96dpi] 칸 폭이 이 이상이면 칸 사이를 1 px 씩 띄움
+#define LIFE_TICK_PX			80.0					// [px @96dpi] 시간 눈금 하나의 폭
+#define LIFE_LEGEND_BOX			10.0					// [px @96dpi] 범례 칸 한 변
+#define LIFE_LEGEND_NUM			(8 + SCN_TARGET_NUM)	// 칸 색 + 상태 넷 + ID 색 + 표적 + 클러터끼리 + 섞임
+#define LIFE_LEGEND_STATE_NUM	5						// 머리 줄 자리가 모자랄 때 남기는 앞 항목 (칸 색 + 상태 넷)
+#define LIFE_COLOR_DEL			RGB(201, 206, 214)		// 삭제 칸. 심볼의 삭제 회색 (PLOT_COLOR_TRK_DEL) 은 칸을 채우면 진해 옅게 씀
+#define LIFE_COLOR_NOW			RGB(219, 234, 254)		// 지금 스캔 세로 띠
+#define LIFE_COLOR_FUTURE		RGB(249, 250, 251)		// 지금 스캔 뒤 (아직 읽지 않은 칸)
+#define LIFE_COLOR_LOST			RGB(243, 244, 246)		// 받지 못한 스캔 (UDP 손실)
+
 // 범례 줄 종류
 #define PLOT_LEG_LINE			0						// 참값 궤적 · 위치
 #define PLOT_LEG_DOT			1						// 점 (플롯, 클러터)
@@ -85,6 +106,16 @@ typedef struct
 	COLORREF	color;
 	CString		st_Name;
 } ST_LegendRow;
+
+// 트랙 수명 범례 항목: 색 칸 + 이름 (isBox), 또는 색 글자
+typedef struct
+{
+	INT32		isBox;
+	COLORREF	boxColor;
+	COLORREF	textColor;
+	FLOAT64		lead;									// 앞 항목과의 간격 [px]
+	CString		st_Name;
+} ST_LifeLegend;
 
 // COLORREF + 알파 -> GDI+ 색.
 static Gdiplus::Color f_Plot_Color(COLORREF color, INT32 alpha)
@@ -1688,5 +1719,513 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 	if ((nRowNum > 0) && (isShowLegend != 0))
 	{
 		f_Plot_Legend(st_Graphics, &st_Font, st_Row, nRowNum, st_Area, 0, scale);
+	}
+}
+
+// CTrackLifeView
+
+// 칸 색: 임시, 확정, 메모리는 트랙 심볼과 같은 색, 삭제는 옅은 회색.
+static COLORREF f_Life_CellColor(INT32 nState)
+{
+	return (nState == TRK_STATE_DELETED) ? LIFE_COLOR_DEL : f_Plot_TrackStateColor(nState);
+}
+
+// ID 글자 색 = 개시 플롯 두 개의 참값: 표적 k 는 표적 색, 클러터끼리는 클러터 점 색, 섞임은 글자 색.
+static COLORREF f_Life_SourceColor(INT32 nSource)
+{
+	COLORREF color = UI_COLOR_TEXT;
+
+	if ((nSource > 0) && (nSource < UI_OBJECT_NUM))
+	{
+		color = f_Ui_ObjectColor(nSource);
+	}
+	else if (nSource == 0)
+	{
+		color = PLOT_COLOR_CLUTTER;
+	}
+	else
+	{
+		// 섞임 (TRK_SOURCE_MIXED)
+	}
+
+	return color;
+}
+
+// 실수 좌표 사각형.
+static Gdiplus::RectF f_Life_Rect(FLOAT64 x, FLOAT64 y, FLOAT64 width, FLOAT64 height)
+{
+	return Gdiplus::RectF(static_cast<FLOAT32>(x), static_cast<FLOAT32>(y), static_cast<FLOAT32>(width), static_cast<FLOAT32>(height));
+}
+
+BEGIN_MESSAGE_MAP(CTrackLifeView, CStatic)
+	ON_WM_PAINT()
+	ON_WM_ERASEBKGND()
+	ON_WM_SIZE()
+	ON_WM_LBUTTONDBLCLK()
+END_MESSAGE_MAP()
+
+// 트랙 수명 그림. 결과 버퍼는 대화상자 소유, 여기서는 읽기만.
+CTrackLifeView::CTrackLifeView() noexcept
+	: st_Track(nullptr)
+	, nCurScan(0)
+	, dpi(UI_BASE_DPI)
+	, nSpan(LIFE_SPAN_INIT)
+	, nFirstScan(0)
+	, st_Area(0, 0, 0, 0)
+{
+}
+
+// 화면 배율 설정.
+VOID CTrackLifeView::f_SetDpi(INT32 newDpi)
+{
+	dpi = newDpi;
+}
+
+// 그릴 결과 (트랙 개시 · 관리 결과) 교체 후 다시 그리기.
+VOID CTrackLifeView::f_SetData(const CTrackResult *st_NewTrack)
+{
+	st_Track = st_NewTrack;
+
+	Invalidate(FALSE);
+}
+
+// 보일 스캔 번호 바꾼 뒤 다시 그리기. 가로 구간은 이 스캔에서 끝남.
+VOID CTrackLifeView::f_SetScan(INT32 nNewScan)
+{
+	nCurScan = nNewScan;
+
+	Invalidate(FALSE);
+}
+
+// 휠: 가로 구간 길이 바꾸기 (위로 굴리면 짧게 = 확대). LIFE_SPAN_MIN 부터 전체 스캔 수까지. 커서가 그림 밖이면 무시.
+VOID CTrackLifeView::f_Zoom(INT32 delta, CPoint st_ScreenPoint)
+{
+	CPoint	st_Point = st_ScreenPoint;
+	CRect	st_Client;
+	INT32	nMaxSpan;
+
+	ScreenToClient(&st_Point);
+	GetClientRect(&st_Client);
+
+	if ((st_Client.PtInRect(st_Point) != FALSE) && (st_Track != nullptr))
+	{
+		nMaxSpan	= std::max(st_Track->nScanTotal, LIFE_SPAN_MIN);
+		nSpan		= f_Plot_Round(static_cast<FLOAT64>(nSpan) * pow(PLOT_ZOOM_STEP, -static_cast<FLOAT64>(delta) / static_cast<FLOAT64>(WHEEL_DELTA)));
+		nSpan		= std::min(nMaxSpan, std::max(LIFE_SPAN_MIN, nSpan));
+		Invalidate(FALSE);
+	}
+}
+
+// 두 번 클릭하면 처음 구간 길이.
+VOID CTrackLifeView::OnLButtonDblClk(UINT32 flags, CPoint st_Point)
+{
+	nSpan = LIFE_SPAN_INIT;
+	Invalidate(FALSE);
+
+	CStatic::OnLButtonDblClk(flags, st_Point);
+}
+
+// 배경 지우기 생략. OnPaint 에서 전부 그림.
+BOOL CTrackLifeView::OnEraseBkgnd(CDC *st_Dc)
+{
+	UNREFERENCED_PARAMETER(st_Dc);
+
+	return TRUE;
+}
+
+// 크기 변경 시 전체 다시 그리기.
+VOID CTrackLifeView::OnSize(UINT32 type, INT32 width, INT32 height)
+{
+	CStatic::OnSize(type, width, height);
+	Invalidate(FALSE);
+}
+
+// 메모리 DC 에 그린 뒤 한 번에 복사. 칸 영역은 위에 머리 줄 (제목, 범례), 아래에 시간 눈금 · 축 이름 자리를 둠.
+VOID CTrackLifeView::OnPaint(VOID)
+{
+	CPaintDC	st_Dc(this);
+	CDC			st_MemDc;
+	CBitmap		st_Bitmap;
+	CBitmap		*st_OldBitmap;
+	CRect		st_Client;
+
+	GetClientRect(&st_Client);
+	(VOID)st_MemDc.CreateCompatibleDC(&st_Dc);
+	(VOID)st_Bitmap.CreateCompatibleBitmap(&st_Dc, st_Client.Width(), st_Client.Height());
+	st_OldBitmap = st_MemDc.SelectObject(&st_Bitmap);
+	st_MemDc.FillSolidRect(&st_Client, UI_COLOR_CARD);
+
+	st_Area.SetRect(st_Client.left + f_Ui_Scale(LIFE_MARGIN_X, dpi), st_Client.top + f_Ui_Scale(LIFE_TITLE_HEIGHT, dpi),
+		st_Client.right - f_Ui_Scale(LIFE_MARGIN_X, dpi), st_Client.bottom - f_Ui_Scale(LIFE_AXIS_HEIGHT, dpi));
+
+	if ((st_Track != nullptr) && (st_Area.Width() > 0) && (st_Area.Height() > 0))
+	{
+		f_CollectRows();
+
+		{
+			Gdiplus::Graphics st_Graphics(st_MemDc.GetSafeHdc());
+
+			(VOID)st_Graphics.SetTextRenderingHint(Gdiplus::TextRenderingHintClearTypeGridFit);
+			f_DrawLife(&st_Graphics);
+		}
+	}
+
+	(VOID)st_Dc.BitBlt(0, 0, st_Client.Width(), st_Client.Height(), &st_MemDc, 0, 0, SRCCOPY);
+	(VOID)st_MemDc.SelectObject(st_OldBitmap);
+}
+
+// 가로 구간의 스캔마다 받은 트랙 표를 읽어 줄 (트랙) 과 칸 (트랙 하나의 스캔 하나) 을 모음. 지금 스캔 뒤는 읽지 않음.
+// 줄은 개시 순서 (개시 스캔, 같은 스캔이면 ID 순서) 로 놓음. 받지 못한 스캔 (UDP 손실) 에는 칸이 없음.
+VOID CTrackLifeView::f_CollectRows(VOID)
+{
+	std::map<UINT64, INT32>						st_RowOf;			// (개시 스캔, ID) -> 모은 순서의 줄 자리
+	std::map<UINT64, INT32>::const_iterator		st_Found;
+	std::vector<INT32>							st_Order;			// 개시 순서 -> 모은 순서의 줄 자리
+	std::vector<INT32>							st_Rank;			// 모은 순서의 줄 자리 -> 개시 순서
+	std::vector<ST_LifeRow>						st_Sorted;
+	const ST_TrackItem							*st_Item;
+	ST_LifeRow									st_Row;
+	ST_LifeCell									st_Cell;
+	UINT64										key;
+	INT32										nIndex;
+	INT32										nScan;
+	INT32										nTrack;
+	INT32										nRow;
+	INT32										nRowNum;
+	INT32										nCell;
+
+	st_RowBuf.clear();
+	st_CellBuf.clear();
+	nFirstScan = std::max(0, nCurScan - nSpan + 1);
+
+	for (nScan = nFirstScan; nScan <= nCurScan; nScan++)
+	{
+		nIndex = st_Track->f_FindScan(nScan);
+
+		for (nTrack = 0; (nIndex >= 0) && (nTrack < st_Track->f_GetTrackNum(nIndex)); nTrack++)
+		{
+			st_Item		= st_Track->f_GetTrack(nIndex, nTrack);
+			key			= (static_cast<UINT64>(static_cast<UINT32>(st_Item->st_View.nInitScan)) << 32) | static_cast<UINT64>(st_Item->st_View.TrackId);
+			st_Found	= st_RowOf.find(key);
+
+			if (st_Found == st_RowOf.end())
+			{
+				st_Row.TrackId		= st_Item->st_View.TrackId;
+				st_Row.nInitScan	= st_Item->st_View.nInitScan;
+				st_Row.nSource		= st_Item->nSource;
+				st_Row.nFirstScan	= nScan;
+				st_Row.nLastScan	= nScan;
+				st_Row.isInTable	= 0;
+				nRow				= static_cast<INT32>(st_RowBuf.size());
+				st_RowOf[key]		= nRow;
+				st_RowBuf.push_back(st_Row);
+			}
+			else
+			{
+				nRow = st_Found->second;
+				st_RowBuf[static_cast<UINT64>(nRow)].nLastScan = nScan;
+			}
+
+			if (nScan == nCurScan)
+			{
+				st_RowBuf[static_cast<UINT64>(nRow)].isInTable = 1;
+			}
+
+			st_Cell.nRow	= nRow;
+			st_Cell.nScan	= nScan;
+			st_Cell.nState	= st_Item->st_View.TrackState;
+			st_CellBuf.push_back(st_Cell);
+		}
+	}
+
+	// 개시 순서로 줄을 다시 놓고 칸의 줄 자리를 바꿈
+	nRowNum = static_cast<INT32>(st_RowBuf.size());
+	st_Order.resize(static_cast<UINT64>(nRowNum));
+	st_Rank.resize(static_cast<UINT64>(nRowNum));
+	st_Sorted.resize(static_cast<UINT64>(nRowNum));
+
+	for (nRow = 0; nRow < nRowNum; nRow++)
+	{
+		st_Order[static_cast<UINT64>(nRow)] = nRow;
+	}
+
+	std::sort(st_Order.begin(), st_Order.end(), [this](INT32 nLeft, INT32 nRight)
+	{
+		const ST_LifeRow *st_Left = &st_RowBuf[static_cast<UINT64>(nLeft)];
+		const ST_LifeRow *st_Right = &st_RowBuf[static_cast<UINT64>(nRight)];
+
+		return (st_Left->nInitScan != st_Right->nInitScan) ? (st_Left->nInitScan < st_Right->nInitScan) : (st_Left->TrackId < st_Right->TrackId);
+	});
+
+	for (nRow = 0; nRow < nRowNum; nRow++)
+	{
+		st_Rank[static_cast<UINT64>(st_Order[static_cast<UINT64>(nRow)])]	= nRow;
+		st_Sorted[static_cast<UINT64>(nRow)]								= st_RowBuf[static_cast<UINT64>(st_Order[static_cast<UINT64>(nRow)])];
+	}
+
+	for (nCell = 0; nCell < static_cast<INT32>(st_CellBuf.size()); nCell++)
+	{
+		st_CellBuf[static_cast<UINT64>(nCell)].nRow = st_Rank[static_cast<UINT64>(st_CellBuf[static_cast<UINT64>(nCell)].nRow)];
+	}
+
+	st_RowBuf.swap(st_Sorted);
+}
+
+// 스캔 칸의 왼쪽 끝 x. 스캔 nFirstScan + nSpan 이면 칸 영역 오른쪽 끝.
+FLOAT64 CTrackLifeView::f_ScanToX(INT32 nScan) const
+{
+	return static_cast<FLOAT64>(st_Area.left) + ((static_cast<FLOAT64>(nScan - nFirstScan) * static_cast<FLOAT64>(st_Area.Width())) / static_cast<FLOAT64>(nSpan));
+}
+
+//
+// @brief	트랙 수명 그림: 지금 스캔 뒤 · 받지 못한 스캔 바탕, 지금 스캔 띠, 시간 눈금, 칸 (상태 색), ID, 테두리, 머리 줄 (제목, 범례), 축 이름.
+//			줄 간격은 칸 영역 높이를 줄 수로 나누되 LIFE_ROW_MIN ~ LIFE_ROW_MAX. 가장 좁혀도 다 들어가지 않으면 오래된 줄을 위로 넘기고 최근 줄을 보임
+// @param st_Graphics	그릴 곳 (메모리 DC)
+// @return	없음
+// @author	hwan
+//
+VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
+{
+	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
+	const FLOAT64				left = static_cast<FLOAT64>(st_Area.left);
+	const FLOAT64				top = static_cast<FLOAT64>(st_Area.top);
+	const FLOAT64				width = static_cast<FLOAT64>(st_Area.Width());
+	const FLOAT64				height = static_cast<FLOAT64>(st_Area.Height());
+	const FLOAT64				colWidth = width / static_cast<FLOAT64>(nSpan);
+	const INT32					nLastScan = nFirstScan + nSpan - 1;			// 가로 구간 마지막 스캔
+	const INT32					nRowNum = static_cast<INT32>(st_RowBuf.size());
+	const Gdiplus::FontFamily	st_Family(L"Malgun Gothic");
+	const Gdiplus::Font			st_Font(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+	const Gdiplus::Font			st_Bold(&st_Family, scale * PLOT_FONT_PX, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+	const Gdiplus::PointF		st_Zero(0.0F, 0.0F);
+	Gdiplus::Pen				st_GridPen(f_Plot_Color(UI_COLOR_GRID_LINE, 255), 1.0F);
+	Gdiplus::Pen				st_FramePen(f_Plot_Color(UI_COLOR_BORDER, 255), 1.0F);
+	Gdiplus::SolidBrush			st_NowBrush(f_Plot_Color(LIFE_COLOR_NOW, 255));
+	Gdiplus::SolidBrush			st_FutureBrush(f_Plot_Color(LIFE_COLOR_FUTURE, 255));
+	Gdiplus::SolidBrush			st_LostBrush(f_Plot_Color(LIFE_COLOR_LOST, 255));
+	std::vector<Gdiplus::RectF>	st_Box[TRK_STATE_DELETED + 1];				// 상태별 칸. 상태마다 FillRectangles 한 번
+	Gdiplus::RectF				st_Bound;
+	CString						st_Text;
+	FLOAT64						rowPitch;
+	FLOAT64						cellHeight;
+	FLOAT64						cellGap;
+	FLOAT64						stepSec;
+	FLOAT64						x;
+	FLOAT64						y;
+	INT32						nShowNum;
+	INT32						nSkipNum;
+	INT32						nStepScan;
+	INT32						nDecimal;
+	INT32						nScan;
+	INT32						nRow;
+	INT32						nCell;
+	INT32						nState;
+
+	nShowNum	= std::min(nRowNum, static_cast<INT32>(height / (LIFE_ROW_MIN * scale)));
+	nSkipNum	= nRowNum - nShowNum;
+	rowPitch	= (nShowNum > 0) ? fmin(LIFE_ROW_MAX * scale, height / static_cast<FLOAT64>(nShowNum)) : (LIFE_ROW_MAX * scale);
+	cellHeight	= fmax(1.0, rowPitch * LIFE_CELL_RATIO);
+	cellGap		= (colWidth >= (LIFE_CELL_GAP_MIN * scale)) ? 1.0 : 0.0;
+
+	// 칸, 격자는 선명하게
+	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
+
+	// 지금 스캔 뒤 (구간이 스캔 0 부터 채워지는 중일 때 오른쪽) 와 받지 못한 스캔은 옅은 바탕, 지금 스캔은 세로 띠
+	if (nCurScan < nLastScan)
+	{
+		x = f_ScanToX(nCurScan + 1);
+		(VOID)st_Graphics->FillRectangle(&st_FutureBrush, f_Life_Rect(x, top, (left + width) - x, height));
+	}
+
+	for (nScan = nFirstScan; nScan < nCurScan; nScan++)
+	{
+		if (st_Track->f_FindScan(nScan) < 0)
+		{
+			(VOID)st_Graphics->FillRectangle(&st_LostBrush, f_Life_Rect(f_ScanToX(nScan), top, colWidth, height));
+		}
+	}
+
+	(VOID)st_Graphics->FillRectangle(&st_NowBrush, f_Life_Rect(f_ScanToX(nCurScan), top, colWidth, height));
+
+	// 시간 눈금 (세로 격자선). 간격은 {1, 2, 5} x 10^k s 에서 눈금 사이가 LIFE_TICK_PX 쯤 되게 고르고 스캔 단위로 맞춤
+	stepSec		= f_Plot_NiceStepMeter(static_cast<FLOAT64>(nSpan) * SCN_STEP_TIME, fmax(2.0, width / (LIFE_TICK_PX * scale)));
+	nStepScan	= std::max(1, f_Plot_Round(stepSec / SCN_STEP_TIME));
+	nDecimal	= f_Plot_DecimalFor(static_cast<FLOAT64>(nStepScan) * SCN_STEP_TIME);
+
+	for (nScan = ((nFirstScan + nStepScan - 1) / nStepScan) * nStepScan; nScan <= (nLastScan + 1); nScan += nStepScan)
+	{
+		x = f_ScanToX(nScan);
+		(VOID)st_Graphics->DrawLine(&st_GridPen, f_Plot_Round(x), st_Area.top, f_Plot_Round(x), st_Area.bottom);
+		f_Plot_Text(st_Graphics, &st_Font, f_Plot_Number(static_cast<FLOAT64>(nScan) * SCN_STEP_TIME, nDecimal), x, top + height + 4.0,
+			Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_SUB);
+	}
+
+	// 칸: 줄 가운데 높이 LIFE_CELL_RATIO, 위로 넘긴 줄은 그리지 않음
+	for (nCell = 0; nCell < static_cast<INT32>(st_CellBuf.size()); nCell++)
+	{
+		const ST_LifeCell *st_Cell = &st_CellBuf[static_cast<UINT64>(nCell)];
+
+		nState = st_Cell->nState;
+
+		if ((st_Cell->nRow >= nSkipNum) && (nState >= TRK_STATE_TENTATIVE) && (nState <= TRK_STATE_DELETED))
+		{
+			x = f_ScanToX(st_Cell->nScan);
+			y = top + ((static_cast<FLOAT64>(st_Cell->nRow - nSkipNum) + 0.5) * rowPitch);
+			st_Box[nState].push_back(f_Life_Rect(x + cellGap, y - (0.5 * cellHeight), colWidth - (2.0 * cellGap), cellHeight));
+		}
+	}
+
+	for (nState = TRK_STATE_TENTATIVE; nState <= TRK_STATE_DELETED; nState++)
+	{
+		if (st_Box[nState].empty() == false)
+		{
+			Gdiplus::SolidBrush st_Fill(f_Plot_Color(f_Life_CellColor(nState), 255));
+
+			(VOID)st_Graphics->FillRectangles(&st_Fill, st_Box[nState].data(), static_cast<INT32>(st_Box[nState].size()));
+		}
+	}
+
+	// ID: 첫 칸 왼쪽, 영역 왼쪽 끝에 걸리면 마지막 칸 오른쪽. 지금 트랙 표에 있는 트랙은 굵게. 줄 간격이 좁으면 글자가 겹쳐 쓰지 않음
+	if (rowPitch >= (LIFE_LABEL_ROW_MIN * scale))
+	{
+		const FLOAT32		labelPx = static_cast<FLOAT32>(fmin(static_cast<FLOAT64>(scale * PLOT_FONT_PX), 0.85 * rowPitch));
+		const Gdiplus::Font	st_Label(&st_Family, labelPx, Gdiplus::FontStyleRegular, Gdiplus::UnitPixel);
+		const Gdiplus::Font	st_LabelBold(&st_Family, labelPx, Gdiplus::FontStyleBold, Gdiplus::UnitPixel);
+
+		for (nRow = nSkipNum; nRow < nRowNum; nRow++)
+		{
+			const ST_LifeRow	*st_Row = &st_RowBuf[static_cast<UINT64>(nRow)];
+			const Gdiplus::Font	*st_IdFont = (st_Row->isInTable != 0) ? &st_LabelBold : &st_Label;
+
+			st_Text.Format(_T("%u"), st_Row->TrackId);
+			(VOID)st_Graphics->MeasureString(st_Text.GetString(), -1, st_IdFont, st_Zero, &st_Bound);
+			x = f_ScanToX(st_Row->nFirstScan) - (3.0 * scale);
+			y = top + ((static_cast<FLOAT64>(nRow - nSkipNum) + 0.5) * rowPitch);
+
+			if ((x - static_cast<FLOAT64>(st_Bound.Width)) >= left)
+			{
+				f_Plot_Text(st_Graphics, st_IdFont, st_Text, x, y, Gdiplus::StringAlignmentFar, Gdiplus::StringAlignmentCenter, f_Life_SourceColor(st_Row->nSource));
+			}
+			else
+			{
+				f_Plot_Text(st_Graphics, st_IdFont, st_Text, f_ScanToX(st_Row->nLastScan + 1) + (3.0 * scale), y, Gdiplus::StringAlignmentNear,
+					Gdiplus::StringAlignmentCenter, f_Life_SourceColor(st_Row->nSource));
+			}
+		}
+	}
+
+	(VOID)st_Graphics->DrawRectangle(&st_FramePen, st_Area.left, st_Area.top, st_Area.Width(), st_Area.Height());
+
+	// 머리 줄: 제목 (구간, 트랙 수, 위로 넘긴 줄) 과 범례
+	st_Text.Format(_T("트랙 수명  ·  스캔 %d ~ %d (%.1f ~ %.1f s), 트랙 %d 개"), nFirstScan, nLastScan, static_cast<FLOAT64>(nFirstScan) * SCN_STEP_TIME,
+		static_cast<FLOAT64>(nLastScan + 1) * SCN_STEP_TIME, nRowNum);
+
+	if (nSkipNum > 0)
+	{
+		st_Text.AppendFormat(_T(", 앞 트랙 %d 개는 위로 넘침 (휠로 구간을 줄이면 보임)"), nSkipNum);
+	}
+
+	f_Plot_Text(st_Graphics, &st_Bold, st_Text, left, top - 5.0, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, UI_COLOR_TEXT);
+	(VOID)st_Graphics->MeasureString(st_Text.GetString(), -1, &st_Bold, st_Zero, &st_Bound);
+	f_DrawLegend(st_Graphics, &st_Font, top - 5.0, left + static_cast<FLOAT64>(st_Bound.Width) + (24.0 * scale));
+
+	// 축 이름 (눈금 글자 아래)
+	st_Text.Format(_T("시간 [s]   (칸 하나 = 스캔 하나 = %g s)"), SCN_STEP_TIME);
+	f_Plot_Text(st_Graphics, &st_Font, st_Text, left + (0.5 * width), top + height + 4.0 + (1.5 * static_cast<FLOAT64>(scale * PLOT_FONT_PX)),
+		Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentNear, UI_COLOR_TEXT_SUB);
+
+	if (nRowNum == 0)
+	{
+		st_Text.Format(_T("스캔 %d ~ %d 에는 트랙 표에 있던 트랙이 없습니다"), nFirstScan, nCurScan);
+		f_Plot_Text(st_Graphics, &st_Font, st_Text, left + (0.5 * width), top + (0.5 * height), Gdiplus::StringAlignmentCenter, Gdiplus::StringAlignmentCenter,
+			UI_COLOR_TEXT_SUB);
+	}
+}
+
+// 범례 (머리 줄 오른쪽 끝, 글자 아래 끝 = baseY): 칸 색 = 트랙 상태 네 가지, ID 색 = 개시 플롯 두 개의 참값.
+// 왼쪽 끝이 minLeft (제목 끝) 를 넘으면 칸 색만, 그래도 넘으면 그리지 않음 (좁은 창).
+VOID CTrackLifeView::f_DrawLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, FLOAT64 baseY, FLOAT64 minLeft) const
+{
+	static const INT32		s_State[4] = { TRK_STATE_TENTATIVE, TRK_STATE_CONFIRMED, TRK_STATE_MEMORY, TRK_STATE_DELETED };
+	static const LPCTSTR	s_StateName[4] = { _T("임시"), _T("확정"), _T("메모리"), _T("삭제") };
+	const FLOAT64			scale = static_cast<FLOAT64>(f_Ui_Scale(100, dpi)) / 100.0;
+	const FLOAT64			box = LIFE_LEGEND_BOX * scale;
+	const FLOAT64			gap = 4.0 * scale;							// 칸과 이름 사이
+	const FLOAT64			space = 12.0 * scale;						// 항목 사이
+	const Gdiplus::PointF	st_Zero(0.0F, 0.0F);
+	ST_LifeLegend			st_Item[LIFE_LEGEND_NUM] = {};
+	FLOAT64					pt_Width[LIFE_LEGEND_NUM] = {};
+	Gdiplus::RectF			st_Bound;
+	FLOAT64					textHeight = 0.0;
+	FLOAT64					total = 0.0;
+	FLOAT64					stateTotal = 0.0;					// 칸 색 항목까지의 폭
+	FLOAT64					x;
+	INT32					nItemNum = 0;
+	INT32					nItem;
+	INT32					nState;
+	INT32					nObject;
+
+	st_Item[nItemNum++] = { 0, 0, UI_COLOR_TEXT_SUB, 0.0, CString(_T("칸 색")) };
+
+	for (nState = 0; nState < 4; nState++)
+	{
+		st_Item[nItemNum++] = { 1, f_Life_CellColor(s_State[nState]), UI_COLOR_TEXT, (nState == 0) ? (0.6 * space) : space, CString(s_StateName[nState]) };
+	}
+
+	st_Item[nItemNum++] = { 0, 0, UI_COLOR_TEXT_SUB, 2.5 * space, CString(_T("ID 색")) };
+
+	for (nObject = 1; nObject <= SCN_TARGET_NUM; nObject++)
+	{
+		st_Item[nItemNum++] = { 0, 0, f_Ui_ObjectColor(nObject), (nObject == 1) ? (0.6 * space) : space, f_Plot_ObjectName(nObject) };
+	}
+
+	st_Item[nItemNum++] = { 0, 0, PLOT_COLOR_CLUTTER, space, CString(_T("클러터끼리")) };
+	st_Item[nItemNum++] = { 0, 0, UI_COLOR_TEXT, space, CString(_T("섞임")) };
+
+	// 전체 폭을 재서 오른쪽 끝에 맞춤. 제목과 겹치면 칸 색 항목만 남기고, 그래도 겹치면 그리지 않음
+	for (nItem = 0; nItem < nItemNum; nItem++)
+	{
+		(VOID)st_Graphics->MeasureString(st_Item[nItem].st_Name.GetString(), -1, st_Font, st_Zero, &st_Bound);
+		pt_Width[nItem]	= ((st_Item[nItem].isBox != 0) ? (box + gap) : 0.0) + static_cast<FLOAT64>(st_Bound.Width);
+		textHeight		= fmax(textHeight, static_cast<FLOAT64>(st_Bound.Height));
+		total			= total + st_Item[nItem].lead + pt_Width[nItem];
+
+		if ((nItem + 1) == LIFE_LEGEND_STATE_NUM)
+		{
+			stateTotal = total;
+		}
+	}
+
+	if ((static_cast<FLOAT64>(st_Area.right) - total) < minLeft)
+	{
+		nItemNum	= LIFE_LEGEND_STATE_NUM;
+		total		= stateTotal;
+	}
+
+	if ((static_cast<FLOAT64>(st_Area.right) - total) < minLeft)
+	{
+		nItemNum = 0;
+	}
+
+	x = static_cast<FLOAT64>(st_Area.right) - total;
+
+	for (nItem = 0; nItem < nItemNum; nItem++)
+	{
+		x = x + st_Item[nItem].lead;
+
+		if (st_Item[nItem].isBox != 0)
+		{
+			Gdiplus::SolidBrush st_Fill(f_Plot_Color(st_Item[nItem].boxColor, 255));
+
+			(VOID)st_Graphics->FillRectangle(&st_Fill, f_Life_Rect(x, baseY - (0.5 * textHeight) - (0.5 * box), box, box));
+			f_Plot_Text(st_Graphics, st_Font, st_Item[nItem].st_Name, x + box + gap, baseY, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar,
+				st_Item[nItem].textColor);
+		}
+		else
+		{
+			f_Plot_Text(st_Graphics, st_Font, st_Item[nItem].st_Name, x, baseY, Gdiplus::StringAlignmentNear, Gdiplus::StringAlignmentFar, st_Item[nItem].textColor);
+		}
+
+		x = x + pt_Width[nItem];
 	}
 }

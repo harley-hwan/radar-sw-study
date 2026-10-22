@@ -5,7 +5,7 @@
 #   capture <name>   -> PNG of every visible top-level window of TargetSimUI into ..\figures\ui_<name>[_n].png
 #   kill             -> close TargetSimUI
 #   size <w> <h>     -> resize the main window (pixels)
-#   view <0|1|2>     -> main window view combo (2D + 3D / 2D / 3D)
+#   view <0|1|2|3>   -> main window view combo (2D + 3D / 2D / 3D / track life)
 #   scan <n>         -> move the scan slider to scan n
 #   score            -> press the score-check button (opens the score dialog)
 #   preset <n>       -> score dialog preset combo
