@@ -160,9 +160,9 @@ def line(slide, x1, y1, x2, y2, color=LIGHT, width=1.0, dash=False, arrow=False)
     return c
 
 
-def marker(slide, x, y, n, d=0.26, size=9.5):
+def marker(slide, x, y, n, d=0.26, size=9.5, color=None):
     sp = slide.shapes.add_shape(MSO_SHAPE.OVAL, Inches(x), Inches(y), Inches(d), Inches(d))
-    sp.fill.solid(); sp.fill.fore_color.rgb = rgb(MARK[n]); sp.line.fill.background(); sp.shadow.inherit = False
+    sp.fill.solid(); sp.fill.fore_color.rgb = rgb(color or MARK[n]); sp.line.fill.background(); sp.shadow.inherit = False
     tf = sp.text_frame
     tf.margin_left = tf.margin_right = tf.margin_top = tf.margin_bottom = 0
     tf.vertical_anchor = MSO_ANCHOR.MIDDLE
@@ -431,33 +431,37 @@ note(s, 's6')
 s = content('01. 트랙 개시', '1.4 측정잡음 공분산 R', 'P 를 만들려면 플롯 하나의 위치 오차 R 이 필요합니다. 과제가 정해 준 표준편차로 R 을 만들어 VC-NED 좌표로 바꿉니다.')
 stats = [('σ range', '10', 'm'), ('σ azimuth', '0.2', '°'), ('σ elevation', '0.2', '°')]
 for i, (a, b, u) in enumerate(stats):
-    xx = 0.7 + i * 2.0
-    rect(s, xx, 2.5, 1.85, 0.84, F_BLUE, None, radius=0.12)
-    tb(s, xx, 2.54, 1.85, 0.26, a, size=11, color=SUB, align='c', font=EN)
-    tb(s, xx, 2.76, 1.85, 0.52, [b + ' ' + u], size=24, bold=True, color=BLUE, align='c', font=EN)
+    xx = 0.7 + i * 2.57
+    rect(s, xx, 2.5, 2.42, 0.84, F_BLUE, None, radius=0.12)
+    tb(s, xx, 2.54, 2.42, 0.26, a, size=11, color=SUB, align='c', font=EN)
+    tb(s, xx, 2.76, 2.42, 0.52, [b + ' ' + u], size=24, bold=True, color=BLUE, align='c', font=EN)
 # R 의 표준편차는 과제가 정해 준 값. 과제 4 플롯 모의의 SNR 기반 표준편차 (PlotSim.c f_Pcs_CalcSigma, SNR 20) 와 따로 정해짐
 for i, (tag, col, txt) in enumerate((('과제 5 지정값', BLUE, '트랙 초기화 (초기 오차 공분산) 용 R 의 표준편차'),
                                      ('과제 4 SNR', '6B7280', '플롯 모의 잡음은 SNR 20 으로 계산: 4.74 m · 0.48° · 0.49° (R 과 별개)'))):
     yy = 3.41 + i * 0.235
     label_box(s, 0.7, yy, 1.08, 0.21, tag, size=9, color=col, line=col)
     tb(s, 1.88, yy, 4.7, 0.21, txt, size=10, color=NAVY if i == 0 else SUB, anchor='m')
-rect(s, 6.85, 2.5, 5.78, 1.32, WHITE, BORDER, radius=0.06)
-tb(s, 7.0, 2.55, 5.5, 0.28, 'R 이 뜻하는 것', size=11.5, bold=True)
-MEANING = (('R = 플롯이 흩어지는 정도', '같은 표적을 여러 번 잴 때 흩어지는 크기 · 모양'),
-           ('거리는 정확, 방향은 멀수록 퍼짐', '거리 10 m 그대로, 옆 · 위아래 = 거리 × 0.2°'),
-           ('그래서 옆으로 긴 타원', '거리 · 방향이 플롯마다 달라 R 도 플롯마다 계산'))
-for i, (h, b) in enumerate(MEANING):
-    yy = 2.88 + i * 0.3
-    marker(s, 7.0, yy + 0.03, i + 1, d=0.22, size=8.5)
-    p = tb(s, 7.32, yy, 5.25, 0.28, '', size=10.5, anchor='m').text_frame.paragraphs[0]
-    add_runs(p, h + '   ', 10.5, NAVY, True)
-    add_runs(p, b, 9.5, SUB)
 picture(s, 'fig_rcov.png', 0.7, 3.95, w=7.6)
-# R 계산 행렬식: 위치 변환 (이전 과제 함수) 과 공분산 변환을 나란히. 회전은 같은 행렬, 구좌표 → 직교 함수 s 만 기울기 G (f_Trk_MeasCov 의 mat_J)
-p = tb(s, 8.55, 3.97, 4.1, 0.28, '', size=12, anchor='m').text_frame.paragraphs[0]
+# R 계산 행렬식 (오른쪽 열): 식 한 줄 + 안쪽부터 ① 재는 값의 오차 → ② G 각도 → 미터 → ③ M 축 돌리기 + G 행렬. TrackMgr.c f_Trk_MeasCov 와 같은 순서
+p = tb(s, 8.5, 2.5, 4.13, 0.28, '', size=12, anchor='m').text_frame.paragraphs[0]
 add_runs(p, 'R 계산 행렬식   ', 12, NAVY, True)
-add_runs(p, '이전 과제 좌표 변환과 같은 행렬', 9.5, MUTED)
-picture(s, 'fig_rmatrix.png', 8.48, 4.24, w=4.15)
+add_runs(p, '안쪽 ① 부터 차례로 곱함', 9.5, MUTED)
+picture(s, 'fig_rformula.png', 8.5, 2.8, w=4.13)
+RSTEP = ((NAVY, '재는 값의 오차', 'diag(σ_{r}^{2}, σ_{az}^{2}, σ_{el}^{2})', ['거리 10 m, 각도 0.2° 의 제곱. 서로 따로라 대각선만']),
+         (BLUE, '각도 → 미터', 'G  (아래 행렬)', ['각도 오차 × 거리 = 미터 오차 (안테나 기준 R)']),
+         (GREEN, '축 돌리기', 'M = M_{B→N} · M_{A→B}', ['안테나 기준 (정면 · 왼쪽 · 위) → 북 · 동 · 아래', '이전 과제 좌표 변환의 회전. 오차 크기는 그대로']))
+yy = 3.6
+for i, (col, head, expr, body) in enumerate(RSTEP):
+    marker(s, 8.5, yy + 0.02, i + 1, d=0.22, size=8.5, color=col)
+    box = tb(s, 8.82, yy - 0.01, 3.81, 0.22 + 0.18 * len(body), '')
+    p = box.text_frame.paragraphs[0]
+    add_runs(p, head + '   ', 10.5, NAVY, True)
+    add_runs(p, expr, 10, col, font=EN)
+    for txt in body:
+        add_runs(box.text_frame.add_paragraph(), txt, 9, SUB)
+    yy += 0.27 + 0.19 * len(body)
+tb(s, 8.5, yy - 0.02, 4.13, 0.22, '앞뒤로 곱하는 까닭: 오차 e 를 A e 로 바꾸면 공분산은 A R A^{T}', size=9, color=MUTED)
+picture(s, 'fig_rmatrix.png', 8.5, yy + 0.2, w=4.13)
 note(s, 's7')
 
 # 8 속도 게이팅
