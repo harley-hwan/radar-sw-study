@@ -7,7 +7,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
-from matplotlib.patches import FancyBboxPatch, Circle, Ellipse, Rectangle, FancyArrowPatch, Polygon, Wedge
+from matplotlib.patches import FancyBboxPatch, Circle, Ellipse, Rectangle, FancyArrowPatch, Polygon, Wedge, ConnectionPatch
 
 DATA = sys.argv[1] if len(sys.argv) > 1 else 'data'
 OUT = sys.argv[2] if len(sys.argv) > 2 else 'fig'
@@ -192,39 +192,73 @@ def fig_pmatrix():
 
 # ---------------------------------------------------------------- 1.4 R ellipse
 def fig_rcov():
-    r = 14148.0
-    sr = 10.0; sa = math.radians(0.2); spl = math.radians(0.478)
-    fig, axs = plt.subplots(1, 2, figsize=(7.6, 2.85), gridspec_kw=dict(width_ratios=[1.05, 1]))
-    ax = axs[0]
-    ax.set_aspect('equal'); ax.axis('off')
-    ax.set_xlim(-2.0, 12.5); ax.set_ylim(-1.3, 6.1)
-    ax.plot([0, 9.0], [0, 4.2], color=NAVY, lw=1.2)
-    ax.plot([0], [0], marker='^', ms=11, color=NAVY)
-    ax.text(0.0, -0.95, '레이다', fontsize=10, color=NAVY, ha='center')
-    c = np.array([9.0, 4.2]); ang = math.degrees(math.atan2(4.2, 9.0))
-    ax.add_patch(Ellipse(c, 0.55, 2.6, angle=ang, fc=F_BLUE, ec=BLUE, lw=1.6))
-    ax.scatter(*c, s=30, color=NAVY, zorder=5)
-    ax.annotate('', xy=(c[0] + 0.55 * math.cos(math.radians(ang)), c[1] + 0.55 * math.sin(math.radians(ang))), xytext=(c[0] - 0.55 * math.cos(math.radians(ang)), c[1] - 0.55 * math.sin(math.radians(ang))),
-                arrowprops=dict(arrowstyle='<->', color=SUB, lw=1.0))
-    ax.annotate('거리 방향  σr = 10 m', xy=(c[0] + 0.3, c[1] + 0.05), xytext=(c[0] - 0.4, c[1] - 2.2), fontsize=10, color=SUB,
-                arrowprops=dict(arrowstyle='-', color=SUB, lw=0.8))
-    ax.annotate('방위각 · 고각 방향\nr · σθ = 14 km × 0.2° ≈ 49 m', xy=(c[0] - 0.45, c[1] + 1.05), xytext=(c[0] - 2.3, c[1] + 1.25), fontsize=9.5, color=BLUE, fontweight='bold',
-                va='center', ha='right', arrowprops=dict(arrowstyle='-', color=BLUE, lw=0.8))
-    ax.text(2.6, 2.2, 'r ≈ 14 km', fontsize=10, color=NAVY, rotation=ang)
-    ax.set_title('R 은 레이다 시선을 따라 납작한 타원', fontsize=12.5, color=NAVY, loc='left', fontweight='bold')
-    ax = axs[1]
-    vals = [sr, r * sa]
-    names = ['거리 방향\nσr', '방위각 · 고각 방향\nr · σθ (0.2°)']
-    cols = [MUTED, BLUE]
-    ax.barh(range(2), vals, color=cols, height=0.5)
-    for i, v in enumerate(vals):
-        ax.text(v + 1.5, i, f'{v:.0f} m', va='center', fontsize=11, color=NAVY, fontweight='bold')
-    ax.set_yticks(range(2)); ax.set_yticklabels(names, fontsize=10, color=NAVY)
-    ax.set_ylim(1.6, -0.6); ax.set_xlim(0, 70)
-    ax.set_xlabel('위치 표준편차 [m]  (표적 1, 거리 14.1 km)', fontsize=10, color=SUB)
-    clean(ax)
-    ax.set_title('같은 R 이라도 방향마다 크기가 다름', fontsize=12.5, color=NAVY, loc='left', fontweight='bold')
-    fig.tight_layout(w_pad=2)
+    # ① 각도 오차가 거리에 비례해 옆으로 퍼지는 모습 (각도는 보이게 키움)
+    # ② 14 km 표적 주변을 실제 비율로 확대: R 대로 뽑은 측정 예 (점) 와 1σ 타원
+    r_km = 14.148                                   # 표적 1 거리 [km]
+    sr = 10.0                                       # 거리 방향 1σ [m]
+    sc = r_km * 1000.0 * math.radians(0.2)          # 옆 방향 1σ [m] = 거리 × 0.2°
+    fig = plt.figure(figsize=(7.6, 2.85))
+    ax = fig.add_axes([0.005, 0.02, 0.555, 0.84])
+    ax2 = fig.add_axes([0.655, 0.15, 0.335, 0.71])
+
+    # ① 손전등처럼 퍼지는 각도 오차
+    k = 1.75 / r_km                                 # 그림의 옆 방향 반폭 / km
+    ax.axis('off')
+    ax.set_xlim(-1.3, 16.0); ax.set_ylim(-3.55, 2.75)
+    ax.add_patch(Polygon([(0, 0), (15.2, 15.2 * k), (15.2, -15.2 * k)], closed=True, fc=F_BLUE, ec='none', zorder=1))
+    for sgn in (1, -1):
+        ax.plot([0, 15.2], [0, sgn * 15.2 * k], color=BLUE, lw=1.0, alpha=0.55, zorder=2)
+    ax.plot([0, r_km], [0, 0], color=NAVY, lw=1.0, ls=(0, (4, 3)), alpha=0.7, zorder=2)
+    a = math.degrees(math.atan(k))
+    ax.add_patch(Wedge((0, 0), 2.3, -a, a, fc='none', ec=BLUE, lw=1.0, zorder=3))
+    ax.annotate('각도 오차 ±0.2°\n(크게 그림)', xy=(2.3 * math.cos(math.radians(a * 0.6)), 2.3 * math.sin(math.radians(a * 0.6))), xytext=(-0.9, 1.2),
+                fontsize=8.5, color=BLUE, fontweight='bold', va='center', ha='left', linespacing=1.25,
+                arrowprops=dict(arrowstyle='-', color=BLUE, lw=0.7, shrinkA=2, shrinkB=0))
+    zoom_h = 2.05                                   # 확대 상자 반높이 (그림 단위)
+    for d in (5.0, 10.0, r_km):
+        h = d * k
+        pad = (zoom_h - h + 0.12) if d == r_km else 0.17
+        ax.annotate('', xy=(d, h), xytext=(d, -h), arrowprops=dict(arrowstyle='<->', color=BLUE, lw=1.3, shrinkA=0, shrinkB=0), zorder=5)
+        ax.text(d, h + pad, f'±{d * 1000.0 * math.radians(0.2):.0f} m', fontsize=10, color=BLUE, fontweight='bold', ha='center', va='bottom', zorder=5)
+        ax.text(d, -h - pad, f'{d:.0f} km', fontsize=9, color=SUB, ha='center', va='top', zorder=5)
+    ax.plot([0], [0], marker='^', ms=11, color=NAVY, zorder=6)
+    ax.text(0.0, -0.42, '레이다', fontsize=9.5, color=NAVY, ha='center', va='top')
+    ax.scatter([r_km], [0], s=26, color=NAVY, zorder=6)
+    ax.add_patch(Rectangle((r_km - 0.6, -zoom_h), 1.2, 2 * zoom_h, fc='none', ec=MUTED, lw=0.9, ls=(0, (3, 2)), zorder=4))
+    ax.text(-0.9, -2.72, '옆 방향 오차 = 거리 × 0.2°  →  멀수록 커짐', fontsize=9.5, color=BLUE, fontweight='bold', va='center')
+    ax.text(-0.9, -3.3, '거리 방향 오차 = 10 m  →  어디서나 같음', fontsize=9.5, color=SUB, fontweight='bold', va='center')
+    ax.set_title('① 각도 오차는 손전등 빛처럼 멀수록 퍼짐', fontsize=12, color=NAVY, loc='left', fontweight='bold', pad=4)
+
+    # ② 14 km 표적 확대 (가로 · 세로 같은 축척)
+    rng = np.random.default_rng(7)
+    xs = rng.normal(0.0, sr, 400); ys = rng.normal(0.0, sc, 400)
+    ax2.set_xlim(-115, 175); ax2.set_ylim(-110, 110); ax2.set_aspect('equal', adjustable='box')
+    ax2.set_xticks([-100, -50, 0, 50, 100, 150]); ax2.set_yticks([-100, -50, 0, 50, 100])
+    ax2.grid(color=GRID, lw=0.7, zorder=0)
+    clean(ax2); ax2.tick_params(labelsize=7.5, length=2)
+    ax2.plot([-115, 0], [0, 0], color=NAVY, lw=1.0, ls=(0, (4, 3)), alpha=0.7, zorder=1)
+    ax2.text(-110, 6, '← 레이다 쪽', fontsize=8.5, color=SUB, va='bottom')
+    ax2.add_patch(Ellipse((0, 0), 2 * sr, 2 * sc, fc=F_BLUE, ec='none', zorder=1))
+    ax2.scatter(xs, ys, s=4, color=NAVY, alpha=0.35, lw=0, zorder=2)
+    ax2.add_patch(Ellipse((0, 0), 2 * sr, 2 * sc, fc='none', ec=BLUE, lw=1.6, zorder=3))
+    ax2.plot([0], [0], marker='o', ms=6, mfc='white', mec=NAVY, mew=1.5, zorder=5)
+    for sgn in (1, -1):
+        ax2.plot([0, 40], [sgn * sc, sgn * sc], color=BLUE, lw=0.8, ls=':', zorder=3)
+    ax2.annotate('', xy=(36, sc), xytext=(36, -sc), arrowprops=dict(arrowstyle='<->', color=BLUE, lw=1.3, shrinkA=0, shrinkB=0), zorder=4)
+    ax2.text(44, 0, '옆 방향\n±49 m', fontsize=10, color=BLUE, fontweight='bold', va='center', ha='left', linespacing=1.15)
+    ax2.annotate('거리 방향 ±10 m', xy=(sr, -sc - 14), xytext=(44, -sc - 14), fontsize=9, color=NAVY, fontweight='bold', va='center', ha='left',
+                 arrowprops=dict(arrowstyle='-', color=NAVY, lw=0.7))
+    ax2.annotate('', xy=(sr, -sc - 14), xytext=(-sr, -sc - 14), arrowprops=dict(arrowstyle='<->', color=NAVY, lw=1.1, shrinkA=0, shrinkB=0, mutation_scale=7), zorder=4)
+    for sgn in (1, -1):
+        ax2.plot([sgn * sr, sgn * sr], [-sc + 6, -sc - 18], color=NAVY, lw=0.6, ls=':', zorder=3)
+    ax2.text(170, 100, '점 = 여러 번 잰 플롯\n타원 = R (1σ)', fontsize=7.5, color=SUB, va='top', ha='right', linespacing=1.3)
+    ax2.set_xlabel('거리 방향 [m]', fontsize=8.5, color=SUB, labelpad=1)
+    ax2.set_ylabel('옆 방향 [m]', fontsize=8.5, color=SUB, labelpad=1)
+    ax2.set_title('② 14 km 표적 확대 (실제 비율)', fontsize=12, color=NAVY, loc='left', fontweight='bold', pad=4)
+
+    # ① 의 확대 상자 → ② 테두리
+    for ya, yb in ((zoom_h, 1.0), (-zoom_h, 0.0)):
+        fig.add_artist(ConnectionPatch(xyA=(r_km + 0.6, ya), coordsA=ax.transData, xyB=(0.0, yb), coordsB=ax2.transAxes, color=MUTED, lw=0.8, ls=(0, (3, 2))))
     save(fig, 'fig_rcov.png')
 
 
