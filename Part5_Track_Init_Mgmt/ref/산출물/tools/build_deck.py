@@ -426,10 +426,20 @@ for i, (a, b, u) in enumerate(stats):
     tb(s, xx, 2.82, 1.85, 0.6, [b + ' ' + u], size=26, bold=True, color=BLUE, align='c', font=EN)
 tb(s, 0.7, 3.55, 5.9, 0.3, '과제 조건: 트랙 초기화 (초기 오차 공분산) 에 쓰는 R 의 표준편차', size=10.5, color=SUB)
 rect(s, 6.85, 2.5, 5.78, 1.32, WHITE, BORDER, radius=0.06)
-tb(s, 7.05, 2.58, 5.5, 1.2, [('R_{ant} = J · diag( σ_{r}^{2}, σ_{az}^{2}, σ_{el}^{2} ) · J^{T}', dict(size=13.5, bold=True, font='Cambria Math', after=2)),
-                              ('J : 구좌표 (r, az, el) → 안테나 직교 좌표의 야코비안', dict(size=10.5, color=SUB, after=6)),
-                              ('R_{NED} = M · R_{ant} · M^{T}', dict(size=13.5, bold=True, font='Cambria Math', after=2)),
-                              ('M : 안테나 → 동체 → NED 회전 (플랫폼 자세)', dict(size=10.5, color=SUB))], size=12)
+# R = C · (시선 기준 오차 크기) · C^T. 코드의 J · diag(σ²) · J^T 와 M · R_ant · M^T 를 합친 것과 같은 식
+# (J 의 열을 길이 1 로 나누면 시선 · 옆 · 위아래 단위 벡터와 배율 1, r cos el, r 로 갈림. C = M · 단위 벡터 = 회전 행렬)
+eq = tb(s, 7.0, 2.56, 5.5, 0.38, '', size=14, anchor='m')
+p = eq.text_frame.paragraphs[0]
+add_runs(p, 'R_{NED} = ', 14, NAVY, True, 'Cambria Math')
+add_runs(p, 'C', 14, GREEN, True, 'Cambria Math')
+add_runs(p, ' · diag( σ_{r}^{2},  (r cos el · σ_{az})^{2},  (r · σ_{el})^{2} ) · ', 14, BLUE, True, 'Cambria Math')
+add_runs(p, 'C^{T}', 14, GREEN, True, 'Cambria Math')
+for i, (tag, col, txt) in enumerate((('오차 크기', BLUE, '레이다 시선 기준 거리 · 옆 · 위아래 오차. 각도 × 거리 = 미터'),
+                                     ('회전 C', GREEN, '시선 기준 축 → 북 · 동 · 아래 축 (안테나 방향 + 플랫폼 자세)'))):
+    yy = 2.99 + i * 0.27
+    label_box(s, 7.0, yy, 0.92, 0.23, tag, size=9.5, color=col, line=col)
+    tb(s, 8.02, yy, 4.55, 0.23, txt, size=10, color=NAVY, anchor='m')
+tb(s, 7.0, 3.55, 5.5, 0.23, '앞뒤로 C 를 곱하면 타원 모양은 그대로, 방향만 북 · 동 · 아래로 돌려 놓음', size=9.5, color=SUB, anchor='m')
 picture(s, 'fig_rcov.png', 0.7, 3.95, w=7.6)
 tb(s, 8.55, 4.05, 4.1, 0.3, 'R 이 뜻하는 것', size=12, bold=True)
 callout(s, 8.55, 4.42, 4.1, 1, 'R = 플롯이 흩어지는 정도', ['같은 표적을 여러 번 잴 때 흩어지는 크기 · 모양'])
