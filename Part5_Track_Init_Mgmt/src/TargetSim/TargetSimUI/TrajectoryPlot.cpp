@@ -1,9 +1,4 @@
-//
-// @file	TrajectoryPlot.cpp
-// @brief	결과 그림 (CTrajectoryPlot 2D, CTrackView3D 3D, CTrackLifeView 트랙 수명) 구현 (GDI+)
-// @author	hwan
-// @date	2026.10.21.
-//
+// 결과 그림 (2D, 3D, 트랙 수명) 구현 (GDI+)
 #include "pch.h"
 
 #include <math.h>
@@ -39,7 +34,7 @@ namespace Gdiplus
 #define PLOT_FONT_PX			12.0F
 #define PLOT_LABEL_GAP_PX		8.0						// [px @96dpi] 시작점과 이름표 사이
 #define PLOT_LABEL_ROOM_X_PX	56.0					// [px @96dpi] 가장자리 시작점의 이름표 자리 (간격 + 글자 폭)
-#define PLOT_LABEL_ROOM_Y_PX	26.0					// [px @96dpi] 가장자리 시작점의 이름표 자리 (간격 + 글자 높이)
+#define PLOT_LABEL_ROOM_Y_PX	26.0					// [px @96dpi] 가장자리 이름표 자리
 #define PLOT_LABEL_SIDE_MIN		0.3
 #define PLOT_COLOR_PLOT			RGB(31, 41, 55)			// 플롯 점. 표적 색 선과 겹쳐도 보이게 검정에 가깝게
 #define PLOT_COLOR_CLUTTER		RGB(156, 163, 175)		// 클러터 점
@@ -63,7 +58,7 @@ namespace Gdiplus
 // 3D 그림
 #define TRK3D_UP_SCALE_MAX		5.0						// 고도를 늘려 그리는 최대 배율
 #define TRK3D_UP_RATIO			0.55					// 늘린 고도가 바닥 폭의 이 비율쯤 되게 배율을 고름
-#define TRK3D_UP_HEADROOM		2.0						// 고도 축 = 가장 높은 참값의 이 배수. 대공 표적이 상자 가운데 높이에 오고 그 위아래 클러터도 보이게
+#define TRK3D_UP_HEADROOM		2.0						// 고도 축 = 가장 높은 참값 x 이 값 (대공 표적이 가운데 높이)
 #define TRK3D_YAW_DEG			(-25.0)					// 처음 보기 방위 [deg]
 #define TRK3D_PITCH_DEG			35.0					// 처음 보기 내려다보는 각 [deg]
 #define TRK3D_TITLE_HEIGHT		26						// [px @96dpi]
@@ -75,21 +70,21 @@ namespace Gdiplus
 #define TRK3D_SHADOW_ALPHA		170						// 참값 궤적 바닥 그림자 (회색) 의 불투명도
 
 // 트랙 수명 그림
-#define LIFE_SPAN_INIT			110						// 처음 가로 구간 [스캔]. 11 s: 처음 10 초 동안 생긴 트랙이 삭제될 때까지 들어감
+#define LIFE_SPAN_INIT			110						// 처음 가로 구간 [스캔] (11 s)
 #define LIFE_SPAN_MIN			20
 #define LIFE_MARGIN_X			16						// [px @96dpi]
 #define LIFE_TITLE_HEIGHT		26
 #define LIFE_AXIS_HEIGHT		42						// 시간 눈금 + 축 이름 두 줄
-#define LIFE_ROW_MIN			1.0						// [px @96dpi] 줄 간격. 전체 116 s (트랙 355 개) 도 한 화면에 들어가게. 그래도 넘치면 오래된 줄부터 위로 넘김
+#define LIFE_ROW_MIN			1.0						// [px @96dpi] 줄 간격 (전체 355 개도 한 화면에)
 #define LIFE_ROW_MAX			18.0
-#define LIFE_LABEL_ROW_MIN		10.0					// [px @96dpi] 줄 간격이 이보다 좁으면 ID 를 쓰지 않음 (글자가 겹침)
+#define LIFE_LABEL_ROW_MIN		10.0					// [px @96dpi] 줄 간격이 이보다 좁으면 ID 생략
 #define LIFE_CELL_RATIO			0.7						// 줄 간격 가운데 칸 높이
 #define LIFE_CELL_GAP_MIN		4.0						// [px @96dpi] 칸 폭이 이 이상이면 칸 사이를 1 px 씩 띄움
 #define LIFE_TICK_PX			80.0					// [px @96dpi] 시간 눈금 하나의 폭
 #define LIFE_LEGEND_BOX			10.0					// [px @96dpi] 범례 칸 한 변
 #define LIFE_LEGEND_NUM			(8 + SCN_TARGET_NUM)	// 칸 색 + 상태 넷 + ID 색 + 표적 + 클러터끼리 + 섞임
 #define LIFE_LEGEND_STATE_NUM	5						// 머리 줄 자리가 모자랄 때 남기는 앞 항목 (칸 색 + 상태 넷)
-#define LIFE_COLOR_DEL			RGB(201, 206, 214)		// 삭제 칸. 심볼의 삭제 회색 (PLOT_COLOR_TRK_DEL) 은 칸을 채우면 진해 옅게 씀
+#define LIFE_COLOR_DEL			RGB(201, 206, 214)		// 삭제 칸 (옅은 회색)
 #define LIFE_COLOR_NOW			RGB(219, 234, 254)		// 지금 스캔 세로 띠
 #define LIFE_COLOR_FUTURE		RGB(249, 250, 251)		// 지금 스캔 뒤 (아직 읽지 않은 칸)
 #define LIFE_COLOR_LOST			RGB(243, 244, 246)		// 받지 못한 스캔 (UDP 손실)
@@ -205,7 +200,7 @@ static VOID f_Plot_LabelText(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font
 	FLOAT32					left;
 	FLOAT32					top;
 
-	// 글자 크기만 재고 위치는 정렬에 맞춰 직접 계산 (Near = 기준점 오른쪽 / 아래, Far = 왼쪽 / 위)
+	// 글자 크기를 재서 정렬에 맞춘 위치에 바탕을 깖
 	(VOID)st_Graphics->MeasureString(st_Text.GetString(), -1, st_Font, st_Zero, &st_Bound);
 	left	= static_cast<FLOAT32>(x) - ((alignX == Gdiplus::StringAlignmentFar) ? st_Bound.Width : ((alignX == Gdiplus::StringAlignmentCenter) ? (0.5F * st_Bound.Width) : 0.0F));
 	top		= static_cast<FLOAT32>(y) - ((alignY == Gdiplus::StringAlignmentFar) ? st_Bound.Height : ((alignY == Gdiplus::StringAlignmentCenter) ? (0.5F * st_Bound.Height) : 0.0F));
@@ -290,7 +285,7 @@ static COLORREF f_Plot_TrackStateColor(INT32 nState)
 	return color;
 }
 
-// 트랙 사각형 하나. 임시 = 빈 사각형, 확정 = 채운 사각형, 메모리 = 점선 사각형, 삭제 = 회색 사각형에 X.
+// 트랙 사각형: 임시 빈 칸, 확정 채움, 메모리 점선, 삭제 X
 static VOID f_Plot_TrackBox(Gdiplus::Graphics *st_Graphics, FLOAT32 x, FLOAT32 y, FLOAT32 half, INT32 nState, FLOAT32 scale)
 {
 	static const Gdiplus::REAL	s_Dash[2] = { 2.0F, 1.5F };
@@ -338,7 +333,7 @@ static VOID f_Plot_TrackSymbol(Gdiplus::Graphics *st_Graphics, const Gdiplus::Fo
 
 	st_Id.Format(_T("%u"), st_View->TrackId);
 
-	// 삭제 트랙은 같은 표적에 새로 만든 트랙과 자리가 거의 같아 ID 를 왼쪽 아래에 씀 (새 트랙 ID 는 오른쪽 위)
+	// 삭제 트랙 ID 는 왼쪽 아래 (같은 자리 새 트랙 ID 는 오른쪽 위)
 	if (st_View->TrackState == TRK_STATE_DELETED)
 	{
 		f_Plot_LabelText(st_Graphics, st_Font, st_Id, x - static_cast<FLOAT64>(half) - 2.0, y + static_cast<FLOAT64>(half),
@@ -351,8 +346,7 @@ static VOID f_Plot_TrackSymbol(Gdiplus::Graphics *st_Graphics, const Gdiplus::Fo
 	}
 }
 
-// 지난 스캔 점 여러 개를 한 번에 그림. 스캔마다 쌓여 수천 개가 되므로 하나씩 안티앨리어싱 원으로 그리지 않고 작은 사각형으로 모아 그림
-// (원으로 그리면 그리는 시간이 스캔 수에 비례해 늘어 다시 보내기 중 화면이 스캔을 건너뜀).
+// 지난 스캔 점들을 작은 사각형으로 한 번에 그림 (수천 개라 원으로 그리면 느림)
 static VOID f_Plot_FillDots(Gdiplus::Graphics *st_Graphics, COLORREF color, const std::vector<Gdiplus::RectF> &st_Dot)
 {
 	const Gdiplus::SmoothingMode	mode = st_Graphics->GetSmoothingMode();
@@ -586,7 +580,7 @@ VOID CTrajectoryPlot::f_SetDpi(INT32 newDpi)
 	dpi = newDpi;
 }
 
-// 그릴 결과 교체 후 다시 그리기. 측정 모의, 트랙 결과는 st_NewResult 와 같은 실행의 것이어야 함.
+// 그릴 결과 교체 후 다시 그리기
 VOID CTrajectoryPlot::f_SetData(const CSimResult *st_NewResult, const CPlotResult *st_NewMeasure, const CTrackResult *st_NewTrack)
 {
 	st_Result	= st_NewResult;
@@ -763,9 +757,7 @@ VOID CTrajectoryPlot::f_ComputeLayout(const CRect &st_Client)
 		st_Client.right - f_Ui_Scale(PLOT_MARGIN_RIGHT, dpi), st_Client.bottom - f_Ui_Scale(PLOT_AXIS_HEIGHT, dpi));
 }
 
-// 모든 점이 들어가는 축척, 중심, 눈금 간격 계산. 참값 궤적은 숨겨도 범위에 넣어 켜고 끌 때 축척이 바뀌지 않게 하고,
-// 플롯, 클러터는 지금 스캔이 아니라 전체 스캔을 넣어 스캔을 바꿔도 축척이 그대로이게 함.
-// 휠로 확대한 배율, 끌어 옮긴 양은 이 처음 보기에 곱하고 더함.
+// 축척, 중심, 격자 간격 (켜고 끄거나 스캔을 바꿔도 축척 유지)
 VOID CTrajectoryPlot::f_ComputeView(VOID)
 {
 	const INT32				nSampleNum = st_Result->f_GetSampleNum();
@@ -812,7 +804,7 @@ VOID CTrajectoryPlot::f_ComputeView(VOID)
 		}
 	}
 
-	// 등축척. 여백은 범위 비율 (PLOT_SPAN_SCALE) 과 가장자리 시작점의 이름표 자리 중 큰 쪽 (이름표가 평면 밖으로 잘리지 않게).
+	// 등축척. 여백은 이름표가 잘리지 않을 만큼
 	spanEast		= fmax(maxEast - minEast, PLOT_MIN_SPAN);
 	spanNorth		= fmax(maxNorth - minNorth, PLOT_MIN_SPAN);
 	pixelPerMeter	= fmin(fmin(width / (spanEast * PLOT_SPAN_SCALE), fmax(width - (2.0 * PLOT_LABEL_ROOM_X_PX * scale), 1.0) / spanEast),
@@ -871,8 +863,7 @@ ST_PlotPoint CTrajectoryPlot::f_LlaToPlot(FLOAT64 lat, FLOAT64 lon) const
 	return st_Point;
 }
 
-// 동-북 평면: 위경도 격자, 시작점 이름표, 지난 스캔 플롯 · 클러터, 참값 궤적 (지금 스캔 뒤는 옅게), 시작점을 깔고 맨 위에 지금 스캔의 참값 위치, 받은 플롯, 트랙을 그림.
-// 참값을 숨기면 시작점은 플랫폼 (레이다) 만 그림.
+// 동-북 평면: 격자, 지난 플롯 · 클러터, 참값 궤적, 시작점 위에 지금 스캔의 참값 · 플롯 · 트랙
 VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -953,7 +944,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 	(VOID)st_Graphics->SetClip(st_Clip);
 
-	// 시작점 이름표는 맨 먼저 깔아, 흰 바탕이 시작점 원이나 그 근처를 지나는 다른 표적의 궤적, 플롯, 트랙을 가리지 않게 함.
+	// 시작점 이름표를 먼저 깔아 흰 바탕이 다른 그림을 가리지 않게 함
 	f_DrawStartLabels(st_Graphics, &st_Font, nStartNum);
 
 	// 지난 스캔 플롯, 클러터는 궤적 아래에 깔아 참값 선이 가려지지 않게 함.
@@ -982,7 +973,7 @@ VOID CTrajectoryPlot::f_DrawMap(Gdiplus::Graphics *st_Graphics) const
 	(VOID)st_Graphics->ResetClip();
 }
 
-// 평면에 참값 궤적 그리기. 객체 색 선, 꺾이는 곳은 둥글게. 지금 스캔까지는 진하게, 그 뒤 (앞으로 갈 길) 는 옅게.
+// 참값 궤적: 지금 스캔까지 진하게, 그 뒤는 옅게
 VOID CTrajectoryPlot::f_DrawMapTruth(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32					scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -1020,8 +1011,7 @@ VOID CTrajectoryPlot::f_DrawMapTruth(Gdiplus::Graphics *st_Graphics) const
 	}
 }
 
-// 평면에 지금 스캔까지의 플롯, 클러터를 옅게 그림. 클러터를 먼저, 플롯을 그 위에.
-// 지금 스캔은 f_DrawMapScan 이 데이터 처리 쪽이 받은 플롯으로 따로 강조함.
+// 지금 스캔까지의 플롯, 클러터를 옅게 (클러터 먼저)
 VOID CTrajectoryPlot::f_DrawMapHistory(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -1059,7 +1049,7 @@ VOID CTrajectoryPlot::f_DrawMapHistory(Gdiplus::Graphics *st_Graphics) const
 	f_Plot_FillDots(st_Graphics, PLOT_COLOR_PLOT, st_Dot);
 }
 
-// 지금 스캔: 데이터 처리 쓰레드가 받은 플롯 (큰 점), 참값 위치 (객체 색 마름모), 트랙 (상태 사각형 + 속도 선 + ID).
+// 지금 스캔: 받은 플롯 (큰 점), 참값 위치 (마름모), 트랙 심볼
 VOID CTrajectoryPlot::f_DrawMapScan(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
 {
 	const FLOAT32		scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -1099,8 +1089,7 @@ VOID CTrajectoryPlot::f_DrawMapScan(Gdiplus::Graphics *st_Graphics, const Gdiplu
 	}
 }
 
-// 범례. 참값은 객체 색 선, 플롯과 클러터는 점, 트랙은 상태별 사각형. 보이는 것만 적음.
-// 표적이 많은 북쪽을 가리지 않게 평면 오른쪽 아래 안쪽에 둠.
+// 범례 (보이는 것만, 평면 오른쪽 아래)
 VOID CTrajectoryPlot::f_DrawMapLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font) const
 {
 	const FLOAT32	scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -1115,7 +1104,7 @@ VOID CTrajectoryPlot::f_DrawMapLegend(Gdiplus::Graphics *st_Graphics, const Gdip
 	}
 }
 
-// 시작점 이름표 (앞 nStartNum 객체). 출발 방향 반대쪽에 표시. 플롯, 클러터를 보일 때는 흰 바탕을 깔아 읽히게 함.
+// 시작점 이름표 (출발 방향 반대쪽)
 VOID CTrajectoryPlot::f_DrawStartLabels(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, INT32 nStartNum) const
 {
 	const FLOAT64				gap = PLOT_LABEL_GAP_PX * static_cast<FLOAT64>(f_Ui_Scale(100, dpi)) / 100.0;
@@ -1373,10 +1362,7 @@ VOID CTrackView3D::OnPaint(VOID)
 	(VOID)st_MemDc.SelectObject(st_OldBitmap);
 }
 
-// 장면 범위 (바닥은 참값 궤적과 보이는 표적 플롯, 고도는 가장 높은 참값의 TRK3D_UP_HEADROOM 배) 와,
-// 그 상자가 지금 보는 방향에서 그림 영역에 들어가는 축척 계산.
-// 고도 축을 참값 높이에 딱 맞추면 대공 표적이 상자 맨 위 (클러터를 그리는 경계) 에 붙어 주변 클러터가 아래쪽에만 보이므로,
-// 두 배로 잡아 표적이 가운데 높이에 오게 함. 클러터는 고각 30 도까지 퍼져 7 km 넘게 올라가므로 범위를 정할 때는 넣지 않음.
+// 장면 범위와 축척. 고도 축 = 가장 높은 참값의 두 배 (클러터는 범위에서 뺌)
 VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 {
 	const INT32		nSampleNum = st_Result->f_GetSampleNum();
@@ -1461,7 +1447,7 @@ VOID CTrackView3D::f_ComputeView(const CRect &st_Client)
 		static_cast<FLOAT64>(st_Area.Height()) / (fmax(maxY - minY, 1.0) * TRK3D_FIT_SCALE));
 }
 
-// 동-북-위 -> 그림 픽셀 (정투영). 바라보는 방위만큼 돌린 뒤 내려다보는 각만큼 기울임. 고도는 upScale 배.
+// 동-북-위 -> 그림 픽셀 (정투영, 고도는 upScale 배)
 VOID CTrackView3D::f_Project(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT64 *pt_Y) const
 {
 	const FLOAT64	east = st_Point->east - centerEast;
@@ -1474,7 +1460,7 @@ VOID CTrackView3D::f_Project(const ST_PlotPoint *st_Point, FLOAT64 *pt_X, FLOAT6
 	*pt_Y = (static_cast<FLOAT64>(st_Area.top) + (0.5 * static_cast<FLOAT64>(st_Area.Height()))) - (((up * cos(viewPitch)) + (depth * sin(viewPitch))) * pixelPerMeter);
 }
 
-// 점이 장면 상자 (그려진 바닥 격자 범위, 고도 maxUp 아래) 안이면 1. 클러터를 그릴지 고를 때 씀.
+// 점이 장면 상자 안이면 1 (클러터를 그릴지 고를 때)
 INT32 CTrackView3D::f_IsInBox(const ST_PlotPoint *st_Point) const
 {
 	return ((st_Point->east >= (floor(minEast / gridStep) * gridStep)) && (st_Point->east <= (ceil(maxEast / gridStep) * gridStep)) &&
@@ -1556,7 +1542,7 @@ VOID CTrackView3D::f_DrawGround(Gdiplus::Graphics *st_Graphics, const Gdiplus::F
 	}
 }
 
-// 장면: 바닥, 참값 궤적 바닥 그림자, 지난 스캔 플롯 (옅게), 참값 궤적 (지금 스캔 뒤는 옅게), 플랫폼, 지금 스캔의 받은 플롯 · 참값 위치 (바닥까지 점선) · 트랙, 범례.
+// 장면: 바닥, 궤적 그림자, 지난 플롯, 참값 궤적, 지금 스캔의 플롯 · 참값 · 트랙, 범례
 VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 {
 	static const Gdiplus::REAL		s_Dash[2] = { 3.0F, 3.0F };
@@ -1601,7 +1587,7 @@ VOID CTrackView3D::f_DrawScene(Gdiplus::Graphics *st_Graphics) const
 
 	f_DrawGround(st_Graphics, &st_Font);
 
-	// 참값 궤적의 바닥 그림자 (지금 스캔까지, 회색). 궤적과 그림자 사이가 고도. 표적 색으로 옅게 그리는 앞으로 갈 길과 헷갈리지 않게 회색
+	// 참값 궤적의 바닥 그림자 (회색, 지금 스캔까지)
 	for (nObject = 1; (isShowTrue != 0) && (nNow > 0) && (nObject < st_Result->f_GetObjectNum()); nObject++)
 	{
 		Gdiplus::Pen st_ShadowPen(f_Plot_Color(UI_COLOR_TEXT_OFF, TRK3D_SHADOW_ALPHA), 1.2F * scale);
@@ -1730,7 +1716,7 @@ static COLORREF f_Life_CellColor(INT32 nState)
 	return (nState == TRK_STATE_DELETED) ? LIFE_COLOR_DEL : f_Plot_TrackStateColor(nState);
 }
 
-// ID 글자 색 = 개시 플롯 두 개의 참값: 표적 k 는 표적 색, 클러터끼리는 클러터 점 색, 섞임은 글자 색.
+// ID 글자 색 = 개시 플롯의 참값 (표적 색, 클러터 회색, 섞임 검정)
 static COLORREF f_Life_SourceColor(INT32 nSource)
 {
 	COLORREF color = UI_COLOR_TEXT;
@@ -1797,7 +1783,7 @@ VOID CTrackLifeView::f_SetScan(INT32 nNewScan)
 	Invalidate(FALSE);
 }
 
-// 휠: 가로 구간 길이 바꾸기 (위로 굴리면 짧게 = 확대). LIFE_SPAN_MIN 부터 전체 스캔 수까지. 커서가 그림 밖이면 무시.
+// 휠: 가로 구간 길이 (위로 굴리면 짧게)
 VOID CTrackLifeView::f_Zoom(INT32 delta, CPoint st_ScreenPoint)
 {
 	CPoint	st_Point = st_ScreenPoint;
@@ -1840,7 +1826,7 @@ VOID CTrackLifeView::OnSize(UINT32 type, INT32 width, INT32 height)
 	Invalidate(FALSE);
 }
 
-// 메모리 DC 에 그린 뒤 한 번에 복사. 칸 영역은 위에 머리 줄 (제목, 범례), 아래에 시간 눈금 · 축 이름 자리를 둠.
+// 메모리 DC 에 그린 뒤 한 번에 복사
 VOID CTrackLifeView::OnPaint(VOID)
 {
 	CPaintDC	st_Dc(this);
@@ -1874,8 +1860,7 @@ VOID CTrackLifeView::OnPaint(VOID)
 	(VOID)st_MemDc.SelectObject(st_OldBitmap);
 }
 
-// 가로 구간의 스캔마다 받은 트랙 표를 읽어 줄 (트랙) 과 칸 (트랙 하나의 스캔 하나) 을 모음. 지금 스캔 뒤는 읽지 않음.
-// 줄은 개시 순서 (개시 스캔, 같은 스캔이면 ID 순서) 로 놓음. 받지 못한 스캔 (UDP 손실) 에는 칸이 없음.
+// 구간의 스캔마다 트랙 표를 읽어 줄 (트랙) 과 칸을 모음. 줄은 개시 순서
 VOID CTrackLifeView::f_CollectRows(VOID)
 {
 	std::map<UINT64, INT32>						st_RowOf;			// (개시 스캔, ID) -> 모은 순서의 줄 자리
@@ -1977,13 +1962,7 @@ FLOAT64 CTrackLifeView::f_ScanToX(INT32 nScan) const
 	return static_cast<FLOAT64>(st_Area.left) + ((static_cast<FLOAT64>(nScan - nFirstScan) * static_cast<FLOAT64>(st_Area.Width())) / static_cast<FLOAT64>(nSpan));
 }
 
-//
-// @brief	트랙 수명 그림: 지금 스캔 뒤 · 받지 못한 스캔 바탕, 지금 스캔 띠, 시간 눈금, 칸 (상태 색), ID, 테두리, 머리 줄 (제목, 범례), 축 이름.
-//			줄 간격은 칸 영역 높이를 줄 수로 나누되 LIFE_ROW_MIN ~ LIFE_ROW_MAX. 가장 좁혀도 다 들어가지 않으면 오래된 줄을 위로 넘기고 최근 줄을 보임
-// @param st_Graphics	그릴 곳 (메모리 DC)
-// @return	없음
-// @author	hwan
-//
+// 트랙 수명 그림 그리기. 줄이 너무 많으면 오래된 줄을 위로 넘김
 VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
 {
 	const FLOAT32				scale = static_cast<FLOAT32>(f_Ui_Scale(100, dpi)) / 100.0F;
@@ -2030,7 +2009,7 @@ VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
 	// 칸, 격자는 선명하게
 	(VOID)st_Graphics->SetSmoothingMode(Gdiplus::SmoothingModeNone);
 
-	// 지금 스캔 뒤 (구간이 스캔 0 부터 채워지는 중일 때 오른쪽) 와 받지 못한 스캔은 옅은 바탕, 지금 스캔은 세로 띠
+	// 지금 스캔 뒤 · 받지 못한 스캔은 옅은 바탕, 지금 스캔은 세로 띠
 	if (nCurScan < nLastScan)
 	{
 		x = f_ScanToX(nCurScan + 1);
@@ -2047,7 +2026,7 @@ VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
 
 	(VOID)st_Graphics->FillRectangle(&st_NowBrush, f_Life_Rect(f_ScanToX(nCurScan), top, colWidth, height));
 
-	// 시간 눈금 (세로 격자선). 간격은 {1, 2, 5} x 10^k s 에서 눈금 사이가 LIFE_TICK_PX 쯤 되게 고르고 스캔 단위로 맞춤
+	// 시간 눈금 ({1, 2, 5} x 10^k s)
 	stepSec		= f_Plot_NiceStepMeter(static_cast<FLOAT64>(nSpan) * SCN_STEP_TIME, fmax(2.0, width / (LIFE_TICK_PX * scale)));
 	nStepScan	= std::max(1, f_Plot_Round(stepSec / SCN_STEP_TIME));
 	nDecimal	= f_Plot_DecimalFor(static_cast<FLOAT64>(nStepScan) * SCN_STEP_TIME);
@@ -2085,7 +2064,7 @@ VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
 		}
 	}
 
-	// ID: 첫 칸 왼쪽, 영역 왼쪽 끝에 걸리면 마지막 칸 오른쪽. 지금 트랙 표에 있는 트랙은 굵게. 줄 간격이 좁으면 글자가 겹쳐 쓰지 않음
+	// ID: 첫 칸 왼쪽 (모자라면 마지막 칸 오른쪽), 지금 트랙 표에 있으면 굵게
 	if (rowPitch >= (LIFE_LABEL_ROW_MIN * scale))
 	{
 		const FLOAT32		labelPx = static_cast<FLOAT32>(fmin(static_cast<FLOAT64>(scale * PLOT_FONT_PX), 0.85 * rowPitch));
@@ -2142,8 +2121,7 @@ VOID CTrackLifeView::f_DrawLife(Gdiplus::Graphics *st_Graphics) const
 	}
 }
 
-// 범례 (머리 줄 오른쪽 끝, 글자 아래 끝 = baseY): 칸 색 = 트랙 상태 네 가지, ID 색 = 개시 플롯 두 개의 참값.
-// 왼쪽 끝이 minLeft (제목 끝) 를 넘으면 칸 색만, 그래도 넘으면 그리지 않음 (좁은 창).
+// 범례 (머리 줄 오른쪽). 자리가 모자라면 칸 색만, 더 모자라면 생략
 VOID CTrackLifeView::f_DrawLegend(Gdiplus::Graphics *st_Graphics, const Gdiplus::Font *st_Font, FLOAT64 baseY, FLOAT64 minLeft) const
 {
 	static const INT32		s_State[4] = { TRK_STATE_TENTATIVE, TRK_STATE_CONFIRMED, TRK_STATE_MEMORY, TRK_STATE_DELETED };

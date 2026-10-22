@@ -1,23 +1,10 @@
-//
-// @file	TrackMgr.c
-// @brief	트랙 개시 및 관리 (과제 5)
-//			- 2 Point 트랙 개시: 연속 두 스캔 플롯 쌍 + 속도 게이팅 (|z_k,i - z_k-1,j| / T < V_max)
-//			- 트랙 스코어 기반 트랙 관리: 임시 -> 확정 -> 메모리 -> 삭제
-// @author	hwan
-// @date	2026.10.21.
-//
+// 2-Point 트랙 개시와 트랙 스코어 기반 트랙 관리 (과제 5)
 #include <math.h>
 #include <string.h>
 
 #include "TrackMgr.h"
 
-//
-// @brief	트랙 ID 가 트랙 표에서 이미 쓰이는지 확인
-// @param st_Table	트랙 표
-// @param trackId	확인할 트랙 ID
-// @return	1 쓰는 중, 0 비어 있음
-// @author	hwan
-//
+// 트랙 표에서 이미 쓰는 ID 인지
 static INT32 f_Trk_IsIdUsed(const ST_TrkTable *st_Table, UINT32 trackId)
 {
 	INT32	isUsed = 0;
@@ -34,12 +21,7 @@ static INT32 f_Trk_IsIdUsed(const ST_TrkTable *st_Table, UINT32 trackId)
 	return isUsed;
 }
 
-//
-// @brief	새 트랙 ID 부여. 100 부터 차례로 주고 10000 다음은 100 으로 돌아감. 표에 남아 있는 ID 는 건너뜀
-// @param st_Table	트랙 표 (nextTrackId 갱신)
-// @return	새 트랙 ID (100 ~ 10000). 줄 ID 가 없으면 0
-// @author	hwan
-//
+// 새 트랙 ID: 100 부터 차례로, 10000 다음은 다시 100. 표에 남은 ID 는 건너뜀
 static UINT32 f_Trk_NewId(ST_TrkTable *st_Table)
 {
 	UINT32	newId = 0;
@@ -60,12 +42,7 @@ static UINT32 f_Trk_NewId(ST_TrkTable *st_Table)
 	return newId;
 }
 
-//
-// @brief	앞 스캔에 삭제 상태 (4) 가 된 트랙을 트랙 표에서 뺌 (남은 트랙 순서 유지)
-// @param st_Table	트랙 표
-// @return	없음
-// @author	hwan
-//
+// 삭제 상태 (4) 인 트랙을 표에서 뺌
 static VOID f_Trk_RemoveDeleted(ST_TrkTable *st_Table)
 {
 	INT32	nKeep = 0;
@@ -86,14 +63,7 @@ static VOID f_Trk_RemoveDeleted(ST_TrkTable *st_Table)
 	st_Table->nTrackNum = nKeep;
 }
 
-//
-// @brief	속도 게이팅용: 두 플롯의 위치 변화량 크기 / 시간 차 = |z_k,i - z_k-1,j| / T
-// @param st_Prev	앞 스캔 플롯
-// @param st_Cur	이번 스캔 플롯
-// @param dt		두 스캔의 시간 차 T [s]
-// @return	두 플롯 사이 속력 [m/s]
-// @author	hwan
-//
+// 두 플롯 사이 속력 |z_k - z_k-1| / T
 static FLOAT64 f_Trk_PairSpeed(const ST_TrkPlot *st_Prev, const ST_TrkPlot *st_Cur, FLOAT64 dt)
 {
 	const FLOAT64	dx = st_Cur->pos[0] - st_Prev->pos[0];
@@ -103,28 +73,14 @@ static FLOAT64 f_Trk_PairSpeed(const ST_TrkPlot *st_Prev, const ST_TrkPlot *st_C
 	return sqrt((dx * dx) + (dy * dy) + (dz * dz)) / dt;
 }
 
-//
-// @brief	트랙 표 초기화. 트랙 없음, 다음 트랙 ID 는 TRK_ID_MIN (100)
-// @param st_Table	트랙 표
-// @return	없음
-// @author	hwan
-//
+// 트랙 표 초기화
 VOID f_Trk_Init(ST_TrkTable *st_Table)
 {
 	(VOID)memset(st_Table, 0, sizeof(*st_Table));
 	st_Table->nextTrackId = TRK_ID_MIN;
 }
 
-//
-// @brief	VC-NED 원점 이동 보정. VC-NED 원점은 플랫폼을 따라 움직이므로, 이번 스캔 처리 전에
-//			앞 스캔 값 (개시 후보 플롯, 트랙 위치) 을 이번 스캔 VC-NED 로 옮김
-// @param st_Table	트랙 표
-// @param shift		앞 스캔 원점 (플랫폼 위치) 의 이번 스캔 VC-NED 좌표 [m]. 플랫폼이 서 있으면 0
-// @remark	두 플롯의 차가 플랫폼 상대 속도가 아니라 표적 속도가 되게 함.
-//			두 원점 사이 축 방향 차이 (스캔 사이 수십 m 이동이면 1e-5 rad 이하) 는 무시
-// @return	없음
-// @author	hwan
-//
+// VC-NED 원점 (플랫폼) 이 움직인 만큼 앞 스캔 값 (개시 후보, 트랙 위치) 을 옮김
 VOID f_Trk_MoveOrigin(ST_TrkTable *st_Table, const FLOAT64 shift[3])
 {
 	INT32 nPlot;
@@ -145,16 +101,7 @@ VOID f_Trk_MoveOrigin(ST_TrkTable *st_Table, const FLOAT64 shift[3])
 	}
 }
 
-//
-// @brief	트랙 스코어 로직 (과제 2.2). Assigned_Flag 는 부르기 전에 채움
-//			- 임시: 연관 성공 +1, 실패 -1. TrackScore >= 5 (확정 문턱치) 면 확정, <= 0 (삭제 문턱치) 면 삭제
-//			- 확정: 연관 실패면 메모리 트랙 전환, MemoryScore + 1
-//			- 메모리: 연관 성공이면 바로 확정 트랙 전환, MemoryScore = 0.
-//			  실패면 MemoryScore + 1, MemoryScore >= 5 (메모리 트랙 삭제 문턱치) 면 삭제
-// @param st_Track	트랙 (TrackState, TrackScore, MemoryScore 갱신)
-// @return	없음
-// @author	hwan
-//
+// 트랙 스코어 로직 (과제 2.2). Assigned_Flag 는 부르기 전에 채움
 VOID f_Trk_UpdateState(ST_Track *st_Track)
 {
 	const INT32 isAssigned = (st_Track->Assigned_Flag != 0) ? 1 : 0;
@@ -209,16 +156,8 @@ VOID f_Trk_UpdateState(ST_Track *st_Track)
 	}
 }
 
-//
-// @brief	2 Point 트랙 초기화. 초기 상태변수 mat_EstX 와 초기 오차 공분산 mat_EstP 계산
-//			- mat_EstX: 위치 = 이번 플롯 z_k, 속도 = (z_k - z_k-1) / T, 가속도 = 0
-//			- mat_EstP (축 a, b 마다): P_pp = R_k, P_pv = P_vp = R_k / T, P_vv = (R_k + R_k-1) / T^2, 가속도 행 · 열 = 0
-// @param st_Track	만들 트랙 (mat_EstX, mat_EstP 채움)
-// @param st_Prev	앞 스캔 플롯 z_k-1 (위치, R)
-// @param st_Cur	이번 스캔 플롯 z_k (위치, R)
-// @return	없음
-// @author	hwan
-//
+// 2-Point 초기화. X: 위치 z_k, 속도 (z_k - z_k-1) / T, 가속도 0
+// P: 위치 R_k, 위치-속도 R_k / T, 속도 (R_k + R_k-1) / T^2, 가속도 0
 VOID f_Trk_TwoPointInit(ST_Track *st_Track, const ST_TrkPlot *st_Prev, const ST_TrkPlot *st_Cur)
 {
 	const FLOAT64	dt = st_Cur->time - st_Prev->time;
@@ -246,13 +185,7 @@ VOID f_Trk_TwoPointInit(ST_Track *st_Track, const ST_TrkPlot *st_Prev, const ST_
 	}
 }
 
-//
-// @brief	트랙 요약. 상태변수에서 위치, 속도를, 오차 공분산 대각에서 표준편차를 꺼냄
-// @param st_View	출력 요약
-// @param st_Track	트랙
-// @return	없음
-// @author	hwan
-//
+// 트랙 요약: 위치, 속도, P 대각의 표준편차
 VOID f_Trk_GetView(ST_TrkView *st_View, const ST_Track *st_Track)
 {
 	INT32 nAxis;
@@ -275,13 +208,7 @@ VOID f_Trk_GetView(ST_TrkView *st_View, const ST_Track *st_Track)
 	}
 }
 
-//
-// @brief	트랙 초기화 측정잡음 공분산 R 을 구성하는 구좌표 표준편차 (과제 조건)
-//			σ range = 10 m, σ azimuth = 0.2 도, σ elevation = 0.2 도
-// @param st_Sigma	출력 표준편차 (r [m], az, el [rad])
-// @return	없음
-// @author	hwan
-//
+// R 표준편차 (과제 조건 10 m, 0.2 도, 0.2 도)
 VOID f_Trk_GetMeasSigma(STRUCT_Coord_Sph *st_Sigma)
 {
 	st_Sigma->r		= TRK_R_SIGMA_RANGE;
@@ -289,17 +216,8 @@ VOID f_Trk_GetMeasSigma(STRUCT_Coord_Sph *st_Sigma)
 	st_Sigma->el	= f_Deg_To_Rad(TRK_R_SIGMA_ELEVATION);
 }
 
-//
-// @brief	측정잡음 공분산 R 계산. 안테나 구좌표 (거리, 방위각, 고각) 표준편차를 VC-NED 위치 공분산으로 바꿈
-//			R_ant = J diag(σr^2, σaz^2, σel^2) J^T (J: 구좌표 -> 안테나 직교 좌표 야코비안)
-//			R_ned = M R_ant M^T (M: 안테나 -> 동체 -> NED 회전)
-// @param cov		출력 R (VC-NED) [m^2]
-// @param st_Meas	측정 (거리 [m], 방위각, 고각 [rad])
-// @param st_Sigma	구좌표 표준편차 (σr [m], σaz, σel [rad]). f_Trk_GetMeasSigma 값 (과제 조건)
-// @param st_Att	플랫폼 자세 [rad]
-// @return	없음
-// @author	hwan
-//
+// 측정잡음 공분산 R (VC-NED) = M J diag(σr^2, σaz^2, σel^2) J^T M^T
+// J: 구좌표 -> 안테나 직교 기울기, M: 안테나 -> 동체 -> NED 회전
 VOID f_Trk_MeasCov(FLOAT64 cov[3][3], const STRUCT_Coord_Sph *st_Meas, const STRUCT_Coord_Sph *st_Sigma, const STRUCT_Coord_Attitude *st_Att)
 {
 	const FLOAT64		r = st_Meas->r;
@@ -352,7 +270,7 @@ VOID f_Trk_MeasCov(FLOAT64 cov[3][3], const STRUCT_Coord_Sph *st_Meas, const STR
 	mat_Mt	= Matrix_Transpose(&mat_M);
 	mat_R	= Matrix_Product3(&mat_M, &mat_Ra, &mat_Mt);
 
-	// 곱셈 반올림으로 생기는 아주 작은 비대칭을 없앰 (공분산은 대칭이어야 함)
+	// 반올림으로 생긴 작은 비대칭 제거
 	for (nRow = 0; nRow < 3; nRow++)
 	{
 		for (nCol = 0; nCol < 3; nCol++)
@@ -362,22 +280,7 @@ VOID f_Trk_MeasCov(FLOAT64 cov[3][3], const STRUCT_Coord_Sph *st_Meas, const STR
 	}
 }
 
-//
-// @brief	스캔 하나 처리 (데이터 처리 쓰레드가 플롯 메시지마다 부름)
-//			1. 앞 스캔에 삭제 상태가 된 트랙을 표에서 뺌
-//			2. 트랙 연관 (아직 없음): 모든 트랙의 Assigned_Flag 를 실패 (0) 로 두고 스코어 로직을 돌림
-//			3. 2 Point 개시: 앞 스캔에 남은 플롯과 이번 스캔 플롯의 쌍 가운데 속도 게이트 (|z_k - z_k-1| / T < V_max) 를
-//			   넘는 쌍을 속력이 작은 쌍부터 하나씩 골라 트랙을 만듦. 한 플롯은 한 쌍에만 씀
-//			4. 이번 스캔 플롯을 다음 스캔의 개시 후보로 보관 (개시에 쓴 플롯은 표시해 둠)
-// @param st_Table	트랙 표
-// @param st_Plot	이번 스캔 플롯 (VC-NED 위치, R)
-// @param nPlotNum	플롯 수
-// @param time		스캔 시각 [s]
-// @param nScan		스캔 번호
-// @param st_Log	출력 처리 기록
-// @return	없음
-// @author	hwan
-//
+// 스캔 하나 처리 (플롯 메시지마다 부름)
 VOID f_Trk_ProcessScan(ST_TrkTable *st_Table, const ST_TrkPlot *st_Plot, INT32 nPlotNum, FLOAT64 time, INT32 nScan, ST_TrkScanLog *st_Log)
 {
 	ST_TrkPlot	st_Cur[TRK_MAX_PLOT];
@@ -399,10 +302,10 @@ VOID f_Trk_ProcessScan(ST_TrkTable *st_Table, const ST_TrkPlot *st_Plot, INT32 n
 	nCurNum = (nPlotNum < 0) ? 0 : ((nPlotNum > TRK_MAX_PLOT) ? TRK_MAX_PLOT : nPlotNum);
 	st_Log->nPlotNum = nCurNum;
 
-	// 1
+	// 1. 삭제 트랙 빼기
 	f_Trk_RemoveDeleted(st_Table);
 
-	// 2
+	// 2. 트랙 관리: 연관 기능이 없어 Assigned_Flag = 0
 	for (nTrack = 0; nTrack < st_Table->nTrackNum; nTrack++)
 	{
 		st_Track				= &st_Table->st_Track[nTrack];
@@ -432,7 +335,7 @@ VOID f_Trk_ProcessScan(ST_TrkTable *st_Table, const ST_TrkPlot *st_Plot, INT32 n
 		}
 	}
 
-	// 3
+	// 3. 2-Point 개시: 게이트 통과 쌍을 속력이 작은 쌍부터, 한 플롯은 한 쌍에만
 	for (nCur = 0; nCur < nCurNum; nCur++)
 	{
 		st_Cur[nCur]		= st_Plot[nCur];
@@ -524,7 +427,7 @@ VOID f_Trk_ProcessScan(ST_TrkTable *st_Table, const ST_TrkPlot *st_Plot, INT32 n
 		}
 	}
 
-	// 4
+	// 4. 이번 플롯을 다음 스캔 개시 후보로 보관
 	for (nCur = 0; nCur < nCurNum; nCur++)
 	{
 		st_Table->st_PrevPlot[nCur] = st_Cur[nCur];

@@ -1,18 +1,11 @@
-//
-// @file	Scenario.h
-// @brief	고정 시나리오 (과제 5 시뮬레이션 조건) 와 궤적 계산 결과 (CSimResult)
-// @author	hwan
-// @date	2026.10.21.
-//
+// 고정 시나리오 (과제 5 시뮬레이션 조건) 와 궤적 계산 결과 (CSimResult)
 #pragma once
 
 #include <vector>
 
 #include "TargetSim.h"
 
-// 고정 시나리오 (과제 5 시뮬레이션 조건). 궤적, 기동, 측정 조건은 바꾸지 않으므로 화면 편집 없이 값으로 둠.
-// 응용 시나리오 (원본 크기): 플랫폼 정지, 표적 1 대함 · 표적 2 대공의 지그재그 기동. 표적 2 고도만 2,000 m 로 올림.
-// 116 s, 간격 0.1 s, SNR 20, 스캔당 클러터 5.
+// 고정 시나리오 (과제 5 조건): 116 s, 간격 0.1 s, SNR 20, 클러터 5
 #define SCN_NAME				_T("응용 시나리오 (원본 크기, 대공 표적 고도 2,000 m)")
 #define SCN_DURATION_TIME		116.0					// [s]
 #define SCN_STEP_TIME			0.1						// [s] = 스캔 간격

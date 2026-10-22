@@ -1,9 +1,4 @@
-//
-// @file	Scenario.cpp
-// @brief	고정 시나리오 값 -> Core 입력, 궤적 계산 실행과 그림 좌표 계산
-// @author	hwan
-// @date	2026.10.21.
-//
+// 고정 시나리오 값 -> Core 입력, 궤적 계산 실행과 그림 좌표 계산
 #include "pch.h"
 
 #include "Scenario.h"
@@ -36,8 +31,7 @@ typedef struct
 static_assert(SCN_TARGET_NUM <= TGT_MAX_TARGET_NUM, "SCN_TARGET_NUM is too large");
 static_assert(SCN_MANEUVER_NUM <= TGT_MAX_MANEUVER_NUM, "SCN_MANEUVER_NUM is too large");
 
-// 응용 시나리오 (원본 크기): 플랫폼 정지, 표적 1 대함, 표적 2 대공.
-// Part 3 시나리오 폴더의 시나리오_지그재그_기동_원본크기.tsim 과 같은 값이고, 표적 2 고도만 300 m 에서 2,000 m 로 올림 (3D 에서 대함 표적과 고도가 갈려 보이게).
+// 응용 시나리오 (Part 3 지그재그, 원본 크기). 표적 2 고도만 300 -> 2,000 m (3D 에서 구분되게)
 static const ST_ScnObject	s_Platform = { 32.0, 126.0, 0.0, 0.0, 0.0, 0.0, 0.0 };
 static const ST_ScnObject	s_Target[SCN_TARGET_NUM] =
 {
@@ -45,8 +39,7 @@ static const ST_ScnObject	s_Target[SCN_TARGET_NUM] =
 	{ 32.12,	126.0,		2000.0,		200.0,		0.0,	0.0,	180.0 }
 };
 
-// G 부호가 회전 방향 (+ 우선회, - 좌선회). 구간은 [시작, 종료).
-// 표적 1: Yaw 1 G, 45 도씩 4 회. 표적 2: Yaw 4 G, 90 도씩 6 회 (마지막만 150 도, 116 s 에 끝남).
+// G 부호 = 회전 방향 (+ 우선회). 표적 1: Yaw 1 G 45 도 x 4, 표적 2: Yaw 4 G 90 도 x 6 (마지막 150 도)
 static const ST_ScnManeuver	s_Maneuver[SCN_MANEUVER_NUM] =
 {
 	{ 0, { TGT_TURN_YAW, -1.0, 28.4, 30.8 } },
@@ -73,7 +66,7 @@ static VOID f_Scn_SetObject(const ST_ScnObject *st_Object, STRUCT_Coord_Lla *st_
 	st_Att->Yaw		= f_Deg_To_Rad(st_Object->yaw);
 }
 
-// 고정 시나리오 -> ST_SimConfig. 기본 계산 (중점법, 표적 자리 기준) 만 쓰고 계산 과정 기록은 받지 않음.
+// 고정 시나리오 -> ST_SimConfig (기본 계산, 계산 기록 없음)
 VOID f_Scn_BuildConfig(ST_SimConfig *st_Config)
 {
 	ST_TargetInit	*st_Init;

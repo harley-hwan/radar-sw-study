@@ -1,9 +1,4 @@
-//
-// @file	TargetSimUIDlg.h
-// @brief	트랙 개시 · 관리 결과 주 화면 (과제 5)
-// @author	hwan
-// @date	2026.10.21.
-//
+// 주 화면 (과제 5)
 #pragma once
 
 #include "PlotResult.h"
@@ -24,9 +19,7 @@
 #define UI_SHOW_TRACK			3
 #define UI_SHOW_NUM				4
 
-// 트랙 개시 · 관리 결과 화면 (과제 5).
-// 궤적, 기동, 측정 조건은 고정 시나리오 그대로 한 번 계산해 두고, 측정 모의 결과를 플롯 메시지로 보내 데이터 처리 쪽이 처리한 스캔을
-// True · Plot · Track 그림 (2D, 3D) 또는 트랙 수명 그림, 지금 스캔의 트랙 표, 송수신 · 트랙 요약으로 보임.
+// 주 화면: 고정 시나리오로 플롯 메시지를 보내고 처리 결과를 그림 · 트랙 표 · 요약으로 보임
 class CTargetSimUIDlg : public CDialogEx
 {
 public:
@@ -98,7 +91,7 @@ private:
 
 	CSimResult			st_Result;							// 궤적 계산 결과 (참값)
 	CPlotResult			st_PlotResult;						// 측정 모의 결과. 궤적 계산 결과 (st_Result) 를 잰 것
-	CTrackResult		st_TrackResult;						// 트랙 개시 · 관리 결과. 측정 모의 결과를 UDP 로 보내 받은 쪽이 처리한 것
+	CTrackResult		st_TrackResult;						// 트랙 개시 · 관리 결과 (UDP 로 받아 처리한 것)
 
 	INT32				dpi;
 	INT32				textHeight;

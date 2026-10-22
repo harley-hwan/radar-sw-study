@@ -1,9 +1,4 @@
-//
-// @file	PlotResult.h
-// @brief	측정 모의 결과 (CPlotResult) 와 트랙 개시 · 관리 결과 (CTrackResult) 보관
-// @author	hwan
-// @date	2026.10.21.
-//
+// 측정 모의 결과 (CPlotResult) 와 트랙 개시 · 관리 결과 (CTrackResult) 보관
 #pragma once
 
 #include <vector>
@@ -12,8 +7,7 @@
 #include "PlotSim.h"
 #include "Scenario.h"
 
-// 측정 모의 결과. 궤적 계산 결과의 표본을 스캔마다 재서 만든 플롯, 클러터 (트랙 개시의 입력).
-// 스캔은 0.1 s 구간마다 시작 시각에 한 번이라 116 s 면 1160 스캔 (끝 시각 표본은 재지 않음).
+// 측정 모의 결과: 스캔마다 플롯, 클러터 (116 s = 1160 스캔)
 class CPlotResult
 {
 public:
@@ -25,7 +19,7 @@ public:
 	const ST_PlotPoint *	f_GetPlotPoint(INT32 nScan, INT32 nTarget) const;
 	const ST_PlotPoint *	f_GetClutterPoint(INT32 nScan, INT32 nClutter) const;
 
-	STRUCT_Coord_Sph		st_Sigma = {};					// 플롯 모의 잡음 표준편차 p [m, rad] (과제 4 식, SNR 20). 트랙 초기화 R 은 따로 과제 값 (TRK_R_SIGMA_*) 을 씀
+	STRUCT_Coord_Sph		st_Sigma = {};					// 플롯 모의 잡음 표준편차 (과제 4, R 과 별개)
 
 private:
 	std::vector<ST_PcsScan>		st_ScanBuf;
@@ -58,7 +52,7 @@ private:
 typedef struct
 {
 	ST_TrkView				st_View;
-	INT32					nSource;						// 개시 플롯 두 개의 참값. k = 표적 k, 0 = 클러터, TRK_SOURCE_MIXED = 서로 다름
+	INT32					nSource;						// 개시 플롯 참값: k 표적 k, 0 클러터, MIXED 섞임
 	ST_PlotPoint			st_Point;						// 트랙 위치
 	ST_PlotPoint			st_Lead;						// 속도로 TRK_LEAD_TIME 만큼 간 위치
 } ST_TrackItem;
@@ -71,8 +65,7 @@ typedef struct
 	ST_PlotPoint			st_Point;
 } ST_RecvPlot;
 
-// 트랙 개시 · 관리 결과. 플롯 메시지 송수신 쓰레드 (Core) 가 처리한 스캔을 타이머로 받아 모아 둠.
-// 수신 쪽 위치 (그 스캔 레이다 기준 VC-NED) 는 받을 때 그림 좌표 (플랫폼 초기 위치 기준) 로 바꿔 둠.
+// 트랙 개시 · 관리 결과. Core 가 처리한 스캔을 타이머로 받아 그림 좌표로 바꿔 모아 둠
 class CTrackResult
 {
 public:

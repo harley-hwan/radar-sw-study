@@ -1,9 +1,4 @@
-//
-// @file	TargetSimUIDlg.cpp
-// @brief	주 화면 구현: 시나리오 실행, 플롯 메시지 송수신 시작, True · Plot · Track 그림 (2D, 3D), 트랙 수명 그림, 트랙 표, 요약
-// @author	hwan
-// @date	2026.10.21.
-//
+// 주 화면: 시나리오 실행, 송수신 시작, 그림 · 트랙 표 · 요약
 #include "pch.h"
 #include "framework.h"
 
@@ -18,7 +13,7 @@
 
 #define UI_INIT_WIDTH			1640					// [px @96dpi]
 #define UI_INIT_HEIGHT			980
-#define UI_MIN_WIDTH			1100					// 그림 카드 머리 줄 (스캔, 슬라이더, 표시 넷, 보기) 과 아래 두 카드가 들어가는 너비
+#define UI_MIN_WIDTH			1100					// 머리 줄과 아래 두 카드가 들어가는 너비
 #define UI_MIN_HEIGHT			720						// 트랙 카드 요약이 다 들어가고 그림이 남는 높이
 #define UI_MARGIN				12
 #define UI_GAP					10
@@ -31,7 +26,7 @@
 #define UI_BUTTON_WIDTH			110						// 스코어 확인, 다시 보내기, CSV 저장 단추 너비
 #define UI_CHECK_BOX_PAD		24						// 체크 상자 네모와 글자 앞 간격
 #define UI_DROP_HEIGHT			240						// 콤보 목록 펼친 높이
-#define UI_SCAN_TEXT_WIDTH		200						// 스캔 번호 글자 너비 ("스캔 1159 (0 ~ 1159)   115.9 s" 가 들어가게)
+#define UI_SCAN_TEXT_WIDTH		200						// 스캔 번호 글자 너비
 #define UI_VIEW_MODE_WIDTH		110						// 그림 보기 선택 너비
 #define UI_TRK_GAP_NUM			3						// 송신 간격 고르기 수
 #define UI_TRK_GAP_WIDTH		128						// 송신 간격 선택 너비
@@ -48,7 +43,7 @@ static const LPCTSTR	s_ViewName[UI_VIEW_NUM] = { _T("2D + 3D"), _T("2D"), _T("3D
 // 그림 표시 체크 상자. UI_SHOW_* 순서
 static const INT32		s_ShowId[UI_SHOW_NUM] = { IDC_SHOW_TRUE, IDC_SHOW_PLOT, IDC_SHOW_CLUTTER, IDC_SHOW_TRACK };
 
-// 트랙 카드 요약의 항목 이름. 줄마다 하나, 빈 칸은 윗줄 항목이 이어지는 줄 (f_UpdateTrackSummary 의 줄 순서와 같음)
+// 트랙 카드 요약 항목 이름 (빈 칸 = 윗줄 이어짐, f_UpdateTrackSummary 줄 순서)
 static const LPCTSTR	s_SummaryLabel[UI_SUMMARY_LINES] = { _T("송수신"), _T(""), _T("누적 트랙"), _T(""), _T("지금 스캔"), _T(""), _T(""), _T("조건"), _T(""), _T("") };
 
 // 컨트롤 위치, 크기 변경. 창이 최소 크기보다 작아도 너비, 높이는 0 아래로 내려가지 않음.
@@ -134,7 +129,7 @@ VOID CTargetSimUIDlg::DoDataExchange(CDataExchange *st_Dx)
 	DDX_Control(st_Dx, IDC_TRK_LIST, st_TrackList);
 }
 
-// 글꼴, 색, 표, 그림 준비 후 고정 시나리오를 계산하고 플롯 메시지 송수신 (트랙 개시 · 관리) 을 시작.
+// 화면 준비 후 시나리오 계산, 송수신 시작
 BOOL CTargetSimUIDlg::OnInitDialog(VOID)
 {
 	CClientDC	st_Dc(this);
@@ -265,7 +260,7 @@ VOID CTargetSimUIDlg::OnSize(UINT32 type, INT32 width, INT32 height)
 	}
 }
 
-// 위 막대, 그림 카드 (위, 전체 너비), 트랙 카드 (왼쪽 아래), 트랙 표 카드 (오른쪽 아래) 배치. 모든 치수에 화면 배율 적용.
+// 배치: 위 막대, 그림 카드 (위), 트랙 카드 (왼쪽 아래), 트랙 표 카드 (오른쪽 아래)
 VOID CTargetSimUIDlg::f_Layout(VOID)
 {
 	const INT32	margin = f_Ui_Scale(UI_MARGIN, dpi);
@@ -299,7 +294,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 	contentTop		= st_TopBar.bottom + margin;
 	contentBottom	= st_Client.bottom - margin;
 
-	// 아래 카드는 트랙 카드 (제목 줄, 송신 간격 줄, 요약) 가 다 들어가는 높이 이상. 모자라면 그림 카드를 줄임
+	// 아래 카드는 트랙 카드 내용이 다 들어가는 높이 이상 (모자라면 그림 카드를 줄임)
 	trkHeight	= pad + buttonHeight + tight + buttonHeight + gap + (UI_SUMMARY_LINES * textHeight) + f_Ui_Scale(4, dpi) + pad;
 	plotHeight	= static_cast<INT32>(static_cast<FLOAT64>(contentBottom - contentTop - gap) * UI_PLOT_RATIO);
 
@@ -308,7 +303,7 @@ VOID CTargetSimUIDlg::f_Layout(VOID)
 		plotHeight = contentBottom - contentTop - gap - trkHeight;
 	}
 
-	// 그림 카드: 머리 줄에 스캔 글자, 스캔 슬라이더, 표시 체크 상자, 보기 선택. 아래는 2D, 3D 그림 (보기에 따라 나란히 또는 하나만) 또는 트랙 수명 그림
+	// 그림 카드: 머리 줄 (스캔, 슬라이더, 표시, 보기) 아래에 2D · 3D 또는 트랙 수명 그림
 	st_CardPlot.SetRect(margin, contentTop, st_Client.right - margin, contentTop + plotHeight);
 	x = st_CardPlot.right - pad - viewModeWidth;
 	y = st_CardPlot.top + pad;
@@ -518,8 +513,7 @@ VOID CTargetSimUIDlg::f_RunScenario(VOID)
 	f_RunTrack();
 }
 
-// 측정 모의 결과를 플롯 메시지로 보내기 시작 (Core 의 송신 쓰레드 -> UDP -> 수신 쓰레드). 지난 송수신은 멈추고 결과를 비움.
-// 받은 쪽이 처리한 스캔은 타이머로 가져와 그림, 트랙 표, 요약에 보임. 처음엔 스캔 0 부터 새 스캔을 따라감.
+// 플롯 메시지 송신 시작 (지난 송수신은 멈추고 결과를 비움). 처리된 스캔은 타이머로 가져옴
 VOID CTargetSimUIDlg::f_RunTrack(VOID)
 {
 	(VOID)KillTimer(UI_TIMER_TRACK);
@@ -536,8 +530,7 @@ VOID CTargetSimUIDlg::f_RunTrack(VOID)
 	f_ShowScan(0);
 }
 
-// 트랙 표 열. 이름은 과제 명세 그대로 (TrackState, TrackScore, MemoryScore, Assigned_Flag). 위치, 속도는 받은 스캔의 VC-NED 상태변수 (mat_EstX).
-// σ 는 오차 공분산 (mat_EstP) 의 위치, 속도 대각을 세 축 RSS 로 묶은 값.
+// 트랙 표 열 (이름은 과제 명세 그대로). σ 는 P 대각 세 축의 RSS
 VOID CTargetSimUIDlg::f_SetupTrackColumns(VOID)
 {
 	static const LPCTSTR	s_Name[TRK_COL_NUM] =
@@ -585,7 +578,7 @@ VOID CTargetSimUIDlg::f_ShowScan(INT32 nScan)
 	f_UpdateTrackSummary();
 }
 
-// 트랙 표: 지금 스캔의 트랙 수만큼 행을 두고, 제목에 상태별 수. 칸 글자는 f_OnTrackGetDispInfo 가 채움.
+// 트랙 표: 지금 스캔의 트랙 수만큼 행, 제목에 상태별 수
 VOID CTargetSimUIDlg::f_UpdateTrackList(VOID)
 {
 	const INT32	nIndex = st_TrackResult.f_FindScan(nCurScan);
@@ -620,12 +613,7 @@ VOID CTargetSimUIDlg::f_UpdateTrackList(VOID)
 	st_TrackList.Invalidate(FALSE);
 }
 
-//
-// @brief	트랙 카드 요약 (s_SummaryLabel 의 줄 순서): 송수신 (UDP 주소, 보냄, 받음, 손실, 처리), 누적 트랙 (개시 플롯의 참값별),
-//			지금 스캔의 처리 기록 (받은 플롯, 2 Point 개시 후보 · 쌍 · 게이트, 상태 전이), 조건 (V_max, 문턱치, R 표준편차)
-// @return	없음
-// @author	hwan
-//
+// 트랙 카드 요약: 송수신, 누적 트랙, 지금 스캔 처리 기록, 조건
 VOID CTargetSimUIDlg::f_UpdateTrackSummary(VOID)
 {
 	const ST_LnkStatus	*st_Status = &st_TrackResult.st_Status;
@@ -743,8 +731,7 @@ VOID CTargetSimUIDlg::f_OnTrackGetDispInfo(NMHDR *st_Hdr, LRESULT *pt_Result)
 	*pt_Result = 0;
 }
 
-// 수신 쪽이 처리한 스캔을 가져옴. 따라가는 중이면 마지막 스캔을 보이고, 아니면 보던 스캔이 이번에 막 왔을 때만 다시 그림.
-// 송수신이 끝나면 (쓰레드 둘 다 끝) 남은 스캔까지 가져온 뒤 타이머를 멈춤.
+// 처리된 스캔 가져오기. 따라가는 중이면 마지막 스캔을 보임. 송수신이 끝나면 타이머 멈춤
 VOID CTargetSimUIDlg::OnTimer(UINT_PTR nEvent)
 {
 	INT32 isNew;
@@ -781,7 +768,7 @@ VOID CTargetSimUIDlg::OnTimer(UINT_PTR nEvent)
 	CDialogEx::OnTimer(nEvent);
 }
 
-// 스캔 슬라이더. 마지막으로 받은 스캔에 두면 새 스캔을 따라가고, 앞으로 옮기면 그 스캔에 머묾. 아직 받지 않은 스캔으로는 가지 않음.
+// 스캔 슬라이더. 마지막 스캔에 두면 새 스캔을 따라감
 VOID CTargetSimUIDlg::OnHScroll(UINT32 code, UINT32 pos, CScrollBar *st_Bar)
 {
 	INT32 nScan;
@@ -796,7 +783,7 @@ VOID CTargetSimUIDlg::OnHScroll(UINT32 code, UINT32 pos, CScrollBar *st_Bar)
 	CDialogEx::OnHScroll(code, pos, st_Bar);
 }
 
-// 휠: 커서가 2D, 3D 그림 위면 그 그림을 확대 · 축소, 트랙 수명 그림 위면 가로 구간 길이 바꾸기 (포커스가 다른 컨트롤에 있어도).
+// 휠: 커서 아래 그림에 전달 (2D · 3D 확대, 트랙 수명 구간 길이)
 BOOL CTargetSimUIDlg::OnMouseWheel(UINT32 flags, INT16 delta, CPoint st_Point)
 {
 	CRect st_Rect;
@@ -825,7 +812,7 @@ BOOL CTargetSimUIDlg::OnMouseWheel(UINT32 flags, INT16 delta, CPoint st_Point)
 	return CDialogEx::OnMouseWheel(flags, delta, st_Point);
 }
 
-// 그림 표시 (참값, 플롯, 클러터, 트랙) 켜기 / 끄기. 결과는 그대로 두고 2D, 3D 그림만 다시 그림.
+// 그림 표시 (참값, 플롯, 클러터, 트랙) 켜기 / 끄기
 VOID CTargetSimUIDlg::f_OnShowClicked(VOID)
 {
 	INT32 nIndex;
@@ -839,7 +826,7 @@ VOID CTargetSimUIDlg::f_OnShowClicked(VOID)
 	st_View3D.f_SetShow(isShow[UI_SHOW_TRUE], isShow[UI_SHOW_PLOT], isShow[UI_SHOW_CLUTTER], isShow[UI_SHOW_TRACK]);
 }
 
-// 그림 보기 (2D + 3D, 2D, 3D, 트랙 수명) 바꾸면 배치를 다시 함. 표시 체크 상자는 2D, 3D 그림에만 쓰므로 트랙 수명에서는 끔.
+// 그림 보기 바꾸기 (트랙 수명에서는 표시 체크 상자를 끔)
 VOID CTargetSimUIDlg::f_OnViewModeChanged(VOID)
 {
 	const INT32	nSel = st_ViewMode.GetCurSel();
@@ -858,7 +845,7 @@ VOID CTargetSimUIDlg::f_OnViewModeChanged(VOID)
 	}
 }
 
-// 송신 간격 바꾸면 처음부터 다시 보냄 (100 ms 면 스캔 간격과 같은 실시간이라 트랙이 생기고 지워지는 모습을 따라 볼 수 있음).
+// 송신 간격 바꾸면 처음부터 다시 보냄 (100 ms = 실시간)
 VOID CTargetSimUIDlg::f_OnTrkGapChanged(VOID)
 {
 	const INT32 nSel = st_GapCombo.GetCurSel();
@@ -876,7 +863,7 @@ VOID CTargetSimUIDlg::f_OnTrkResendClicked(VOID)
 	f_RunTrack();
 }
 
-// 트랙 스코어 확인 창. 연관 결과 (Assigned_Flag) 를 직접 넣어 확정, 메모리 상태 변화를 봄 (시뮬레이션은 늘 0).
+// 트랙 스코어 확인 창 (Assigned_Flag 를 직접 넣어 확정 · 메모리 확인)
 VOID CTargetSimUIDlg::f_OnTrkScoreClicked(VOID)
 {
 	CScoreDlg st_ScoreDlg(this);

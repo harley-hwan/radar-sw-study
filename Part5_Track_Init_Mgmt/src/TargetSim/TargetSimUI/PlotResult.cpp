@@ -1,9 +1,4 @@
-//
-// @file	PlotResult.cpp
-// @brief	측정 모의 실행, 플롯 메시지 송수신 시작 · 결과 수집, 트랙 표 칸 글자 · CSV 저장
-// @author	hwan
-// @date	2026.10.21.
-//
+// 측정 모의 실행, 플롯 메시지 송수신 시작 · 결과 수집, 트랙 표 칸 글자 · CSV 저장
 #include "pch.h"
 
 #include <math.h>
@@ -35,8 +30,7 @@ static FLOAT64 f_Meas_Norm(const FLOAT64 pt_Value[3])
 
 // CPlotResult
 
-// 궤적 계산 결과로 측정 모의 실행 후 플롯, 클러터의 그림 좌표 계산.
-// 표본은 CSimResult 안의 vector 에 이어져 있어 첫 표본 주소를 배열로 넘김.
+// 측정 모의 실행 후 플롯, 클러터의 그림 좌표 계산
 VOID CPlotResult::f_Run(const CSimResult *st_Source, FLOAT64 snr, INT32 nClutterNum)
 {
 	const ST_TargetState	*st_Origin = st_Source->f_GetState(0, 0);
@@ -109,15 +103,7 @@ static const CHAR *f_Trk_StateName(INT32 nState)
 	return ((nState >= TRK_STATE_TENTATIVE) && (nState <= TRK_STATE_DELETED)) ? s_Name[nState] : s_Name[0];
 }
 
-//
-// @brief	플롯 메시지 송수신 시작. 측정 모의 결과의 전체 스캔을 보냄. 지난 결과는 비움.
-//			트랙 초기화 R 의 측정잡음 표준편차 (과제 값 10 m, 0.2 도, 0.2 도) 는 Core 송신 쓰레드가 메시지에 실음
-// @param st_NewSource	궤적 계산 결과 (스캔마다 플랫폼 상태, 그림 좌표 기준)
-// @param st_Measure	측정 모의 결과 (표적 플롯, 클러터)
-// @param sendGapMs		스캔 사이 송신 간격 [ms]
-// @return	1 시작, 0 실패
-// @author	hwan
-//
+// 플롯 메시지 송수신 시작 (지난 결과는 비움)
 INT32 CTrackResult::f_Start(const CSimResult *st_NewSource, const CPlotResult *st_Measure, INT32 sendGapMs)
 {
 	const INT32	nScanNum = st_Measure->f_GetScanNum();
@@ -153,8 +139,7 @@ VOID CTrackResult::f_Stop(VOID)
 	f_Lnk_GetStatus(&st_Status);
 }
 
-// 진행 상태를 읽고, 처리가 끝났지만 아직 안 가져온 스캔을 가져옴. 새 스캔이 있으면 1.
-// Core 는 보낸 범위 밖 스캔 번호를 처리하지 않지만, 그런 스캔이 오면 그림 좌표를 구할 수 없어 건너뜀.
+// 처리가 끝난 스캔을 Core 에서 가져옴. 새 스캔이 있으면 1
 INT32 CTrackResult::f_Poll(VOID)
 {
 	ST_LnkScan	st_Scan;
@@ -176,7 +161,7 @@ INT32 CTrackResult::f_Poll(VOID)
 	return isNew;
 }
 
-// Core 에서 복사해 온 스캔 하나 (st_ViewTemp, st_PlotTemp) 를 그림 좌표로 바꿔 쌓음.
+// Core 에서 복사한 스캔 하나를 그림 좌표로 바꿔 쌓음
 VOID CTrackResult::f_AddScan(const ST_LnkScan *st_Scan)
 {
 	ST_TrackItem	st_Item;
@@ -218,7 +203,7 @@ VOID CTrackResult::f_AddScan(const ST_LnkScan *st_Scan)
 	}
 }
 
-// 수신 쪽 위치 (스캔 시각 레이다 기준 VC-NED) -> 그림 좌표 (플랫폼 초기 위치 기준 동-북-위).
+// VC-NED (그 스캔 레이다 기준) -> 그림 좌표 (플랫폼 시작 위치 기준)
 ST_PlotPoint CTrackResult::f_ToPoint(const FLOAT64 pt_Pos[3], UINT32 scanNum) const
 {
 	const ST_TargetState	*st_Radar = st_Source->f_GetState(static_cast<INT32>(scanNum), 0);
@@ -235,8 +220,7 @@ ST_PlotPoint CTrackResult::f_ToPoint(const FLOAT64 pt_Pos[3], UINT32 scanNum) co
 	return st_Point;
 }
 
-// 스캔 nScanNum 까지 받은 스캔에서 만든 트랙 수, 삭제 상태가 된 트랙 수, 만든 트랙의 참값별 수 ([0] 클러터, [k] 표적 k, 마지막 칸 섞임).
-// 받은 스캔은 스캔 번호 순서로 쌓임.
+// 스캔 nScanNum 까지 생성 · 삭제 트랙 수, 참값별 생성 수 ([0] 클러터, [k] 표적 k, 끝 칸 섞임)
 VOID CTrackResult::f_CountTo(INT32 nScanNum, INT32 *pt_CreatedNum, INT32 *pt_DeletedNum, INT32 pt_Source[TGT_MAX_TARGET_NUM + 2]) const
 {
 	const ST_LnkScan	*st_Scan;
@@ -337,8 +321,7 @@ VOID CTrackResult::f_CountPlot(INT32 nIndex, INT32 *pt_TargetNum, INT32 *pt_Clut
 	}
 }
 
-// 트랙 표 칸 하나의 글자. 화면 표, CSV 공용. CSV 는 상태, 참값을 숫자로 씀 (참값: k 표적 k, 0 클러터, -1 섞임).
-// 표준편차 열은 오차 공분산 (mat_EstP) 대각의 제곱근을 세 축 RSS 로 묶은 값.
+// 트랙 표 칸 글자 (화면 표, CSV 공용). σ 열은 P 대각 세 축의 RSS
 VOID CTrackResult::f_FormatCell(INT32 nIndex, INT32 nTrack, INT32 nColumn, INT32 isCsv, CHAR *pt_Buf, INT32 bufSize) const
 {
 	const ST_TrackItem	*st_Item = f_GetTrack(nIndex, nTrack);

@@ -1,13 +1,5 @@
-//
-// @file	PlotLink.c
-// @brief	플롯 메시지 (STRUCT_PlotMsg) UDP 송수신 쓰레드
-//			- 송신 쓰레드 (신호처리 역할): 스캔마다 표적 플롯 + 클러터를 안테나 구좌표 성분으로 담아 보냄. 플롯 ID 10000 ~ 1000000
-//			- 수신 쓰레드 (데이터 처리 역할): 받은 플롯을 VC-NED 로 바꾸고 R 을 구한 뒤 트랙 개시 · 관리 (TrackMgr.c) 를 돌림
-//			소켓 부분은 과제 1 IpcSocket (SocketUtility Winsock2 포팅) 의 UDP 부분을 가져옴
-// @author	hwan
-// @date	2026.10.21.
-//
-// winsock2.h 는 windows.h 보다, 둘 다 Define.h 보다 먼저 include 해야 함 (Define.h 의 INT32 같은 #define 이 Windows 형 정의를 깨뜨림)
+// 플롯 메시지 UDP 송수신 쓰레드. 송신 = 신호처리 (메시지 만들기), 수신 = 데이터 처리 (좌표 변환, R, 트랙 개시 · 관리)
+// 소켓은 과제 1 IpcSocket 의 UDP 부분. winsock2.h, windows.h 는 Define.h 보다 먼저 include (INT32 등 #define 충돌)
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
@@ -25,7 +17,7 @@
 #define SIO_UDP_CONNRESET		_WSAIOW(IOC_VENDOR, 12)
 #endif
 
-// 한 스캔의 플롯 (표적 최대 + 클러터 최대) 이 메시지 하나, 트랙 개시 입력 하나에 다 들어가야 함
+// 한 스캔의 플롯이 메시지 하나, 트랙 입력 하나에 다 들어가야 함
 _Static_assert((TGT_MAX_TARGET_NUM + PCS_MAX_CLUTTER) <= IDD_MAX_PLOT, "IDD_MAX_PLOT is too small");
 _Static_assert(IDD_MAX_PLOT <= TRK_MAX_PLOT, "TRK_MAX_PLOT is too small");
 
@@ -48,10 +40,7 @@ enum
 	enum_Socket_Type_UDP_IPv4Rx		= 2
 };
 
-//
-// @struct ST_Socket
-// @brief	소켓 정보 (과제 1 IpcSocket 의 ST_Socket)
-//
+// 소켓 정보 (과제 1 IpcSocket 의 ST_Socket)
 typedef struct
 {
 	SOCKET_HANDLE			hSockId;
@@ -62,10 +51,7 @@ typedef struct
 	struct timeval			stTimeOutVal;
 } ST_Socket;
 
-//
-// @struct ST_LnkScanRec
-// @brief	처리한 스캔 기록과 그 스캔의 트랙, 플롯이 결과 배열에서 시작하는 자리
-//
+// 처리한 스캔 기록 + 결과 배열에서 트랙, 플롯 시작 자리
 typedef struct
 {
 	ST_LnkScan				st_Scan;
@@ -73,10 +59,7 @@ typedef struct
 	INT32					nPlotStart;
 } ST_LnkScanRec;
 
-//
-// @struct ST_LnkContext
-// @brief	송수신 한 번 (f_Lnk_Start ~ f_Lnk_Stop) 의 상태. 상태 값과 결과는 st_Lock 으로 지킴
-//
+// 송수신 한 번 (f_Lnk_Start ~ f_Lnk_Stop) 의 상태. st_Lock 으로 보호
 typedef struct
 {
 	CRITICAL_SECTION		st_Lock;
@@ -94,7 +77,7 @@ typedef struct
 	ST_TargetState			*st_InRadar;					// 스캔마다 레이다 (플랫폼) 상태
 	STRUCT_PlotMsg			st_TxMsg;
 
-	// 송신 쪽 참값 기록. 보낸 플롯 순서 (= 플롯 ID - IDD_PLOT_ID_MIN) 마다 0 = 클러터, k = 표적 k
+	// 송신 쪽 참값 기록 (플롯 ID 순서마다 0 = 클러터, k = 표적 k)
 	INT32					*pt_PlotSource;
 	INT32					nPlotSourceNum;
 	INT32					nPlotSourceCap;
@@ -118,12 +101,7 @@ typedef struct
 
 static ST_LnkContext s_Link;
 
-//
-// @brief	첫 소켓 오류 번호를 남김 (이미 있으면 그대로)
-// @param errorCode	오류 번호
-// @return	없음
-// @author	hwan
-//
+// 첫 소켓 오류 번호를 남김 (이미 있으면 그대로)
 static VOID f_Lnk_SetError(INT32 errorCode)
 {
 	EnterCriticalSection(&s_Link.st_Lock);
@@ -138,12 +116,7 @@ static VOID f_Lnk_SetError(INT32 errorCode)
 
 // 소켓 (과제 1 IpcSocket.c 의 UDP 부분)
 
-//
-// @brief	열지 않은 (무효) 소켓 정보
-// @param iSockType	소켓 종류 (UDP 송신 / 수신)
-// @return	무효 소켓 정보
-// @author	hwan
-//
+// 열지 않은 (무효) 소켓 정보
 static ST_Socket f_MakeInvalidSocket(const INT32 iSockType)
 {
 	ST_Socket st_Socket;
@@ -157,14 +130,7 @@ static ST_Socket f_MakeInvalidSocket(const INT32 iSockType)
 	return st_Socket;
 }
 
-//
-// @brief	IPv4 주소 구조체 채우기. 주소가 비어 있으면 INADDR_ANY
-// @param stpAddr	출력 주소
-// @param cpIpAddr	IP 문자열
-// @param usPortNum	포트
-// @return	SOCKET_PASS 성공, SOCKET_FAIL 주소 변환 실패
-// @author	hwan
-//
+// IPv4 주소 구조체 채우기. 주소가 비어 있으면 INADDR_ANY
 static INT32 f_FillSockAddr(struct sockaddr_in *stpAddr, const CHAR *cpIpAddr, const UINT16 usPortNum)
 {
 	INT32 iResult = SOCKET_PASS;
@@ -189,12 +155,7 @@ static INT32 f_FillSockAddr(struct sockaddr_in *stpAddr, const CHAR *cpIpAddr, c
 	return iResult;
 }
 
-//
-// @brief	상대 포트가 아직 없을 때 ICMP 때문에 다음 recvfrom 이 10054 로 깨지는 Windows 동작을 끔
-// @param hSock	소켓
-// @return	없음
-// @author	hwan
-//
+// 상대 포트가 없을 때 recvfrom 이 10054 로 깨지는 Windows 동작 끔
 static VOID f_DisableUdpConnReset(const SOCKET hSock)
 {
 	BOOL	bNewBehavior = FALSE;
@@ -203,13 +164,7 @@ static VOID f_DisableUdpConnReset(const SOCKET hSock)
 	(VOID)WSAIoctl(hSock, SIO_UDP_CONNRESET, &bNewBehavior, sizeof(bNewBehavior), NULL, 0, &dwBytes, NULL, NULL);
 }
 
-//
-// @brief	UDP 송신 소켓 열기. 주소는 보낼 곳
-// @param cpIpAddr	보낼 IP
-// @param usPortNum	보낼 포트
-// @return	소켓 정보 (실패면 hSockId 무효)
-// @author	hwan
-//
+// UDP 송신 소켓 열기. 주소는 보낼 곳
 static ST_Socket f_SocketInitUDP_IPv4Tx(const CHAR *cpIpAddr, const UINT16 usPortNum)
 {
 	ST_Socket	st_Socket = f_MakeInvalidSocket(enum_Socket_Type_UDP_IPv4Tx);
@@ -234,15 +189,7 @@ static ST_Socket f_SocketInitUDP_IPv4Tx(const CHAR *cpIpAddr, const UINT16 usPor
 	return st_Socket;
 }
 
-//
-// @brief	UDP 수신 소켓 열기. 자기 주소에 bind 하고 수신 타임아웃을 검 (Windows 는 ms 단위 DWORD)
-// @param cpIpAddr	bind 할 IP
-// @param usPortNum	bind 할 포트 (0 이면 빈 포트)
-// @param lTimeOut_s	수신 타임아웃 [s]
-// @param lTimeOut_us	수신 타임아웃 [us]
-// @return	소켓 정보 (실패면 hSockId 무효)
-// @author	hwan
-//
+// UDP 수신 소켓 열기: bind, 수신 타임아웃 [ms]
 static ST_Socket f_SocketInitUDP_IPv4Rx(const CHAR *cpIpAddr, const UINT16 usPortNum, const INT64 lTimeOut_s, const INT64 lTimeOut_us)
 {
 	ST_Socket	st_Socket = f_MakeInvalidSocket(enum_Socket_Type_UDP_IPv4Rx);
@@ -282,14 +229,7 @@ static ST_Socket f_SocketInitUDP_IPv4Rx(const CHAR *cpIpAddr, const UINT16 usPor
 	return st_Socket;
 }
 
-//
-// @brief	UDP 송신 (sendto)
-// @param stpSocket	송신 소켓
-// @param vpDataAddr	보낼 데이터
-// @param lDataSize	보낼 바이트 수
-// @return	보낸 바이트 수, -1 오류
-// @author	hwan
-//
+// UDP 송신 (sendto)
 static INT64 f_SocketSendUDP_IPv4_Normal(const ST_Socket *stpSocket, const VOID *vpDataAddr, const INT64 lDataSize)
 {
 	INT64	lResult = -1;
@@ -313,14 +253,7 @@ static INT64 f_SocketSendUDP_IPv4_Normal(const ST_Socket *stpSocket, const VOID 
 	return lResult;
 }
 
-//
-// @brief	UDP 수신 (recvfrom). 타임아웃은 오류로 남기지 않음
-// @param stpSocket	수신 소켓
-// @param vpDataAddr	받을 버퍼
-// @param lMaxSize	버퍼 크기
-// @return	받은 바이트 수, -1 시간 초과 또는 오류
-// @author	hwan
-//
+// UDP 수신 (recvfrom). 타임아웃은 오류로 남기지 않음
 static INT64 f_SocketRecvUDP_IPv4_Normal(const ST_Socket *stpSocket, VOID *vpDataAddr, const INT64 lMaxSize)
 {
 	INT64	lResult = -1;
@@ -349,12 +282,7 @@ static INT64 f_SocketRecvUDP_IPv4_Normal(const ST_Socket *stpSocket, VOID *vpDat
 	return lResult;
 }
 
-//
-// @brief	소켓 닫기
-// @param st_Socket	닫을 소켓
-// @return	SOCKET_PASS 성공, SOCKET_FAIL 실패
-// @author	hwan
-//
+// 소켓 닫기
 static INT32 f_SocketClose(const ST_Socket st_Socket)
 {
 	INT32 iResult = SOCKET_FAIL;
@@ -369,16 +297,8 @@ static INT32 f_SocketClose(const ST_Socket st_Socket)
 
 // 송신 (신호처리 역할)
 
-//
-// @brief	스캔 하나의 플롯 메시지 만들기. 표적 플롯과 클러터를 섞어 방위각 순서 (빔이 지나가는 순서) 로 담고 플롯마다 ID 를 매김 (10000 ~ 1000000 순환).
-//			안테나 구좌표만 채우고 나머지 좌표 칸은 0. 측정잡음 표준편차 칸에는 트랙 초기화 R 용 과제 값 (10 m, 0.2 도, 0.2 도) 을 실음.
-//			어느 플롯이 표적인지는 메시지에 넣지 않고 송신 쪽 기록 (pt_PlotSource, 화면 확인용) 에만 남김
-// @param st_Msg	출력 메시지
-// @param nScan	스캔 번호
-// @param pt_PlotId	다음 플롯 ID (갱신)
-// @return	보낼 바이트 수
-// @author	hwan
-//
+// 스캔 하나의 플롯 메시지: 표적 + 클러터를 방위각 순서로 담고 플롯 ID 부여. 안테나 구좌표와 R 표준편차만 채움
+// 어느 플롯이 표적인지는 메시지에 넣지 않고 송신 쪽 기록 (화면 확인용) 에만 남김
 static UINT32 f_Lnk_BuildMsg(STRUCT_PlotMsg *st_Msg, INT32 nScan, UINT32 *pt_PlotId)
 {
 	const ST_PcsScan		*st_Scan = &s_Link.st_InScan[nScan];
@@ -434,7 +354,7 @@ static UINT32 f_Lnk_BuildMsg(STRUCT_PlotMsg *st_Msg, INT32 nScan, UINT32 *pt_Plo
 	st_Msg->TimeStamp_ns			= (UINT32)(timeNs % 1000000000LL);
 	st_Msg->PlotNum					= (UINT32)nPlotNum;
 
-	// 측정잡음 표준편차: 트랙 초기화 R 을 구성하는 과제 값 (σ range 10 m, σ azimuth 0.2 도, σ elevation 0.2 도)
+	// R 표준편차 (과제 값)
 	f_Trk_GetMeasSigma(&st_Sigma);
 	st_Msg->Sigma_Range				= (FLOAT32)st_Sigma.r;
 	st_Msg->Sigma_Azimuth			= (FLOAT32)st_Sigma.az;
@@ -481,12 +401,7 @@ static UINT32 f_Lnk_BuildMsg(STRUCT_PlotMsg *st_Msg, INT32 nScan, UINT32 *pt_Plo
 	return msgSize;
 }
 
-//
-// @brief	데이터 처리가 밀려 있으면 (처리를 마치지 않은 메시지가 LNK_MAX_AHEAD 개 이상) 기다림.
-//			UDP 는 받는 쪽 버퍼가 차면 소리 없이 버리므로 보내는 쪽이 속도를 맞춤. 손실로 수가 안 맞으면 LNK_AHEAD_WAIT_MS 뒤 그냥 보냄
-// @return	1 기다리는 중 멈춤 신호, 0 보내도 됨
-// @author	hwan
-//
+// 처리 안 된 메시지가 LNK_MAX_AHEAD 개 이상이면 기다림 (UDP 는 버퍼가 차면 소리 없이 버림)
 static INT32 f_Lnk_WaitReceiver(VOID)
 {
 	const ULONGLONG	endTick = GetTickCount64() + LNK_AHEAD_WAIT_MS;
@@ -508,12 +423,7 @@ static INT32 f_Lnk_WaitReceiver(VOID)
 	return isStop;
 }
 
-//
-// @brief	송신 쓰레드 (신호처리 역할). 수신 소켓이 준비되면 스캔마다 플롯 메시지 하나를 보내고, 끝나면 끝 메시지를 보냄
-// @param pt_Arg	쓰지 않음
-// @return	0
-// @author	hwan
-//
+// 송신 쓰레드: 수신이 준비되면 스캔마다 메시지 하나, 다 보내면 끝 메시지
 static UINT32 __stdcall f_Lnk_TxThread(VOID *pt_Arg)
 {
 	const HANDLE	hWait[2] = { s_Link.hStop, s_Link.hReady };
@@ -552,7 +462,7 @@ static UINT32 __stdcall f_Lnk_TxThread(VOID *pt_Arg)
 		{
 			msgSize	= f_Lnk_BuildMsg(st_Msg, nScan, &plotId);
 
-			// 루프백은 sendto 가 돌아오기 전에 수신 쪽이 받을 수 있어 보낸 수를 먼저 셈 (받음이 보냄보다 커 보이지 않게). 못 보내면 되돌림
+			// 루프백은 sendto 가 끝나기 전에 받을 수 있어 보낸 수를 먼저 셈 (실패하면 되돌림)
 			EnterCriticalSection(&s_Link.st_Lock);
 			s_Link.st_Status.nSentNum++;
 			LeaveCriticalSection(&s_Link.st_Lock);
@@ -572,7 +482,7 @@ static UINT32 __stdcall f_Lnk_TxThread(VOID *pt_Arg)
 
 			LeaveCriticalSection(&s_Link.st_Lock);
 
-			// 다음 송신 시각은 시작 시각 + (스캔 번호 + 1) x 간격. 대기 시간이 타이머 단위로 늘어나도 밀리지 않음
+			// 다음 송신 시각 = 시작 + (스캔 + 1) x 간격 (대기가 길어져도 밀리지 않게)
 			if (s_Link.st_Status.sendGapMs > 0)
 			{
 				dueTick		= startTick + ((ULONGLONG)(nScan + 1) * (ULONGLONG)s_Link.st_Status.sendGapMs);
@@ -603,13 +513,7 @@ static UINT32 __stdcall f_Lnk_TxThread(VOID *pt_Arg)
 
 // 수신 (데이터 처리 역할)
 
-//
-// @brief	받은 메시지의 머리 검사. 스캔 번호가 보낼 스캔 범위 밖이면 잘못된 메시지 (다른 프로그램이 같은 포트로 보낸 것 등)
-// @param st_Msg	받은 메시지
-// @param lRecv	받은 바이트 수
-// @return	1 플롯 메시지, 2 끝 메시지, 0 잘못된 메시지
-// @author	hwan
-//
+// 머리 검사. 스캔 번호가 범위 밖이면 잘못된 메시지
 static INT32 f_Lnk_CheckMsg(const STRUCT_PlotMsg *st_Msg, INT64 lRecv)
 {
 	const UINT32	scanTotal = (UINT32)s_Link.st_Status.nScanNum;
@@ -640,14 +544,7 @@ static INT32 f_Lnk_CheckMsg(const STRUCT_PlotMsg *st_Msg, INT64 lRecv)
 	return nKind;
 }
 
-//
-// @brief	플롯 하나의 좌표 칸 채우기: 안테나 구좌표 -> 안테나 직교 -> 동체 -> VC-NED (직교, 구좌표).
-//			VC-NED 방위각은 북에서 동쪽으로 +, 고각은 위쪽 +
-// @param st_Info	플롯 (좌표 칸 채움)
-// @param st_Platform	스캔 시각의 플랫폼 정보
-// @return	없음
-// @author	hwan
-//
+// 좌표 칸 채우기: 안테나 구좌표 -> 안테나 직교 -> 동체 -> VC-NED (방위각 북에서 동 +, 고각 위 +)
 static VOID f_Lnk_FillPlotCoord(STRUCT_PlotInfo *st_Info, const STRUCT_PlatformInfo *st_Platform)
 {
 	STRUCT_Coord_Rect	st_Ant;
@@ -675,12 +572,7 @@ static VOID f_Lnk_FillPlotCoord(STRUCT_PlotInfo *st_Info, const STRUCT_PlatformI
 	st_Info->Elevation_VcNed	= (FLOAT32)atan2(-st_Ned.z, horizontal);
 }
 
-//
-// @brief	결과 트랙 배열이 모자라면 두 배로 늘림. 잠금 안에서 부름
-// @param nAddNum	더 넣을 트랙 수
-// @return	1 성공, 0 메모리 부족
-// @author	hwan
-//
+// 결과 트랙 배열이 모자라면 두 배로 늘림. 잠금 안에서 부름
 static INT32 f_Lnk_ReserveTrack(INT32 nAddNum)
 {
 	ST_TrkView	*st_New;
@@ -710,13 +602,7 @@ static INT32 f_Lnk_ReserveTrack(INT32 nAddNum)
 	return isOk;
 }
 
-//
-// @brief	플롯 메시지 하나 처리 (데이터 처리). 좌표를 바꾸고 메시지의 측정잡음 표준편차로 R 을 구한 뒤 트랙 개시 · 관리를 돌리고 결과를 쌓음.
-//			트랙 연관은 아직 없어서 f_Trk_ProcessScan 이 모든 트랙의 Assigned_Flag 를 0 (실패) 으로 둠
-// @param st_Msg	받은 플롯 메시지 (좌표 칸 채움)
-// @return	없음
-// @author	hwan
-//
+// 플롯 메시지 하나 처리: 좌표 변환, R 계산, 트랙 개시 · 관리, 결과 쌓기
 static VOID f_Lnk_ProcessMsg(STRUCT_PlotMsg *st_Msg)
 {
 	const FLOAT64			time = (FLOAT64)st_Msg->TimeStamp_s + ((FLOAT64)st_Msg->TimeStamp_ns * 1.0e-9);
@@ -734,7 +620,7 @@ static VOID f_Lnk_ProcessMsg(STRUCT_PlotMsg *st_Msg)
 	INT32					nPlot;
 	INT32					nTrack;
 
-	// 트랙 초기화 R 을 구성할 측정잡음 표준편차 (메시지에 실려 온 과제 값)
+	// R 표준편차 (메시지에 실려 온 과제 값)
 	st_Sigma.r	= st_Msg->Sigma_Range;
 	st_Sigma.az	= st_Msg->Sigma_Azimuth;
 	st_Sigma.el	= st_Msg->Sigma_Elevation;
@@ -760,7 +646,7 @@ static VOID f_Lnk_ProcessMsg(STRUCT_PlotMsg *st_Msg)
 		f_Trk_MeasCov(st_Plot[nPlot].cov, &st_Meas, &st_Sigma, &st_Att);
 	}
 
-	// 앞 스캔 뒤로 플랫폼이 움직인 만큼 앞 스캔 값을 이번 스캔 VC-NED 로 옮김 (앞 스캔 플랫폼 위치를 이번 스캔 VC-NED 로)
+	// 플랫폼이 움직인 만큼 앞 스캔 값을 이번 VC-NED 로 옮김
 	if (s_Link.isPrevPlatform != 0)
 	{
 		st_Shift = f_Trans_Ecef_To_Ned(s_Link.st_PrevPlatform.Pf_EcefX, s_Link.st_PrevPlatform.Pf_EcefY, s_Link.st_PrevPlatform.Pf_EcefZ,
@@ -818,12 +704,7 @@ static VOID f_Lnk_ProcessMsg(STRUCT_PlotMsg *st_Msg)
 	LeaveCriticalSection(&s_Link.st_Lock);
 }
 
-//
-// @brief	받은 데이터그램 하나 처리. 스캔 번호가 건너뛰면 그만큼 손실로 셈
-// @param lRecv	받은 바이트 수
-// @return	1 끝 메시지, 0 계속
-// @author	hwan
-//
+// 받은 데이터그램 하나 처리. 스캔 번호가 건너뛰면 그만큼 손실로 셈
 static INT32 f_Lnk_OnRecv(INT64 lRecv)
 {
 	STRUCT_PlotMsg	*st_Msg = &s_Link.st_RxMsg;
@@ -880,13 +761,7 @@ static INT32 f_Lnk_OnRecv(INT64 lRecv)
 	return isEnd;
 }
 
-//
-// @brief	수신 쓰레드 (데이터 처리 역할). 소켓을 열어 준비를 알린 뒤, 끝 메시지가 오거나 멈출 때까지 받아서 처리.
-//			수신 대기에 시간 제한 (LNK_RECV_TIMEOUT_MS) 을 걸어 멈춤 신호를 놓치지 않음
-// @param pt_Arg	쓰지 않음
-// @return	0
-// @author	hwan
-//
+// 수신 쓰레드: 끝 메시지가 오거나 멈출 때까지 받아 처리 (대기 시간 제한으로 멈춤 신호 확인)
 static UINT32 __stdcall f_Lnk_RxThread(VOID *pt_Arg)
 {
 	const INT32				rcvBufSize = LNK_RECV_BUF_SIZE;
@@ -944,7 +819,7 @@ static UINT32 __stdcall f_Lnk_RxThread(VOID *pt_Arg)
 			}
 			else
 			{
-				// 시간 초과. 송신이 끝났는데 한동안 아무것도 안 오면 (끝 메시지를 잃음) 끝냄. 마지막으로 받은 스캔 뒤는 잃은 것으로 셈
+				// 시간 초과: 송신이 끝났는데 한동안 안 오면 끝 (남은 스캔은 손실로 셈)
 				EnterCriticalSection(&s_Link.st_Lock);
 				isTxDone	= s_Link.isTxDone;
 				idleMs		= idleMs + LNK_RECV_TIMEOUT_MS;
@@ -965,11 +840,7 @@ static UINT32 __stdcall f_Lnk_RxThread(VOID *pt_Arg)
 	return 0U;
 }
 
-//
-// @brief	지난 결과와 입력 복사본을 비움
-// @return	없음
-// @author	hwan
-//
+// 지난 결과와 입력 복사본을 비움
 static VOID f_Lnk_FreeBuffers(VOID)
 {
 	free(s_Link.st_InScan);
@@ -992,16 +863,7 @@ static VOID f_Lnk_FreeBuffers(VOID)
 	s_Link.nResPlotNum		= 0;
 }
 
-//
-// @brief	송수신 시작. 측정 모의 결과 nScanNum 스캔 (레이다 상태는 같은 번호의 표본) 을 복사해 두고 수신, 송신 쓰레드를 띄움.
-//			돌고 있던 송수신은 먼저 멈춤
-// @param st_Scan	측정 모의 결과 (스캔마다 표적 플롯, 클러터)
-// @param st_Sample	궤적 계산 표본 (스캔마다 플랫폼 상태)
-// @param nScanNum	보낼 스캔 수
-// @param sendGapMs	스캔 사이 송신 간격 [ms] (0 이면 바로바로)
-// @return	1 시작, 0 실패
-// @author	hwan
-//
+// 송수신 시작: 입력을 복사해 두고 수신, 송신 쓰레드를 띄움 (돌던 송수신은 먼저 멈춤)
 INT32 f_Lnk_Start(const ST_PcsScan *st_Scan, const ST_SimSample *st_Sample, INT32 nScanNum, INT32 sendGapMs)
 {
 	WSADATA	st_WsaData;
@@ -1085,11 +947,7 @@ INT32 f_Lnk_Start(const ST_PcsScan *st_Scan, const ST_SimSample *st_Sample, INT3
 	return isOk;
 }
 
-//
-// @brief	송수신 멈춤. 쓰레드가 끝날 때까지 기다린 뒤 핸들을 닫음. 결과는 다음 시작까지 남겨 둠
-// @return	없음
-// @author	hwan
-//
+// 송수신 멈춤 (결과는 다음 시작까지 남김)
 VOID f_Lnk_Stop(VOID)
 {
 	HANDLE	hThread[2];
@@ -1155,12 +1013,7 @@ VOID f_Lnk_Stop(VOID)
 	}
 }
 
-//
-// @brief	진행 상태 복사. 쓰레드가 둘 다 끝났으면 isRunning 을 0 으로 알려 줌 (멈춤을 부르지 않아도)
-// @param st_Status	출력 상태
-// @return	없음
-// @author	hwan
-//
+// 진행 상태 복사 (쓰레드가 둘 다 끝났으면 isRunning = 0)
 VOID f_Lnk_GetStatus(ST_LnkStatus *st_Status)
 {
 	INT32 isTxEnd;
@@ -1183,15 +1036,7 @@ VOID f_Lnk_GetStatus(ST_LnkStatus *st_Status)
 	}
 }
 
-//
-// @brief	처리한 스캔 하나의 결과 복사
-// @param nIndex	처리 순서
-// @param st_Scan	출력 스캔 기록
-// @param st_Track	출력 트랙 (TRK_MAX_TRACK 칸)
-// @param st_Plot	출력 플롯 (IDD_MAX_PLOT 칸)
-// @return	1 복사, 0 아직 없는 스캔
-// @author	hwan
-//
+// 처리한 스캔 하나의 결과 복사
 INT32 f_Lnk_CopyScan(INT32 nIndex, ST_LnkScan *st_Scan, ST_TrkView *st_Track, ST_LnkPlot *st_Plot)
 {
 	const ST_LnkScanRec	*st_Rec;
@@ -1216,12 +1061,7 @@ INT32 f_Lnk_CopyScan(INT32 nIndex, ST_LnkScan *st_Scan, ST_TrkView *st_Track, ST
 	return isOk;
 }
 
-//
-// @brief	플롯 ID 의 참값 (송신 쪽 기록, 화면 확인용)
-// @param plotId	플롯 ID
-// @return	0 클러터, k 표적 k, -1 모름
-// @author	hwan
-//
+// 플롯 ID 의 참값 (송신 쪽 기록, 화면 확인용)
 INT32 f_Lnk_GetPlotSource(UINT32 plotId)
 {
 	const INT64	nSeq = (INT64)plotId - (INT64)IDD_PLOT_ID_MIN;

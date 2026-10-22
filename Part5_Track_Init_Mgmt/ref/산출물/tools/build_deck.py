@@ -632,7 +632,7 @@ note(s, 's15')
 
 # 16 자료구조와 처리 순서
 s = content('03. 구현', '3.3 트랙 자료구조와 스캔 처리 순서', '수신 쓰레드가 메시지를 받을 때마다 f_Trk_ProcessScan 이 아래 네 단계를 차례로 수행합니다. 트랙 변수 이름은 과제 명세 그대로입니다.')
-code_panel(s, 0.7, 2.75, 6.3, 'TargetSimCore/include/TrackMgr.h', 'typedef struct', 13, title=('트랙 하나 ST_Track', 'TrackMgr.h'), start_after=find_line(src_lines('TargetSimCore/include/TrackMgr.h'), '트랙 하나. 변수 이름은'),
+code_panel(s, 0.7, 2.75, 6.3, 'TargetSimCore/include/TrackMgr.h', 'typedef struct', 13, title=('트랙 하나 ST_Track', 'TrackMgr.h'), start_after=find_line(src_lines('TargetSimCore/include/TrackMgr.h'), '트랙 하나 (변수 이름은'),
            size=8.6, lh=0.15)
 CONST = ('TRK_VMAX', 'TRK_SCORE_CONFIRM', 'TRK_SCORE_DELETE', 'TRK_MEMORY_DELETE', 'TRK_SCORE_INIT', 'TRK_R_SIGMA_RANGE', 'TRK_R_SIGMA_AZIMUTH', 'TRK_R_SIGMA_ELEVATION')
 code_panel(s, 0.7, 5.25, 6.3, 'TargetSimCore/include/TrackMgr.h', '#define TRK_VMAX', 40, title=('과제 조건 상수', 'TrackMgr.h'), keep=lambda t: t.startswith('#define') and t.split()[1] in CONST, size=8.6, lh=0.15)

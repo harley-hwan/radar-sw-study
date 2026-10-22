@@ -1,9 +1,4 @@
-//
-// @file	ScoreDlg.cpp
-// @brief	트랙 스코어 확인 창 구현. Core 의 f_Trk_UpdateState 를 그대로 부름
-// @author	hwan
-// @date	2026.10.21.
-//
+// 트랙 스코어 확인 창 구현. Core 의 f_Trk_UpdateState 를 그대로 부름
 #include "pch.h"
 #include "framework.h"
 
@@ -176,7 +171,7 @@ VOID CScoreDlg::f_OnFlagsChanged(VOID)
 	f_Run();
 }
 
-// 입력 칸의 0, 1 을 차례로 Assigned_Flag 로 넣으며 스캔마다 f_Trk_UpdateState. 다른 글자는 건너뜀. 삭제되면 그 뒤 입력은 쓰지 않음.
+// 입력한 0, 1 을 차례로 Assigned_Flag 로 넣어 f_Trk_UpdateState (삭제되면 멈춤)
 VOID CScoreDlg::f_Run(VOID)
 {
 	ST_Track	st_Track = {};
