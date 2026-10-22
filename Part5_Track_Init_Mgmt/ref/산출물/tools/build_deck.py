@@ -186,6 +186,16 @@ def callout(slide, x, y, w, n, head, body, hsize=11.5, bsize=10.5):
     return tb(slide, x + 0.42, y, w - 0.42, 0.3 + 0.22 * len(body), paras)
 
 
+# 결과 그림의 출처 표시: 파랑 = TargetSimUI 실행 화면 캡처, 초록 = 결과 CSV (data 폴더) 로 그린 그림
+SRC_KIND = {'ui': ('프로그램 화면', BLUE), 'data': ('결과 데이터', GREEN)}
+
+
+def src_tag(slide, x, y, kind, text, w, size=9.5):
+    name, col = SRC_KIND[kind]
+    label_box(slide, x, y, 0.92, 0.22, name, size=8.5, color=WHITE, fill=col, radius=0.5)
+    return tb(slide, x + 1.0, y - 0.01, w - 1.0, 0.24, text, size=size, color=SUB, anchor='m')
+
+
 def section_label(text):
     return text
 
@@ -679,32 +689,50 @@ for a, b in conds:
     tb(s, 0.7, yy, 1.0, hh - 0.06, a, size=10.5, bold=True, color=BLUE, align='c', anchor='m')
     tb(s, 1.82, yy, 3.3, hh - 0.06, b.split('\n'), size=10, color=NAVY, anchor='m')
     yy += hh
+# 결과 그림을 만든 두 방법. 4.2 ~ 4.5 의 그림 아래에 같은 표시를 붙임 (data/README.md)
+rect(s, 0.7, 5.98, 4.43, 0.86, F_GRAY, BORDER, radius=0.08)
+tb(s, 0.85, 6.04, 4.15, 0.24, '결과 그림을 만든 방법 (그림 아래에 표시)', size=10.5, bold=True)
+src_tag(s, 0.85, 6.31, 'ui', 'TargetSimUI 를 실행해 화면을 캡처', 4.15)
+src_tag(s, 0.85, 6.56, 'data', '같은 결과를 CSV 로 저장해 Python 으로 그림', 4.15)
 picture(s, 'ui_s701_both.png', 5.63, 2.5, w=7.0, border=True)
-tb(s, 5.35, 7.0 - 0.18, 7.28, 0.25, '', size=9)
 note(s, 's20')
 
 # 21 2D 3D (스캔 701)
-s = content('04. 결과', '4.2 True · Plot · Track 동시 표시 (스캔 701)', '스캔 701 (70.1 s) 화면. 참값 궤적, 지금까지의 플롯 · 클러터, 지금 스캔의 트랙 심볼을 한 그림에 겹쳐 그립니다.')
-picture(s, 'ui_crop_2d.png', 0.7, 2.5, w=5.85, border=True)
-picture(s, 'ui_crop_3d.png', 6.78, 2.5, w=5.85, border=True)
-tb(s, 0.7, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '2D: 위경도 격자 위 동-북 평면', size=10, color=SUB)
-tb(s, 6.78, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '3D: 동-북-고도 (고도 2 배), 끌어서 회전', size=10, color=SUB)
-leg = [('━ 참값 궤적 · ○ 시작점', NAVY), ('● 플롯 (큰 점 = 지금 스캔)', NAVY), ('· 클러터', '6B7280'), ('□ 임시', ORANGE), ('■ 확정', GREEN), ('⬚ 메모리', PURPLE), ('⊠ 삭제', '6B7280')]
-xx = 0.7
-for t, c in leg:
-    w = 0.13 * len(t) + 0.3
-    tb(s, xx, 6.56, w, 0.26, t, size=10.5, color=c, bold=True)
-    xx += w
+s = content('04. 결과', '4.2 True · Plot · Track 동시 표시 (스캔 701)', 'TargetSimUI 의 2D · 3D 보기가 스캔 701 (70.1 s) 에 그린 화면입니다. 그림 영역만 잘라 키웠고 다른 편집은 하지 않았습니다.')
+W = 5.5
+picture(s, 'ui_crop_2d.png', 0.7, 2.45, w=W, border=True)
+picture(s, 'ui_crop_3d.png', 12.63 - W, 2.45, w=W, border=True)
+yy = 2.45 + W * 765 / 1200 + 0.05
+src_tag(s, 0.7, yy, 'ui', '2D 보기: 위경도 격자 위 동-북 평면', W)
+src_tag(s, 12.63 - W, yy, 'ui', '3D 보기: 동-북-고도 (고도 2 배), 끌어서 회전', W)
+# 화면에 그리는 데이터: 그림 요소의 기호 (범례) 와 프로그램 안에서 그 값을 가진 곳. 그리는 코드는 TrajectoryPlot.cpp
+DRAW = (([('━ 참값 궤적   ○ 시작점', NAVY)], '궤적 계산 결과 (과제 3 표적 궤적 모의)'),
+        ([('● 플롯 (큰 점 = 이번 스캔)   · 클러터', NAVY)], '측정 모의 결과, 이번 스캔은 UDP 로 받은 플롯'),
+        ([('□ 임시  ', ORANGE), ('■ 확정  ', GREEN), ('⬚ 메모리  ', PURPLE), ('⊠ 삭제', '6B7280')], '트랙 표와 같은 값 (위치 · 속도 · 상태 · ID)'))
+yy += 0.31
+label_box(s, 0.7, yy, 1.3, 0.54, '그리는 데이터\nTrajectoryPlot.cpp', size=10, color=BLUE, fill=F_BLUE, radius=0.12)
+cw = (12.63 - 2.12 - 2 * 0.12) / 3
+for i, (runs, src) in enumerate(DRAW):
+    xx = 2.12 + i * (cw + 0.12)
+    rect(s, xx, yy, cw, 0.54, WHITE, BORDER, radius=0.12)
+    box = tb(s, xx + 0.12, yy + 0.04, cw - 0.2, 0.46, '', anchor='m')
+    p = box.text_frame.paragraphs[0]
+    p.space_after = Pt(1)
+    for t, c in runs:
+        add_runs(p, t, 10.5, c, bold=True)
+    add_runs(box.text_frame.add_paragraph(), src, 9.5, SUB)
 note(s, 's21')
 
 # 22 한 스캔 확대
 s = content('04. 결과', '4.3 한 스캔 확대: 트랙이 만들어지는 모습 (스캔 1154)', '표적 2 가 레이다 가까이 온 스캔 1154 를 확대했습니다. 두 스캔의 플롯이 게이트 안이면 트랙을 만들고, 연관이 없는 트랙은 두 스캔 뒤 삭제됩니다.')
-picture(s, 'fig_zoom.png', 0.62, 2.4, w=6.6)
+picture(s, 'fig_zoom.png', 0.62, 2.4, w=6.35)
+src_tag(s, 0.7, 2.4 + 6.35 * 1045 / 1606 + 0.05, 'data', 'truth · plots · tracks.csv 의 스캔 1152 ~ 1154 값으로 그림', 6.3)
 callout(s, 7.55, 2.5, 5.08, 1, '속도 게이트: 앞 스캔 플롯에서 반경 80 m', ['최대 속도 800 m/s × 스캔 간격 0.1 s'])
 callout(s, 7.55, 3.15, 5.08, 2, '이번 스캔 플롯까지 31 m → 게이트 안', ['이 두 플롯으로 트랙 451 개시 (임시, 점수 2)'])
 callout(s, 7.55, 3.8, 5.08, 3, '위치 = 이번 플롯,  속도 = 31 m ÷ 0.1 s ≈ 310 m/s', ['플롯의 측정 잡음 때문에 참값 200 m/s 와 차이가 남'])
 callout(s, 7.55, 4.45, 5.08, 4, '트랙 450: 두 스캔 전 (스캔 1152) 에 개시', ['연관이 없어 점수 2 → 1 → 0, 이번 스캔에 삭제'])
 tb(s, 7.55, 5.32, 5.08, 0.28, '스캔 1154 의 트랙 표', size=11, bold=True)
+tb(s, 9.6, 5.33, 3.03, 0.26, 'tracks.csv 두 줄 (UI 트랙 표와 같은 값)', size=9.5, color=SUB, align='r', anchor='m')
 TROWS = [('트랙 ID', 'TrackState', 'TrackScore', 'Assigned_Flag', '개시 스캔'), ('451', '1 임시', '2', '0', '1154'), ('450', '4 삭제', '0', '0', '1152')]
 cw = [0.8, 1.1, 1.0, 1.18, 1.0]
 tbl = s.shapes.add_table(len(TROWS), len(cw), Inches(7.55), Inches(5.62), Inches(sum(cw)), Inches(0.3 * len(TROWS))).table
@@ -729,6 +757,7 @@ s = content('04. 결과', '4.4 트랙 수명과 스코어 로직 확인', '트�
 # 트랙의 일생: 처음 10 초 동안 생긴 트랙 22 개 (make_figures.py fig_lifeline) 와 첫 줄 트랙 100 의 스캔별 변화
 picture(s, 'fig_lifeline.png', 0.66, 2.45, w=7.45)
 tb(s, 0.7, 5.34, 7.4, 0.26, '트랙 100 의 경우  (표적 2, 위 그림의 첫 줄)', size=11, bold=True)
+src_tag(s, 4.3, 5.36, 'data', '위 그림: tracks.csv 의 처음 10 초로 그림', 3.81)
 LIFE = (('스캔 10', 'TrackScore 2', ['두 플롯으로 개시', '(10067 + 10074)'], 1), ('스캔 11', 'TrackScore 1', 'Assigned_Flag 0 → −1', 1),
         ('스캔 12', 'TrackScore 0', '0 이하라 삭제 상태 (4)', 4), ('스캔 13', '표에 없음', '처리 시작 때 표에서 뺌', 0))
 cw = (7.45 - 3 * 0.22) / 4
@@ -747,16 +776,17 @@ for i, (scan_txt, score_txt, body, state) in enumerate(LIFE):
     if i < len(LIFE) - 1:
         line(s, xx + cw + 0.02, yy + 0.55, xx + cw + 0.2, yy + 0.55, color=LIGHT, width=1.2, arrow=True)
 picture(s, 'ui_score_p2.png', 8.3, 2.5, w=4.33, border=True)
-tb(s, 8.3, 2.5 + 4.33 * 602 / 751 + 0.06, 4.33, 0.7, ['스코어 확인 창: Flag 1 1 1 0 0 1 1', '임시 → 확정 (5) → 메모리 → 다시 확정 (MemoryScore 0)',
-                                                      '트랙 ID 100 ~ 454 · 플롯 ID 10000 ~ 18119 (과제 범위 안)'], size=10, color=SUB)
+yy = 2.5 + 4.33 * 595 / 737 + 0.06
+src_tag(s, 8.3, yy, 'ui', '스코어 확인 창: Flag 1 1 1 0 0 1 1', 4.33)
+tb(s, 8.3, yy + 0.29, 4.33, 0.48, ['임시 → 확정 (5) → 메모리 → 다시 확정 (MemoryScore 0)', '트랙 ID 100 ~ 454 · 플롯 ID 10000 ~ 18119 (과제 범위 안)'], size=10, color=SUB)
 note(s, 's23')
 
 # 24 전체 궤적
 s = content('04. 결과', '4.5 전체 궤적 (시뮬레이션 마지막 화면)', '스캔 1159 (115.9 s), 116 초를 끝까지 돌린 화면입니다. 두 표적의 참값 궤적 전체와 그동안 받은 플롯 · 클러터가 모두 그려져 있습니다.')
 picture(s, 'ui_crop_full_2d.png', 0.7, 2.5, w=5.85, border=True)
 picture(s, 'ui_crop_full_3d.png', 6.78, 2.5, w=5.85, border=True)
-tb(s, 0.7, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '2D: 위경도 격자 위 동-북 평면', size=10, color=SUB)
-tb(s, 6.78, 2.5 + 5.85 * 765 / 1200 + 0.05, 5.85, 0.25, '3D: 동-북-고도 (고도 2 배)', size=10, color=SUB)
+src_tag(s, 0.7, 2.5 + 5.85 * 765 / 1200 + 0.05, 'ui', '2D 보기: 위경도 격자 위 동-북 평면', 5.85)
+src_tag(s, 6.78, 2.5 + 5.85 * 765 / 1200 + 0.05, 'ui', '3D 보기: 동-북-고도 (고도 2 배)', 5.85)
 leg = [(FULL_T1, BLUE), (FULL_T2, RED), ('○ 시작점', NAVY), ('● 플롯', NAVY), ('· 클러터', '6B7280'), ('□ 임시 트랙', ORANGE)]
 xx = 0.7
 for t, c in leg:

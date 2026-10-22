@@ -4,7 +4,7 @@
 
 - `Chapter5_TrackInitMgmt.pptx` 발표자료 (틀은 과제 4 발표자료의 레이아웃, 슬라이드 노트에 대본)
 - `Chapter5_발표대본.md` 슬라이드 노트와 같은 대본
-- `data/` 시뮬레이션 결과 (truth, plots, tracks, scanlog CSV) 와 검증 로그 `verify_log.txt`
+- `data/` 시뮬레이션 결과 (truth, plots, tracks, scanlog CSV) 와 검증 로그 `verify_log.txt`. 만든 방법 · 열 설명 · 그림별 쓰는 데이터는 `data/README.md`
 - `figures/` 발표 그림 (`fig_*.png`), 프로그램 캡처 (`ui_*.png`)
 - `tools/` 아래 스크립트
 
@@ -41,3 +41,4 @@
 - 대본은 `notes.py` 에서 고칩니다. 슬라이드 노트와 대본 md 가 같이 바뀝니다.
 - 코드 발췌는 실제 소스에서 줄을 찾아 읽으므로 줄 번호가 늘 소스와 같습니다.
 - 4.2 · 4.5 슬라이드의 확대 캡처 (`ui_crop_*.png`) 는 `ui_big_s1159_*.png`, `ui_big_s701_*.png` 를 잘라 만든 것입니다.
+- 결과 그림 아래의 출처 표시 (`build_deck.py` src_tag): 파랑 '프로그램 화면' = TargetSimUI 캡처, 초록 '결과 데이터' = `data/` CSV 로 그린 그림.
