@@ -432,16 +432,19 @@ s = content('01. 트랙 개시', '1.4 측정잡음 공분산 R', 'P 를 만들�
 stats = [('σ range', '10', 'm'), ('σ azimuth', '0.2', '°'), ('σ elevation', '0.2', '°')]
 for i, (a, b, u) in enumerate(stats):
     xx = 0.7 + i * 2.57
-    rect(s, xx, 2.5, 2.42, 0.84, F_BLUE, None, radius=0.12)
-    tb(s, xx, 2.54, 2.42, 0.26, a, size=11, color=SUB, align='c', font=EN)
-    tb(s, xx, 2.76, 2.42, 0.52, [b + ' ' + u], size=24, bold=True, color=BLUE, align='c', font=EN)
-# R 의 표준편차는 과제가 정해 준 값. 과제 4 플롯 모의의 SNR 기반 표준편차 (PlotSim.c f_Pcs_CalcSigma, SNR 20) 와 따로 정해짐
-for i, (tag, col, txt) in enumerate((('과제 5 지정값', BLUE, '트랙 초기화 (초기 오차 공분산) 용 R 의 표준편차'),
-                                     ('과제 4 SNR', '6B7280', '플롯 모의 잡음은 SNR 20 으로 계산: 4.74 m · 0.48° · 0.49° (R 과 별개)'))):
-    yy = 3.41 + i * 0.235
-    label_box(s, 0.7, yy, 1.08, 0.21, tag, size=9, color=col, line=col)
-    tb(s, 1.88, yy, 4.7, 0.21, txt, size=10, color=NAVY if i == 0 else SUB, anchor='m')
-picture(s, 'fig_rcov.png', 0.7, 3.95, w=7.6)
+    rect(s, xx, 2.5, 2.42, 0.78, F_BLUE, None, radius=0.12)
+    tb(s, xx, 2.53, 2.42, 0.26, a, size=11, color=SUB, align='c', font=EN)
+    tb(s, xx, 2.72, 2.42, 0.52, [b + ' ' + u], size=24, bold=True, color=BLUE, align='c', font=EN)
+# R 의 표준편차는 과제가 정해 준 값. 과제 4 플롯 모의의 SNR 기반 표준편차 (PlotSim.c f_Pcs_CalcSigma, SNR 20) 와 따로 씀:
+# SNR 값은 보내는 쪽이 플롯에 넣은 실제 잡음이라 받는 쪽 (트랙 개시) 은 모름. 받는 쪽은 플롯 메시지에 실려 온 σ (PlotLink.c f_Lnk_BuildMsg) 로 R 을 만듦
+SIGMA_ROWS = (('과제 5 지정값', BLUE, WHITE, '트랙 초기화 R 에 사용. 플롯 메시지에 실어 받는 쪽에 알려 줌', NAVY),
+              ('과제 4 SNR', '6B7280', WHITE, '플롯을 만들 때 넣은 실제 잡음 4.74 m · 0.48° · 0.49° (보내는 쪽만 앎)', SUB),
+              ('왜 따로?', WHITE, NAVY, '받는 쪽은 실제 잡음을 모르므로, 메시지로 받은 레이다 정확도로 R 을 만듦', NAVY))
+for i, (tag, col, fill, txt, tcol) in enumerate(SIGMA_ROWS):
+    yy = 3.34 + i * 0.225
+    label_box(s, 0.7, yy, 1.08, 0.21, tag, size=9, color=col, fill=fill, line=col if fill == WHITE else None)
+    tb(s, 1.88, yy, 6.37, 0.21, txt, size=10, color=tcol, anchor='m', bold=(i == 2))
+picture(s, 'fig_rcov.png', 0.7, 4.04, w=7.6)
 # R 계산 행렬식 (오른쪽 열): 식 한 줄 + 안쪽부터 ① 재는 값의 오차 → ② G 각도 → 미터 → ③ M 축 돌리기 + G 행렬. TrackMgr.c f_Trk_MeasCov 와 같은 순서
 p = tb(s, 8.5, 2.5, 4.13, 0.28, '', size=12, anchor='m').text_frame.paragraphs[0]
 add_runs(p, 'R 계산 행렬식   ', 12, NAVY, True)
