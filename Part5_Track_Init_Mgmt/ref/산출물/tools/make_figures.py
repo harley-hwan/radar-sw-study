@@ -337,46 +337,70 @@ def fig_score():
     save(fig, 'fig_score.png')
 
 
-# ---------------------------------------------------------------- 4.2 zoom near targets at scan 701
-def fig_zoom(scan=701):
-    fig, axs = plt.subplots(1, 2, figsize=(8.2, 3.55))
-    T = tk[tk.scan == scan]
-    for ax, k in zip(axs, (1, 2)):
-        t = tr[(tr.obj == k) & (tr.step <= scan)]
-        cur = tr[(tr.obj == k) & (tr.step == scan)].iloc[0]
-        ce, cn = cur.east, cur.north
-        ax.plot(t.east - ce, t.north - cn, color=TGT[k], lw=1.6, zorder=2)
-        hist = pl[(pl.source == k) & (pl.scan <= scan) & (pl.scan > scan - 40)]
-        ax.scatter(hist.east - ce, hist.north - cn, s=8, color=NAVY, alpha=0.25, lw=0, zorder=3)
-        now = pl[(pl.source == k) & (pl.scan == scan)]
-        prev = pl[(pl.source == k) & (pl.scan == scan - 1)]
-        ax.scatter(prev.east - ce, prev.north - cn, s=46, facecolors='white', edgecolors=NAVY, lw=1.4, zorder=5)
-        ax.scatter(now.east - ce, now.north - cn, s=46, color=NAVY, zorder=5)
-        ax.plot([0], [0], marker='o', ms=8, mfc='white', mec=TGT[k], mew=2, zorder=6)
-        for _, r in T[T.src_cur == k].iterrows():
-            x, y = r.east - ce, r.north - cn
-            track_square(ax, x, y, int(r.state), size=12, z=7)
-            if r.state == 1:
-                ax.annotate('', xy=(x + r.ve * 0.25, y + r.vn * 0.25), xytext=(x, y), arrowprops=dict(arrowstyle='->', color=ORANGE, lw=1.6), zorder=7)
-                ax.add_patch(Ellipse((x, y), 2 * r.pse, 2 * r.psn, fc='none', ec=ORANGE, lw=0.9, ls=':', zorder=6))
-            ax.text(x + 8, y + (12 if r.state == 1 else -26), str(int(r.track_id)) + (' 임시' if r.state == 1 else ' 삭제'), fontsize=9.5, color=ORANGE if r.state == 1 else GRAY, fontweight='bold')
-        ax.set_aspect('equal')
-        lim = 170
-        ax.set_xlim(-lim, lim); ax.set_ylim(-lim * 0.62, lim * 0.62)
-        ax.grid(color=GRID, lw=0.8); clean(ax)
-        ax.set_xlabel('동 [m] (지금 참값 기준)', fontsize=9.5, color=SUB); ax.set_ylabel('북 [m]', fontsize=9.5, color=SUB)
-        ax.set_title(f'표적 {k}  ({"대함 30 m/s" if k == 1 else "대공 200 m/s"})', fontsize=12, color=TGT[k], loc='left', fontweight='bold')
-    from matplotlib.lines import Line2D
-    hs = [Line2D([], [], color=NAVY, lw=1.6, label='참값 궤적'), Line2D([], [], marker='o', ls='none', mfc='white', mec=NAVY, label='지금 참값 위치'),
-          Line2D([], [], marker='o', ls='none', mfc='white', mec=NAVY, mew=1.4, ms=7, label='앞 스캔 플롯'), Line2D([], [], marker='o', ls='none', color=NAVY, ms=7, label='이번 스캔 플롯'),
-          Line2D([], [], marker='s', ls='none', mfc='none', mec=ORANGE, mew=1.6, ms=9, label='임시 트랙 (화살표: 속도 0.25 s)'), Line2D([], [], marker='s', ls='none', mfc='none', mec=GRAY, mew=1.6, ms=9, label='삭제 트랙'),
-          Line2D([], [], color=ORANGE, ls=':', label='위치 1σ (mat_EstP)')]
-    fig.legend(handles=hs, loc='lower center', ncol=4, fontsize=9, frameon=False, bbox_to_anchor=(0.5, -0.01))
-    fig.tight_layout(w_pad=2, rect=(0, 0.1, 1, 1))
-    save(fig, 'fig_zoom.png')
+# ---------------------------------------------------------------- 4.3 one scan zoom (target 2, scan 1154)
+def fig_zoom(scan=1154, k=2):
+    # 한 스캔 확대 (표적 2, 스캔 1154): 앞 · 이번 스캔 플롯, 속도 게이트, 새 임시 트랙, 두 스캔 전 트랙의 삭제
+    P = pl[pl.source == k].set_index('scan')
+    t = tr[tr.obj == k].set_index('step')
+    T = tk[(tk.scan == scan) & (tk.src_cur == k)]
+    new = T[T.init_scan == scan].iloc[0]
+    old = T[T.state == 4].iloc[0]
+    o = np.array([t.loc[scan, 'east'], t.loc[scan, 'north']])          # 지금 참값을 원점으로
+    xy = lambda e, n: (float(e - o[0]), float(n - o[1]))
+    px, py = xy(P.loc[scan - 1, 'east'], P.loc[scan - 1, 'north'])
+    cx, cy = xy(P.loc[scan, 'east'], P.loc[scan, 'north'])
+    nx, ny = xy(new.east, new.north)
+    ox, oy = xy(old.east, old.north)
+    ax_, ay_ = nx + new.ve * 0.1, ny + new.vn * 0.1                    # 속도 × 0.1 s
+    d3 = float(np.linalg.norm(P.loc[scan, ['north', 'east', 'down']].values.astype(float) - P.loc[scan - 1, ['north', 'east', 'down']].values.astype(float)))
+    fig, ax = plt.subplots(figsize=(7.3, 4.75))
+    fig.subplots_adjust(0.085, 0.11, 0.995, 0.995)
+
+    def num(x, y, n, c):
+        ax.add_patch(Circle((x, y), 4.2, fc=c, ec='none', zorder=11))
+        ax.text(x, y - 0.3, str(n), fontsize=9.5, color='white', fontweight='bold', ha='center', va='center', zorder=12)
+
+    # 참값 궤적 (지나온 길 진하게, 갈 길 옅게)
+    ax.plot(t.loc[scan:scan + 15, 'east'] - o[0], t.loc[scan:scan + 15, 'north'] - o[1], color=RED, lw=1.8, alpha=0.3, zorder=1)
+    ax.plot(t.loc[scan - 15:scan, 'east'] - o[0], t.loc[scan - 15:scan, 'north'] - o[1], color=RED, lw=2.0, zorder=2)
+    ax.plot([0], [0], marker='D', ms=6.5, color=RED, zorder=6)
+    ax.text(5, -20, '지금 참값 위치', fontsize=10, color=RED, ha='left', va='center')
+    ax.plot([2, 4.5], [-3, -17], color=RED, lw=0.7, zorder=5)
+    ax.text(88, 64, '참값 궤적', fontsize=10, color=RED, ha='left', va='center')
+    # 1 속도 게이트: 앞 스캔 플롯 중심, 반경 800 m/s × 0.1 s = 80 m
+    ax.add_patch(Circle((px, py), 80.0, fc=F_GREEN, ec=GREEN, lw=1.4, ls='--', zorder=0))
+    ax.plot([px, px + 80], [py, py], color=GREEN, lw=1.0, ls=':', zorder=1)
+    ax.text(px + 40, py + 2.5, '80 m', fontsize=10.5, color=GREEN, ha='center', va='bottom')
+    num(-6, 63, 1, RED)
+    ax.text(0, 63, '속도 게이트  (800 m/s × 0.1 s)', fontsize=11, color=GREEN, fontweight='bold', ha='left', va='center')
+    # 2 두 플롯 거리
+    ax.plot([px, cx], [py, cy], color=GREEN, lw=2.6, zorder=3)
+    ax.scatter(px, py, s=80, facecolors='white', edgecolors=NAVY, lw=1.7, zorder=5)
+    ax.scatter(cx, cy, s=80, color=NAVY, zorder=5)
+    ax.text(px + 3, py - 8, f'앞 스캔 ({scan - 1}) 플롯', fontsize=10.5, color=NAVY, ha='left', va='center')
+    num(10, -8, 2, ORANGE)
+    ax.text(15, -8, f'{d3:.0f} m', fontsize=12, color=GREEN, fontweight='bold', ha='left', va='center')
+    # 3 새 트랙: 위치 = 이번 플롯, 속도 화살표 = 두 플롯 사이 변화량
+    track_square(ax, nx, ny, 1, size=15, lw=2.0, z=7)
+    ax.annotate('', xy=(ax_, ay_), xytext=(nx, ny), arrowprops=dict(arrowstyle='-|>', color=ORANGE, lw=2.0, mutation_scale=14), zorder=8)
+    num(ax_ - 7, ay_, 3, GREEN)
+    ax.text(ax_ - 13, ay_, '속도', fontsize=10.5, color=ORANGE, fontweight='bold', ha='right', va='center')
+    ax.text(nx - 18, ny + 18, f'{int(new.track_id)}  임시 · 점수 2', fontsize=11.5, color=ORANGE, fontweight='bold', ha='center', va='center')
+    ax.text(nx - 18, ny + 10, f'위치 = 이번 스캔 ({scan}) 플롯', fontsize=10, color=NAVY, ha='center', va='center')
+    # 4 두 스캔 전에 만든 트랙
+    track_square(ax, ox, oy, 4, size=15, lw=2.0, z=7)
+    num(ox + 9, oy + 3, 4, BLUE)
+    ax.text(ox + 15, oy + 3, f'{int(old.track_id)}  삭제 · 점수 0', fontsize=11.5, color=GRAY, fontweight='bold', ha='left', va='center')
+    ax.text(ox + 15, oy - 6, f'스캔 {int(old.init_scan)} 에 개시', fontsize=10, color=GRAY, ha='left', va='center')
+    ax.set_aspect('equal')
+    ax.set_xlim(-72, 125); ax.set_ylim(-50, 76)
+    ax.set_xticks([-50, -25, 0, 25, 50, 75, 100])
+    ax.grid(color=GRID, lw=0.8); clean(ax)
+    ax.set_xlabel('동 [m]  (지금 참값 기준)', fontsize=10.5, color=SUB); ax.set_ylabel('북 [m]', fontsize=10.5, color=SUB)
+    save(fig, 'fig_zoom.png', dpi=220)
 
 
-# ---------------------------------------------------------------- 4.3 track lifetime
+# ---------------------------------------------------------------- 4.4 track lifetime
 def fig_life():
     fig, axs = plt.subplots(2, 1, figsize=(7.4, 2.85), sharex=True, gridspec_kw=dict(height_ratios=[1.2, 1]))
     made = tk[tk.scan == tk.init_scan].copy()
@@ -400,7 +424,7 @@ def fig_life():
 
 
 def crop_ui():
-    # 4.2 · 4.3 · 4.5 슬라이드용 확대 캡처 (capture_agent 로 찍은 큰 창 캡처를 자름)
+    # 4.2 · 4.5 슬라이드용 확대 캡처 (capture_agent 로 찍은 큰 창 캡처를 자름)
     from PIL import Image
     a = os.path.join(OUT, 'ui_big_s701_2d.png'); b = os.path.join(OUT, 'ui_big_s701_3d.png')
     if os.path.exists(a) and os.path.exists(b):

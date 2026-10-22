@@ -685,14 +685,31 @@ for t, c in leg:
     xx += w
 note(s, 's21')
 
-# 22 확대
-s = content('04. 결과', '4.3 한 스캔 확대: 트랙이 만들어지는 모습', '스캔 701 에서 두 표적 모두 앞 스캔 · 이번 스캔 플롯 쌍이 게이트를 통과해 임시 트랙 284, 285 가 생겼고, 스캔 699 에 만든 282, 283 은 삭제됐습니다.')
-picture(s, 'fig_zoom.png', 0.7, 2.42, w=7.9)
-tb(s, 9.15, 2.5, 3.5, 0.3, '같은 스캔의 트랙 표 (UI)', size=12, bold=True)
-tb(s, 9.15, 2.82, 3.5, 1.9, [('284 · 285: 임시 (1), TrackScore 2', dict(after=3)), ('282 · 283: 삭제 (4), TrackScore 0', dict(after=3)),
-                              ('Assigned_Flag 는 모두 0', dict(after=3)),
-                              ('트랙 위치 = 이번 플롯, 속도 = 두 플롯 차 ÷ 0.1 s', dict(color=SUB))], size=10.5)
-picture(s, 'ui_crop_table.png', 0.7, 5.93, w=7.9, border=True)
+# 22 한 스캔 확대
+s = content('04. 결과', '4.3 한 스캔 확대: 트랙이 만들어지는 모습 (스캔 1154)', '표적 2 가 레이다 가까이 온 스캔 1154 를 확대했습니다. 두 스캔의 플롯이 게이트 안이면 트랙을 만들고, 연관이 없는 트랙은 두 스캔 뒤 삭제됩니다.')
+picture(s, 'fig_zoom.png', 0.62, 2.4, w=6.6)
+callout(s, 7.55, 2.5, 5.08, 1, '속도 게이트: 앞 스캔 플롯에서 반경 80 m', ['최대 속도 800 m/s × 스캔 간격 0.1 s'])
+callout(s, 7.55, 3.15, 5.08, 2, '이번 스캔 플롯까지 31 m → 게이트 안', ['이 두 플롯으로 트랙 451 개시 (임시, 점수 2)'])
+callout(s, 7.55, 3.8, 5.08, 3, '위치 = 이번 플롯,  속도 = 31 m ÷ 0.1 s ≈ 310 m/s', ['플롯의 측정 잡음 때문에 참값 200 m/s 와 차이가 남'])
+callout(s, 7.55, 4.45, 5.08, 4, '트랙 450: 두 스캔 전 (스캔 1152) 에 개시', ['연관이 없어 점수 2 → 1 → 0, 이번 스캔에 삭제'])
+tb(s, 7.55, 5.32, 5.08, 0.28, '스캔 1154 의 트랙 표', size=11, bold=True)
+TROWS = [('트랙 ID', 'TrackState', 'TrackScore', 'Assigned_Flag', '개시 스캔'), ('451', '1 임시', '2', '0', '1154'), ('450', '4 삭제', '0', '0', '1152')]
+cw = [0.8, 1.1, 1.0, 1.18, 1.0]
+tbl = s.shapes.add_table(len(TROWS), len(cw), Inches(7.55), Inches(5.62), Inches(sum(cw)), Inches(0.3 * len(TROWS))).table
+for j, w in enumerate(cw):
+    tbl.columns[j].width = Inches(w)
+for i, row in enumerate(TROWS):
+    tbl.rows[i].height = Inches(0.3)
+    for j, t in enumerate(row):
+        cell = tbl.cell(i, j)
+        cell.margin_left = cell.margin_right = Inches(0.06); cell.margin_top = cell.margin_bottom = Inches(0.01)
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        cell.fill.solid(); cell.fill.fore_color.rgb = rgb(NAVY if i == 0 else (F_ORANGE if i == 1 else F_GRAY))
+        tf = cell.text_frame; tf.text = ''
+        p = tf.paragraphs[0]; p.alignment = PP_ALIGN.CENTER
+        add_runs(p, t, 10, WHITE if i == 0 else (ORANGE if i == 1 else '6B7280'), bold=(i == 0 or j <= 1))
+tblpr = s.shapes[-1]._element.graphic.graphicData.tbl.tblPr
+tblpr.set('firstRow', '0'); tblpr.set('bandRow', '0')
 note(s, 's22')
 
 # 23 수명과 스코어
