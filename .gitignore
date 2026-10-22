@@ -21,3 +21,6 @@ ipch/
 # Python
 __pycache__/
 *.pyc
+
+# Office 가 파일을 열 때 만드는 잠금 파일
+~$*
