@@ -417,14 +417,19 @@ tb(s, 7.95, 6.5, 4.4, 0.3, 'mat_EstP 9 × 9 구조 (같은 색 = 같은 식, 회
 note(s, 's6')
 
 # 7 측정잡음 공분산 R
-s = content('01. 트랙 개시', '1.4 측정잡음 공분산 R', 'P 를 만들려면 플롯 하나의 위치 오차 R 이 필요합니다. 과제가 준 구좌표 표준편차를 VC-NED 직교 좌표 공분산으로 바꿔 씁니다.')
+s = content('01. 트랙 개시', '1.4 측정잡음 공분산 R', 'P 를 만들려면 플롯 하나의 위치 오차 R 이 필요합니다. 과제가 정해 준 표준편차로 R 을 만들어 VC-NED 좌표로 바꿉니다.')
 stats = [('σ range', '10', 'm'), ('σ azimuth', '0.2', '°'), ('σ elevation', '0.2', '°')]
 for i, (a, b, u) in enumerate(stats):
     xx = 0.7 + i * 2.0
-    rect(s, xx, 2.5, 1.85, 1.0, F_BLUE, None, radius=0.12)
-    tb(s, xx, 2.56, 1.85, 0.28, a, size=11, color=SUB, align='c', font=EN)
-    tb(s, xx, 2.82, 1.85, 0.6, [b + ' ' + u], size=26, bold=True, color=BLUE, align='c', font=EN)
-tb(s, 0.7, 3.55, 5.9, 0.3, '과제 조건: 트랙 초기화 (초기 오차 공분산) 에 쓰는 R 의 표준편차', size=10.5, color=SUB)
+    rect(s, xx, 2.5, 1.85, 0.84, F_BLUE, None, radius=0.12)
+    tb(s, xx, 2.54, 1.85, 0.26, a, size=11, color=SUB, align='c', font=EN)
+    tb(s, xx, 2.76, 1.85, 0.52, [b + ' ' + u], size=24, bold=True, color=BLUE, align='c', font=EN)
+# R 의 표준편차는 과제가 정해 준 값. 과제 4 플롯 모의의 SNR 기반 표준편차 (PlotSim.c f_Pcs_CalcSigma, SNR 20) 와 따로 정해짐
+for i, (tag, col, txt) in enumerate((('과제 5 지정값', BLUE, '트랙 초기화 (초기 오차 공분산) 용 R 의 표준편차'),
+                                     ('과제 4 SNR', '6B7280', '플롯 모의 잡음은 SNR 20 으로 계산: 4.74 m · 0.48° · 0.49° (R 과 별개)'))):
+    yy = 3.41 + i * 0.235
+    label_box(s, 0.7, yy, 1.08, 0.21, tag, size=9, color=col, line=col)
+    tb(s, 1.88, yy, 4.7, 0.21, txt, size=10, color=NAVY if i == 0 else SUB, anchor='m')
 rect(s, 6.85, 2.5, 5.78, 1.32, WHITE, BORDER, radius=0.06)
 # R = C · (시선 기준 오차 크기) · C^T. 코드의 J · diag(σ²) · J^T 와 M · R_ant · M^T 를 합친 것과 같은 식
 # (J 의 열을 길이 1 로 나누면 시선 · 옆 · 위아래 단위 벡터와 배율 1, r cos el, r 로 갈림. C = M · 단위 벡터 = 회전 행렬)
