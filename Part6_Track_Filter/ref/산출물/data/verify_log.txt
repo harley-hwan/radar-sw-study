@@ -1,0 +1,124 @@
+[icd] sizeof(STRUCT_PlotInfo) 121, head 72, msg with 1 plot 193 B
+[unit] Singer F = blockdiag(f, f, f) vs e^(A T), A = [0 1 0; 0 0 1; 0 0 -1/tau]
+  PASS: f matches matrix exponential for 5 (T, tau) cases (max |diff| 3.4e-15), off-diagonal blocks 0
+    T 0.1, tau 10: f = [1 0.1000 0.0049833749; 0 1 0.0995016625; 0 0 0.9900498337]
+[unit] Singer Q vs 60-digit reference (closed form for T/tau >= 0.05, series below)
+  PASS: T 0.1 tau 10 q 0.5 (T/tau 1e-02, series): max rel err 4.5e-12 (q33)
+  PASS: T 0.1 tau 10 q 20 (T/tau 1e-02, series): max rel err 4.5e-12 (q33)
+  PASS: T 0.2 tau 10 q 0.5 (T/tau 2e-02, series): max rel err 1.4e-10 (q33)
+  PASS: T 0.1 tau 2 q 1 (T/tau 5e-02, closed): max rel err 7.9e-10 (q11)
+  PASS: T 0.1 tau 1000 q 1 (T/tau 1e-04, series): max rel err 2.1e-16 (q11)
+  PASS: T 1.0 tau 5 q 3 (T/tau 2e-01, closed): max rel err 5.8e-12 (q11)
+  PASS: T 0.5 tau 1 q 2 (T/tau 5e-01, closed): max rel err 3.7e-14 (q11)
+  PASS: T 0.1 tau 1e+06 q 1 (T/tau 1e-07, series): max rel err 1.6e-16 (q13)
+[unit] Singer Q vs Simpson integral of e^(A u) G G^T e^(A u)^T (independent of the formula)
+  PASS: T 0.1 tau 10 q 0.5: max rel err 4.5e-12
+  PASS: T 0.1 tau 10 q 20: max rel err 4.5e-12
+  PASS: T 0.3 tau 2 q 5: max rel err 2.4e-11
+  PASS: T 2.0 tau 1 q 1: max rel err 3.4e-15
+[unit] Q structure, positive definiteness over T/tau = 1e-6 .. 10, branch switch
+  PASS: every 3x3 block of Q is positive definite (29 values of T/tau)
+  PASS: Q symmetric, off-diagonal blocks 0
+  PASS: series and closed form agree at the switch T/tau = 0.05 (max rel diff 1.4e-08)
+  PASS: q = 0 -> Q = 0
+[unit] handout q12 with the extra T (2(T/tau)T e^(-T/tau)) is not a covariance
+    T 0.1, tau 10: q11 4.9723e-07, q22 3.3084e-04, q12 standard 1.2417e-05, q12 with extra T -89.1045
+  PASS: extra T breaks q12^2 <= q11 q22 (det of [q11 q12; q12 q22] = -7.940e+03 < 0), standard q12 keeps it
+[unit] CMKF update vs independent implementation (P - K P[pos,:], K = P[:,pos] S^-1)
+  PASS: 50 random cases: X max rel diff 8.6e-15, P max rel diff 3.8e-14
+  PASS: updated P exactly symmetric and positive definite
+  PASS: every diagonal of P does not grow, NIS = v^T S^-1 v
+[unit] predict X = F X, P = F P F^T + Q
+  PASS: dt = 0: X, P unchanged
+  PASS: dt = 0.1: X = F X, P = F P F^T + Q, stateTime 5.1
+  PASS: x = x + T x' + tau^2(-1 + T/tau + e^(-T/tau)) x''  (1001.009967)
+[unit] gate-out counter and divergence judgement
+  PASS: run 1..6, reset by NIS 0.5, again 1..5; divergence counted when run reaches 5 (twice)
+[unit] association assumption (closest track-plot pair first, no gate)
+  PASS: tracks at 0 / 10 m, plots at 9 / 40 m: track 101 takes 9 m (closest pair), track 100 takes 40 m anyway (no gate), no new track
+  PASS: 40 m plot updates track 100 although NIS 15.8 > gate (counted as gate-out)
+  PASS: one plot at 12 m, tracks now at 39.6 / 11.0 m: the closer takes it (score +1), the other gets Assigned_Flag 0 (score -1)
+[unit] parameters
+  PASS: out of range (sigma <= 0, NaN, q < 0, tau <= 0) -> default
+  PASS: q = 0 allowed, valid values kept
+  PASS: default = 과제 값: R sigma 10 m, 0.3 deg, 0.3 deg, q 0.5, tau 10
+[unit] Part 5 logic kept: score
+  PASS: tentative->confirmed(score>=5)->memory(mem+1)->confirmed(mem=0)->...->deleted(mem>=5)
+[unit] Part 5 logic kept: 2-point init (+ filter start time)
+  PASS: X: pos z_k, vel (z_k - z_k-1)/T, acc 0 (P acc rows 0)
+  PASS: P: Ppp = R_k, Ppv = R_k/T, Pvv = (R_k + R_k-1)/T^2
+  PASS: filter state time = current plot time 1.1 s, last plot = current plot
+[unit] Part 5 logic kept: velocity gate, track ID wrap
+  PASS: |dz|/T = 799 m/s < 800 -> track created, first ID 100
+  PASS: |dz|/T = 801 m/s >= 800 -> rejected
+  PASS: 3 targets: IDs 9999 -> 10000 -> 100 (wrap)
+  PASS: next scan: each track takes its own plot, no plot left for 2-point init
+[runs] 1 target, no clutter, SNR 20, over loopback UDP (PlotLink.c)
+  ship: 1160 scans, plot noise std r 4.73 m, az 0.472 deg, el 0.487 deg (model 4.74 m, 0.478, 0.494)
+  PASS: ship_given: all 1160 messages sent / received / processed
+  ship_given   ids 1 (created 1, deleted 0), init 0.2 s, confirm 0.5 s | RMS 30.5 m (turn 25.6, straight 30.9), max 96.9 m (turn 46.0) | NIS 5.68, gate-out 12.4 %, max run 3, divergence 0 | NEES 9.57
+  PASS: ship_tuned: all 1160 messages sent / received / processed
+  ship_tuned   ids 1 (created 1, deleted 0), init 0.2 s, confirm 0.5 s | RMS 29.4 m (turn 23.2, straight 29.9), max 99.0 m (turn 43.9) | NIS 2.44, gate-out 0.4 %, max run 1, divergence 0 | NEES 6.80
+  PASS: ship_tuned: one track kept to the end, no divergence judgement
+  air: 1160 scans, plot noise std r 4.73 m, az 0.472 deg, el 0.487 deg (model 4.74 m, 0.478, 0.494)
+  PASS: air_given: all 1160 messages sent / received / processed
+  air_given    ids 1 (created 1, deleted 0), init 0.2 s, confirm 0.5 s | RMS 137.3 m (turn 163.9, straight 108.4), max 313.6 m (turn 313.6) | NIS 44.87, gate-out 74.1 %, max run 116, divergence 11 | NEES 580.48
+  PASS: air_given: divergence judged with 과제 값 (q 0.5 vs 4 G turns)
+  PASS: air_tuned: all 1160 messages sent / received / processed
+  air_tuned    ids 1 (created 1, deleted 0), init 0.2 s, confirm 0.5 s | RMS 36.7 m (turn 38.0, straight 35.5), max 115.4 m (turn 115.4) | NIS 2.11, gate-out 0.0 %, max run 0, divergence 0 | NEES 2.11
+  PASS: air_tuned: one track kept to the end, no divergence judgement
+[sweep] 30 seeds per setting (seed k = 12345 + 1000 k, k = 0 is the program's)
+  ship sig 0.3 q  0.10 tau   10: RMS   34.3 (turn   29.6) max   96.2 | NIS   8.49 gate-out  27.9 % maxrun   48.5 | divergence 9.07/run (30/30 seeds) | NEES  81.09
+  ship sig 0.3 q  0.25 tau   10: RMS   30.7 (turn   26.1) max   96.5 | NIS   6.43 gate-out  16.2 % maxrun    5.3 | divergence 0.97/run (18/30 seeds) | NEES  21.82
+  ship sig 0.3 q  0.50 tau   10: RMS   30.9 (turn   27.3) max   97.0 | NIS   5.84 gate-out  13.2 % maxrun    3.2 | divergence 0.07/run ( 2/30 seeds) | NEES   9.81
+  ship sig 0.3 q  1.00 tau   10: RMS   33.3 (turn   30.9) max   98.1 | NIS   5.61 gate-out  12.4 % maxrun    2.9 | divergence 0.03/run ( 1/30 seeds) | NEES   6.29
+  ship sig 0.3 q  2.00 tau   10: RMS   37.0 (turn   35.1) max  102.1 | NIS   5.51 gate-out  12.1 % maxrun    2.8 | divergence 0.03/run ( 1/30 seeds) | NEES   5.20
+  ship sig 0.3 q  5.00 tau   10: RMS   43.0 (turn   41.0) max  113.5 | NIS   5.44 gate-out  11.8 % maxrun    3.1 | divergence 0.10/run ( 3/30 seeds) | NEES   4.75
+  ship sig 0.3 q 10.00 tau   10: RMS   48.4 (turn   46.6) max  126.6 | NIS   5.40 gate-out  11.6 % maxrun    3.2 | divergence 0.10/run ( 3/30 seeds) | NEES   4.68
+  ship sig 0.3 q 20.00 tau   10: RMS   54.4 (turn   53.3) max  140.9 | NIS   5.37 gate-out  11.5 % maxrun    3.2 | divergence 0.10/run ( 3/30 seeds) | NEES   4.67
+  ship sig 0.3 q 40.00 tau   10: RMS   61.1 (turn   60.3) max  158.8 | NIS   5.33 gate-out  11.4 % maxrun    3.0 | divergence 0.03/run ( 1/30 seeds) | NEES   4.69
+  ship sig 0.3 q 80.00 tau   10: RMS   68.4 (turn   67.7) max  179.8 | NIS   5.28 gate-out  11.1 % maxrun    3.0 | divergence 0.03/run ( 1/30 seeds) | NEES   4.71
+  ship sig 0.5 q  0.10 tau   10: RMS   35.0 (turn   34.5) max   95.8 | NIS   5.09 gate-out  13.5 % maxrun   40.2 | divergence 5.97/run (30/30 seeds) | NEES  76.69
+  ship sig 0.5 q  0.25 tau   10: RMS   30.9 (turn   26.9) max   96.0 | NIS   3.06 gate-out   1.6 % maxrun    2.3 | divergence 0.00/run ( 0/30 seeds) | NEES  18.70
+  ship sig 0.5 q  0.50 tau   10: RMS   30.0 (turn   25.3) max   96.2 | NIS   2.49 gate-out   0.4 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   6.98
+  ship sig 0.5 q  1.00 tau   10: RMS   31.2 (turn   27.9) max   96.8 | NIS   2.27 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   3.50
+  ship sig 0.5 q  2.00 tau   10: RMS   34.2 (turn   32.0) max   98.6 | NIS   2.18 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.43
+  ship sig 0.5 q  5.00 tau   10: RMS   39.5 (turn   37.6) max  106.4 | NIS   2.12 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   1.96
+  ship sig 0.5 q 10.00 tau   10: RMS   44.3 (turn   42.4) max  116.8 | NIS   2.10 gate-out   0.2 % maxrun    0.9 | divergence 0.00/run ( 0/30 seeds) | NEES   1.87
+  ship sig 0.5 q 20.00 tau   10: RMS   49.9 (turn   48.4) max  130.3 | NIS   2.08 gate-out   0.2 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   1.84
+  ship sig 0.5 q 40.00 tau   10: RMS   56.2 (turn   55.2) max  145.4 | NIS   2.07 gate-out   0.2 % maxrun    0.9 | divergence 0.00/run ( 0/30 seeds) | NEES   1.84
+  ship sig 0.5 q 80.00 tau   10: RMS   63.0 (turn   62.2) max  164.1 | NIS   2.05 gate-out   0.2 % maxrun    0.9 | divergence 0.00/run ( 0/30 seeds) | NEES   1.84
+  ship sig 0.5 q  0.50 tau    1: RMS   29.5 (turn   26.8) max   95.8 | NIS   2.64 gate-out   0.6 % maxrun    1.1 | divergence 0.00/run ( 0/30 seeds) | NEES  10.37
+  ship sig 0.5 q  0.50 tau    2: RMS   29.0 (turn   24.9) max   95.9 | NIS   2.47 gate-out   0.4 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   6.93
+  ship sig 0.5 q  0.50 tau    5: RMS   29.3 (turn   24.6) max   96.0 | NIS   2.42 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   5.92
+  ship sig 0.5 q  0.50 tau   10: RMS   30.0 (turn   25.3) max   96.2 | NIS   2.49 gate-out   0.4 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   6.98
+  ship sig 0.5 q  0.50 tau   20: RMS   30.8 (turn   26.2) max   96.4 | NIS   2.66 gate-out   0.5 % maxrun    1.1 | divergence 0.00/run ( 0/30 seeds) | NEES   9.76
+  ship sig 0.5 q  0.50 tau   60: RMS   32.3 (turn   27.6) max   96.5 | NIS   3.19 gate-out   1.7 % maxrun    2.4 | divergence 0.00/run ( 0/30 seeds) | NEES  19.81
+  air  sig 0.3 q  0.10 tau   10: RMS  345.6 (turn  343.3) max  726.8 | NIS 430.10 gate-out  93.1 % maxrun  347.6 | divergence 5.50/run (30/30 seeds) | NEES 10940.88
+  air  sig 0.3 q  0.25 tau   10: RMS  210.6 (turn  237.5) max  501.0 | NIS 119.29 gate-out  84.9 % maxrun  183.6 | divergence 9.83/run (30/30 seeds) | NEES 2127.98
+  air  sig 0.3 q  0.50 tau   10: RMS  135.8 (turn  160.7) max  304.3 | NIS  45.30 gate-out  75.1 % maxrun  117.7 | divergence 12.80/run (30/30 seeds) | NEES 589.51
+  air  sig 0.3 q  1.00 tau   10: RMS   85.5 (turn  103.6) max  197.3 | NIS  19.41 gate-out  59.0 % maxrun   63.5 | divergence 21.80/run (30/30 seeds) | NEES 165.03
+  air  sig 0.3 q  2.00 tau   10: RMS   55.8 (turn   65.2) max  144.7 | NIS  10.20 gate-out  36.0 % maxrun   31.3 | divergence 13.70/run (30/30 seeds) | NEES  47.41
+  air  sig 0.3 q  5.00 tau   10: RMS   39.1 (turn   41.8) max  113.8 | NIS   6.46 gate-out  15.8 % maxrun    4.0 | divergence 0.27/run ( 8/30 seeds) | NEES  11.61
+  air  sig 0.3 q 10.00 tau   10: RMS   36.7 (turn   37.7) max  108.7 | NIS   5.70 gate-out  12.7 % maxrun    3.3 | divergence 0.10/run ( 3/30 seeds) | NEES   6.38
+  air  sig 0.3 q 20.00 tau   10: RMS   38.6 (turn   38.8) max  113.7 | NIS   5.44 gate-out  11.7 % maxrun    3.1 | divergence 0.07/run ( 2/30 seeds) | NEES   5.08
+  air  sig 0.3 q 40.00 tau   10: RMS   42.4 (turn   42.3) max  125.8 | NIS   5.32 gate-out  11.4 % maxrun    3.0 | divergence 0.03/run ( 1/30 seeds) | NEES   4.78
+  air  sig 0.3 q 80.00 tau   10: RMS   47.1 (turn   46.9) max  142.2 | NIS   5.24 gate-out  11.0 % maxrun    3.0 | divergence 0.03/run ( 1/30 seeds) | NEES   4.74
+  air  sig 0.5 q  0.10 tau   10: RMS  398.3 (turn  368.4) max  773.6 | NIS 381.26 gate-out  93.0 % maxrun  399.2 | divergence 6.00/run (30/30 seeds) | NEES 9825.91
+  air  sig 0.5 q  0.25 tau   10: RMS  252.6 (turn  274.9) max  561.0 | NIS 104.58 gate-out  79.2 % maxrun  155.2 | divergence 9.33/run (30/30 seeds) | NEES 1922.89
+  air  sig 0.5 q  0.50 tau   10: RMS  175.8 (turn  203.5) max  424.9 | NIS  38.21 gate-out  67.4 % maxrun  116.2 | divergence 11.27/run (30/30 seeds) | NEES 542.44
+  air  sig 0.5 q  1.00 tau   10: RMS  113.6 (turn  136.6) max  259.9 | NIS  14.92 gate-out  47.0 % maxrun   57.1 | divergence 16.50/run (30/30 seeds) | NEES 153.65
+  air  sig 0.5 q  2.00 tau   10: RMS   72.4 (turn   87.7) max  174.3 | NIS   6.56 gate-out  19.4 % maxrun   25.8 | divergence 9.10/run (30/30 seeds) | NEES  43.22
+  air  sig 0.5 q  5.00 tau   10: RMS   44.5 (turn   49.8) max  126.6 | NIS   3.09 gate-out   1.1 % maxrun    1.1 | divergence 0.00/run ( 0/30 seeds) | NEES   8.58
+  air  sig 0.5 q 10.00 tau   10: RMS   37.4 (turn   39.5) max  110.8 | NIS   2.39 gate-out   0.4 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   3.50
+  air  sig 0.5 q 20.00 tau   10: RMS   36.8 (turn   37.5) max  109.2 | NIS   2.16 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.23
+  air  sig 0.5 q 40.00 tau   10: RMS   39.4 (turn   39.5) max  116.4 | NIS   2.08 gate-out   0.2 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   1.92
+  air  sig 0.5 q 80.00 tau   10: RMS   43.6 (turn   43.4) max  129.9 | NIS   2.04 gate-out   0.2 % maxrun    0.9 | divergence 0.00/run ( 0/30 seeds) | NEES   1.85
+  air  sig 0.5 q 20.00 tau    1: RMS   37.1 (turn   38.7) max  110.0 | NIS   2.14 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.12
+  air  sig 0.5 q 20.00 tau    2: RMS   37.2 (turn   38.1) max  110.2 | NIS   2.12 gate-out   0.2 % maxrun    0.9 | divergence 0.00/run ( 0/30 seeds) | NEES   2.02
+  air  sig 0.5 q 20.00 tau    5: RMS   37.1 (turn   37.8) max  109.8 | NIS   2.13 gate-out   0.2 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.07
+  air  sig 0.5 q 20.00 tau   10: RMS   36.8 (turn   37.5) max  109.2 | NIS   2.16 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.23
+  air  sig 0.5 q 20.00 tau   20: RMS   36.8 (turn   37.5) max  108.9 | NIS   2.23 gate-out   0.3 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   2.57
+  air  sig 0.5 q 20.00 tau   60: RMS   38.1 (turn   38.7) max  111.4 | NIS   2.47 gate-out   0.4 % maxrun    1.0 | divergence 0.00/run ( 0/30 seeds) | NEES   3.91
+  1560 link runs
+FAILURES: 0

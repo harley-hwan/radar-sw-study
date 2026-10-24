@@ -1,0 +1,187 @@
+// Microsoft Visual C++ generated resource script.
+//
+#pragma code_page(65001)
+#include "Resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+#include "afxres.h"
+#include "verrsrc.h"
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// TEXTINCLUDE
+//
+1 TEXTINCLUDE
+BEGIN
+    "Resource.h\0"
+END
+
+2 TEXTINCLUDE
+BEGIN
+    "#define APSTUDIO_READONLY_SYMBOLS\r\n"
+    "#include ""afxres.h""\r\n"
+    "#include ""verrsrc.h""\r\n"
+    "#undef APSTUDIO_READONLY_SYMBOLS\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE
+BEGIN
+    "#include ""res\\TargetSimUI.rc2""\r\n"
+    "#include ""afxres.rc""\r\n"
+    "\0"
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Dialog
+//
+IDD_TARGETSIMUI_DIALOG DIALOGEX 0, 0, 780, 500
+STYLE DS_SETFONT | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_POPUP | WS_CLIPCHILDREN | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME
+EXSTYLE WS_EX_APPWINDOW
+CAPTION "TargetSim · 추적 필터 (Singer CMKF)"
+FONT 9, "Malgun Gothic", 400, 0, 0x81
+BEGIN
+    LTEXT           "시나리오",IDC_SCN_LABEL,8,11,34,10,SS_NOPREFIX | SS_CENTERIMAGE
+    COMBOBOX        IDC_SCN_COMBO,44,9,90,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "",IDC_SCN_NAME,140,11,632,10,SS_NOPREFIX | SS_CENTERIMAGE | SS_ENDELLIPSIS
+
+    LTEXT           "",IDC_SCAN_TEXT,14,34,96,12,SS_NOPREFIX | SS_CENTERIMAGE
+    CONTROL         "",IDC_SCAN_SLIDER,"msctls_trackbar32",TBS_HORZ | TBS_NOTICKS | TBS_BOTH | WS_TABSTOP,114,32,380,16
+    CONTROL         "참값",IDC_SHOW_TRUE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,500,34,34,12
+    CONTROL         "플롯",IDC_SHOW_PLOT,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,538,34,34,12
+    CONTROL         "트랙",IDC_SHOW_TRACK,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,576,34,34,12
+    COMBOBOX        IDC_VIEW_MODE,660,32,106,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_VIEW3D,"Static",SS_LEFT | SS_NOTIFY,14,52,400,228
+    CONTROL         "",IDC_PROFILE_LAT,"Static",SS_LEFT | SS_NOTIFY,420,52,346,110
+    CONTROL         "",IDC_PROFILE_LON,"Static",SS_LEFT | SS_NOTIFY,420,168,346,112
+    CONTROL         "",IDC_PLOT,"Static",SS_LEFT | SS_NOTIFY,14,52,752,228
+    CONTROL         "",IDC_FILTER_PLOT,"Static",SS_LEFT | SS_NOTIFY,14,52,752,228
+
+    LTEXT           "추적 필터 (과제 6)",IDC_TRK_TITLE,14,300,150,12,SS_NOPREFIX | SS_CENTERIMAGE
+    PUSHBUTTON      "스코어 확인...",IDC_TRK_SCORE,224,298,60,14
+    LTEXT           "R 표준편차",IDC_PRM_R_LABEL,14,318,44,12,SS_NOPREFIX | SS_CENTERIMAGE
+    LTEXT           "거리 [m]",IDC_PRM_SIGR_LABEL,60,318,32,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PRM_SIGR,94,317,34,13,ES_AUTOHSCROLL
+    LTEXT           "방위각 [°]",IDC_PRM_SIGAZ_LABEL,132,318,38,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PRM_SIGAZ,172,317,34,13,ES_AUTOHSCROLL
+    LTEXT           "고각 [°]",IDC_PRM_SIGEL_LABEL,210,318,32,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PRM_SIGEL,244,317,34,13,ES_AUTOHSCROLL
+    LTEXT           "Singer 모델",IDC_PRM_SINGER_LABEL,14,336,44,12,SS_NOPREFIX | SS_CENTERIMAGE
+    LTEXT           "q [m/s²]",IDC_PRM_Q_LABEL,60,336,32,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PRM_Q,94,335,34,13,ES_AUTOHSCROLL
+    LTEXT           "τ [s]",IDC_PRM_TAU_LABEL,132,336,38,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_PRM_TAU,172,335,34,13,ES_AUTOHSCROLL
+    PUSHBUTTON      "과제 값",IDC_PRM_GIVEN,14,353,40,14
+    PUSHBUTTON      "조정 값",IDC_PRM_TUNED,56,353,40,14
+    LTEXT           "송신 간격",IDC_TRK_GAP_LABEL,102,354,36,12,SS_NOPREFIX | SS_CENTERIMAGE
+    COMBOBOX        IDC_TRK_GAP,140,353,70,80,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "적용 · 다시 실행",IDC_TRK_RESEND,214,353,70,14
+    CONTROL         "",IDC_TRK_SUMMARY_LABEL,"Static",SS_LEFTNOWORDWRAP | SS_NOPREFIX,14,372,40,110
+    CONTROL         "",IDC_TRK_SUMMARY,"Static",SS_LEFTNOWORDWRAP | SS_NOPREFIX,56,372,228,110
+
+    LTEXT           "트랙 표",IDC_TRK_LIST_TITLE,296,300,290,12,SS_NOPREFIX | SS_CENTERIMAGE | SS_ENDELLIPSIS
+    PUSHBUTTON      "CSV 저장...",IDC_SAVE_CSV,686,298,80,14
+    CONTROL         "",IDC_TRK_LIST,"SysListView32",LVS_REPORT | LVS_OWNERDATA | LVS_SINGLESEL | LVS_SHOWSELALWAYS | LVS_NOSORTHEADER | WS_TABSTOP,296,316,470,170
+END
+
+IDD_SCORE_DIALOG DIALOGEX 0, 0, 420, 300
+STYLE DS_SETFONT | DS_MODALFRAME | DS_CENTER | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "트랙 스코어 확인"
+FONT 9, "Malgun Gothic", 400, 0, 0x81
+BEGIN
+    LTEXT           "Assigned_Flag 순서 (1 성공, 0 실패)",IDC_SCORE_FLAGS_LABEL,7,8,140,12,SS_NOPREFIX | SS_CENTERIMAGE
+    EDITTEXT        IDC_SCORE_FLAGS,7,22,300,14,ES_AUTOHSCROLL
+    COMBOBOX        IDC_SCORE_PRESET,313,22,100,120,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "",IDC_SCORE_LIST,"SysListView32",LVS_REPORT | LVS_SINGLESEL | LVS_NOSORTHEADER | WS_BORDER | WS_TABSTOP,7,42,406,190
+    LTEXT           "",IDC_SCORE_RULE,7,236,406,40,SS_NOPREFIX
+    DEFPUSHBUTTON   "닫기",IDOK,361,280,52,14
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// DESIGNINFO
+//
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO
+BEGIN
+    IDD_TARGETSIMUI_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 8
+        RIGHTMARGIN, 772
+        TOPMARGIN, 8
+        BOTTOMMARGIN, 492
+    END
+
+    IDD_SCORE_DIALOG, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 413
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 293
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+/////////////////////////////////////////////////////////////////////////////
+// Version
+//
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "CompanyName", "radar-sw-study"
+            VALUE "FileDescription", "TargetSim UI"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "TargetSimUI.exe"
+            VALUE "LegalCopyright", "Copyright (C) 2026"
+            VALUE "OriginalFilename", "TargetSimUI.exe"
+            VALUE "ProductName", "TargetSim"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END
+
+/////////////////////////////////////////////////////////////////////////////
+// String Table
+//
+STRINGTABLE
+BEGIN
+    AFX_IDS_APP_TITLE       "TargetSim"
+END
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#include "res\TargetSimUI.rc2"
+#include "afxres.rc"
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED

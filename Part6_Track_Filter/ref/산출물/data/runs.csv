@@ -1,0 +1,5 @@
+run,scenario,param,sigma_r,sigma_az_deg,sigma_el_deg,q,tau,proc,lost,ids,created,deleted,init_time,confirm_time,rms,rms_turn,rms_straight,max_err,max_err_turn,mean_nis,gate_out_pct,max_run,divergence,mean_nees
+ship_given,ship,given,10,0.3,0.3,0.5,10,1160,0,1,1,0,0.2,0.5,30.495,25.569,30.909,96.906,46.027,5.6796,12.390,3,0,9.5744
+ship_tuned,ship,tuned,10,0.5,0.5,0.5,10,1160,0,1,1,0,0.2,0.5,29.414,23.225,29.920,98.986,43.923,2.4400,0.351,1,0,6.7963
+air_given,air,given,10,0.3,0.3,0.5,10,1160,0,1,1,0,0.2,0.5,137.257,163.901,108.375,313.604,313.604,44.8732,74.077,116,11,580.4764
+air_tuned,air,tuned,10,0.5,0.5,20,10,1160,0,1,1,0,0.2,0.5,36.714,37.992,35.546,115.362,115.362,2.1087,0.000,0,0,2.1077
